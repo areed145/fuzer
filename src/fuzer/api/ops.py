@@ -145,13 +145,13 @@ def daily_report_day(day: str, version: int | None = None, conn=Depends(get_conn
     from ..ops import daily_report
     if day == "latest":
         newest = conn.execute("select max(day) as day from daily_ops_report").fetchone()["day"]
-        out = daily_report.get(conn, str(newest), version) if newest else None
+        out = daily_report.get(conn, str(newest), version, deps.pack()) if newest else None
     else:
         try:
             date.fromisoformat(day)
         except ValueError:
             raise HTTPException(404, f"no report for {day}")
-        out = daily_report.get(conn, day, version)
+        out = daily_report.get(conn, day, version, deps.pack())
     if out is None:
         raise HTTPException(404, f"no report for {day}")
     return daily_report.for_people(out)

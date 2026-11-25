@@ -184,11 +184,18 @@ window and day (`report_pages.panel_data` of every panel except the commentary a
 for one short call on `agents.summary_model` at medium effort. It writes a headline and two to five points; each point
 cites the measure keys, entity ids or `case:<n>` it rests on. The daily report's checks run on it and are kept with it:
 a number not in the facts, a citation not in them or a point with no citation is flagged on the note for whoever can
-write it again, beside Write again; a reader sees the note alone. A `cases` panel's facts are its rows without their
-count: a live list's count moves by the minute, so the panel says it and the note never repeats a stale one.
-Notes are kept in `report_summary`, shared with everyone. The panel's result says `due` when none is kept for the
-report's default window ending today: the first visit with AI access to the report's own view writes it. Any other
-scope, window or day shows "Write the note" to someone with AI access and nothing to write for anyone else.
+write it again (AI access), beside Write again; anyone else sees a note only when its checks pass. A `cases` panel's
+facts are its rows without their count: a live list's count moves by the minute, so the panel says it and the note
+never repeats a stale one. A kept note is shown only while the stats it talks about (those a point cites, or whose
+value it says) read as they did when it was written; once one moves, the note is stale and not shown, and nothing is
+rewritten by the read. A measure key never shows: the text and the citations read as the measure's label.
+Notes are kept in `report_summary`, shared with everyone. The panel's result says `due` when none was ever kept for
+the report's default window ending today: the first visit with AI access to the report's own view writes it. A stale
+note, or any other scope, window or day, shows "Write the note" to someone with AI access and nothing for anyone else.
+
+The daily report's narrative is checked the same way: when the day's facts no longer match the latest version's (late
+records, or a change to what the facts say), the page shows the plain draft of the facts now and names the version;
+the next day close stores it. How it was drafted and its checks show to whoever can review it while it waits.
 
 **People's notes (`note` panel, `ops/report_notes.py`).** Markdown with live values bound to measures, resolved by the
 server for the note's own scope and period: `{production.oil}`, `{work.backlog@area}` (the area the scope sits in, or

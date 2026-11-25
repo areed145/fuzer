@@ -427,6 +427,8 @@ export interface DailyReport {
   usage: { cost_usd?: number } | null;
   seconds: number | null;
   item_id: number | null;
+  /** The latest version was drafted from records that have changed since: this is the plain draft of them now. */
+  stale_of?: number;
   /** Where the day's review stands (#242), with the open step to act on. */
   review: DailyReview | null;
   /** The EC DAY001 record behind it. */

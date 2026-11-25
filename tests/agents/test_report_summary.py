@@ -90,3 +90,59 @@ def test_reading_never_calls_a_model_and_a_kept_note_is_not_rewritten(okan_db, m
     app.include_router(commentary.router)
     r = TestClient(app).post("/reports/work/summary/generate?window=7d&at=2026-11-03").json()
     assert r["written"] is False and r["summary"]["headline"].startswith("Work and dispatch")
+
+
+def test_a_measure_key_reads_as_its_label():
+    """P5.26e, #1367: a note never shows a measure key; its cites carry the labels the page shows them by."""
+    from fuzer.core.pack import load_pack
+
+    note = {"headline": "work.backlog is high", "points": [{"text": "See work.backlog and e.g. the queue.",
+                                                            "cites": ["work.backlog", "case:3"]}]}
+    out = rs.worded(note, load_pack("okan"))
+    label = rs.metrics.registry()["work.backlog"].label
+    assert out["headline"] == f"{label} is high" and "work.backlog" not in out["points"][0]["text"]
+    assert "e.g." in out["points"][0]["text"] and out["labels"] == {"work.backlog": label}
+
+
+def test_the_note_talks_about_the_stats_it_cites_or_whose_value_it_says():
+    f = {"panels": [*FACTS["panels"], {"id": "closed", "type": "stat", "measures": ["work.closed"],
+                                        "result": {"value": 318}},
+                    {"id": "late", "type": "stat", "measures": ["work.sla_misses"], "result": {"value": 7}}]}
+    note = {"headline": "Closed 318 cases", "points": [{"text": "Backlog high.", "cites": ["work.backlog"]}]}
+    assert [p["id"] for p in rs.said(note, f)] == ["backlog", "closed"]
+
+
+@pytest.mark.integration
+def test_a_note_whose_figures_moved_is_not_shown(okan_db):
+    """P5.26e, #1367: a kept note shows only while the stats it talks about read as they did when it was written; a
+    stale one is hidden (a read writes nothing) and asking writes a new one."""
+    from fuzer.core.pack import current_pack
+    from fuzer.ops import report_pages
+
+    conn, pack = okan_db.conn, current_pack()
+    day = date.today()  # cases have history from the day the test database is built
+    sc = report_pages.panel_data(conn, pack, "work", "summary", None, "7d", day)["scope"]["id"]  # the page's scope
+    f = rs.facts(conn, pack, "work", sc, "7d", day)
+    backlog = next(p for p in f["panels"] if p["id"] == "backlog")
+    fake = FakeNote({"headline": "The week in work", "points": [
+        {"text": "Open cases are on the page.", "cites": ["work.backlog"]}]})
+    rs.write(conn, pack, "work", sc, "7d", day, "user:test", client=fake)
+    assert rs.current(conn, pack, "work", sc, "7d", day)["headline"] == "The week in work"
+    assert report_pages.panel_data(conn, pack, "work", "summary", sc, "7d", day)["summary"] is not None
+
+    def kept_with(panel_id, value):  # the facts the note was written from, with one stat reading otherwise
+        moved = {**f, "panels": [{**p, "result": {**p["result"], "value": value}} if p["id"] == panel_id else p
+                                 for p in f["panels"]]}
+        conn.execute("update report_summary set facts = %s where report_key = 'work' and at = %s",
+                     (rs.Jsonb(moved), day))
+        conn.commit()
+
+    kept_with("backlog", (backlog["result"].get("value") or 0) + 1)
+    assert rs.stale(conn, pack, rs.latest(conn, "work", sc, "7d", day), sc, "7d", day) == ["backlog"]
+    assert rs.current(conn, pack, "work", sc, "7d", day) is None
+    r = report_pages.panel_data(conn, pack, "work", "summary", sc, "7d", day)
+    assert r["summary"] is None and r["due"] is False, "a stale note is never rewritten by a read"
+    # a stat the note neither cites nor quotes may move without making it stale
+    other = next(p for p in f["panels"] if p["type"] == "stat" and p["id"] != "backlog")
+    kept_with(other["id"], 123456)
+    assert rs.current(conn, pack, "work", sc, "7d", day) is not None

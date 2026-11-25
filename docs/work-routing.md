@@ -127,7 +127,7 @@ Each row's **stage** is decided once, on the server:
 | With a desk | A case held by a person or queue that is not the field |
 | On the plan | Planned for a later day; it comes back to To dispatch on its day |
 | With the field | Held by a field operator or the operator queue, or the field said On site |
-| Back from the field | The field reported Done or Could not do, and it waits for whoever sent it |
+| Back from the field | The field reported Done or Could not do and it waits in the IOC's queue; sending it out again moves it on |
 | Closed | No longer open |
 
 **Presets** set the filters for a job. Any role can save its own view.

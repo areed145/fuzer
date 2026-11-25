@@ -79,9 +79,12 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
   const people = useAsync(() => api.workPeople(), []);
   const canAsk = usePermission("ai");  // the assistant runs a paid model: no link for an account that can't ask
   const it = item.data;
-  if (!it || item.error) return <section><PageHeader>Case</PageHeader>
+  // The options decide where Waiting on sits and the roster whether the evidence folds (a field operator): the page
+  // waits for both, failures included, so case 1136 no longer moved under the reader as they answered (P5.26h).
+  const settled = (a: { data?: unknown; error?: unknown }) => a.data !== undefined || !!a.error;
+  if (!it || item.error || !settled(options) || !settled(people)) return <section><PageHeader>Case</PageHeader>
     {demo && <DemoContext step="workflow" />}
-    <Status of={item} />
+    {it && !item.error ? <Status loading /> : <Status of={item} />}
     <a href={href("/list")}>Return to All work</a></section>;
   const closed = !!it.closed_at;
   const payload = (it as WorkItem & { payload?: Record<string, unknown> }).payload ?? {};

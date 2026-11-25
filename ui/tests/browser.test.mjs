@@ -108,7 +108,7 @@ function workList(rows, f = {}, people = []) {
   const field = new Set(people.filter((p) => (p.roles ?? []).includes("operator")).map((p) => p.name));
   const shaped = rows.map((r) => {
     const last = r.evidence?.field?.[r.evidence.field.length - 1];
-    const back = r.back_from_field || (!!last && ["done", "could_not_do"].includes(last.status) && r.assignee !== last.by);
+    const back = !!r.back_from_field;  // the latest hand-on returned it from the field (#1364)
     const stage = r.stage ?? (r.state && r.state !== "open" ? "closed" : !r.item_id ? (r.planned ? "planned" : "dispatch")
       : back ? "back" : r.role === "operator" || field.has(r.assignee) || last?.status === "on_site" ? "field" : "desk");
     return { subjects: [], unmatched: [], joined: [], ...r, uid: `e${r.id}`, exception_id: r.id, kind: r.type,
@@ -370,6 +370,31 @@ test("a report waiting on an agent no worker has claimed says the agent worker m
   await page.getByRole("note").filter({ hasText: "Waiting for an agent worker" }).waitFor({ state: "detached" });
 });
 
+test("P5.26e a published daily report shows readers the report alone, drawn from the records now when they changed", async () => {
+  await page.route("**/reports/daily", route => route.fulfill({ json: [] }));
+  await page.route("**/reports/daily/2025-12-30*", route => route.fulfill({ json: { day: "2025-12-30", version: 2,
+    versions: [1, 2], drafted_by: "template", markdown: "# Daily operations report 2025-12-30\n\n- Production efficiency 100% [fz-a]",
+    checks: { ok: false, uncited_lines: ["x"], unknown_citations: [], unknown_numbers: [] }, seconds: null, changes: null,
+    production_day: null, facts: { sections: {} }, stale_of: 2, review: { item_id: 5, status: "published", outcome: "published",
+      closed_at: "2025-12-31T09:55:00Z", comments: null, step: null } } }));
+  const win = { key: "1d", at: "2025-12-30", start: "2025-12-30", end: "2025-12-30", days: 1, label: "30 Dec 2025", asked: true,
+    previous: { start: "2025-12-29", end: "2025-12-29" } };
+  const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
+  const view = { scope, window: win, repeats: {}, scopes: [scope], definition: { schema: 1, key: "operations",
+    title: "Daily operations", version: 1, for: [], scope: { kinds: ["facility"] }, source: "platform",
+    window: { default: "1d", options: ["1d"], at: "production_day" },
+    rows: [{ id: "report", panels: [{ id: "narrative", type: "narrative", size: 2 }] }] } };
+  await page.route("**/reports/operations?*", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/operations/panels/**", (route) => route.fulfill({ json: { id: "narrative", type: "narrative",
+    title: "Daily report", scope, window: win, as_of: "2025-12-30", note: null, scoped: true, refs: [], href: "/cases/5",
+    day: "2025-12-30", status: "published", version: 2, ok: false } }));
+  await page.goto(`${url}/#/reports/operations?at=2025-12-30`);
+  await page.getByText("Production efficiency 100%").waitFor();
+  await page.getByText("The day's records changed after version 2 was drafted", { exact: false }).waitFor();
+  assert.equal(await page.getByText("drafted by", { exact: false }).count(), 0, "how it was drafted is for the reviewer");
+  assert.equal(await page.getByText("No citation:", { exact: false }).count(), 0);
+});
+
 test("a report page wraps its rows four, two and one across, keeps scope and window in its link, and drops phone: false panels", async () => {
   const win = { key: "7d", at: "2026-11-24", start: "2026-11-18", end: "2026-11-24", days: 7, label: "7 days to 24 Nov 2026",
     previous: { start: "2026-11-11", end: "2026-11-17" } };
@@ -429,7 +454,7 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
   await page.setViewportSize({ width: 1440, height: 900 });
 });
 
-test("a report's AI note cites what it rests on and keeps what the checks found from readers; a note shows its live values and adds for the period", async () => {
+test("a report's AI note cites what it rests on by name and keeps a note that fails its checks from readers; a note shows its live values and adds for the period", async () => {
   const win = { key: "7d", at: "2026-11-24", start: "2026-11-18", end: "2026-11-24", days: 7, label: "7 days to 24 Nov 2026",
     previous: { start: "2026-11-11", end: "2026-11-17" } };
   const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
@@ -441,6 +466,7 @@ test("a report's AI note cites what it rests on and keeps what the checks found 
     body: "Backlog at {work.backlog} after the trip.", by: "Dana", written_at: "2026-11-24T08:00:00Z", edited_at: null, own: true,
     values: { "{work.backlog}": { key: "work.backlog", scope: "fz-f1", value: 1250, unit: "cases", error: null } } };
   const added = [];
+  let checks = { ok: true, uncited_points: [], unknown_citations: [], unknown_numbers: [] };
   await page.route("**/reports/work?*", (route) => route.fulfill({ json: view }));
   await page.route("**/reports/work", (route) => route.fulfill({ json: view }));
   await page.route("**/reports/work/notes", (route) => { added.push(route.request().postDataJSON()); return route.fulfill({ json: { ...note, id: 8 } }); });
@@ -450,16 +476,24 @@ test("a report's AI note cites what it rests on and keeps what the checks found 
     if (id === "notes") return route.fulfill({ json: { ...base, type: "note", text: null, values: {}, notes: [note] } });
     return route.fulfill({ json: { ...base, type: "summary", can_write: false, due: false, summary: {
       report: "work", scope: "fz-f1", window: "7d", at: "2026-11-24", headline: "Backlog up to 42 cases this week",
-      points: [{ text: "Most of it waits for dispatch.", cites: ["work.backlog", "case:12"] }],
-      checks: { ok: false, uncited_points: [], unknown_citations: [], unknown_numbers: ["12%"] },
+      points: [{ text: "Most of it waits for dispatch.", cites: ["work.backlog", "case:12", "plan.lines"] }], checks,
+      labels: { "work.backlog": "Open cases" },
       written_at: "2026-11-24T07:00:00Z", by: "user:a", model: "m", cost_usd: 0.001 } } });
   });
   await page.goto(`${url}/#/reports/work`);
   await page.getByText("Backlog up to 42 cases this week").waitFor();
   await page.getByRole("link", { name: "case 12" }).waitFor();
+  // P5.26e: a measure is cited by its label, never its key
+  await page.getByRole("link", { name: "Open cases" }).waitFor();
+  assert.equal(await page.getByText("work.backlog").count(), 0);
+  assert.equal(await page.getByText("plan.lines").count(), 0);
   await page.getByText("1,250 cases", { exact: true }).waitFor();
-  // what the checks found is for whoever can write the note again: a reader sees the note alone
+  // a note that fails its checks is for whoever can write it again: a reader sees no note, and no flags
+  checks = { ok: false, uncited_points: [], unknown_citations: [], unknown_numbers: ["12%"] };
+  await page.reload();
+  await page.getByText("No note for this period.").waitFor();
   assert.equal(await page.getByText("12% not on the page").count(), 0);
+  assert.equal(await page.getByText("Backlog up to 42 cases this week").count(), 0);
   await page.getByRole("textbox", { name: "Add a note" }).fill("Compressor back on Thursday.");
   await page.getByRole("button", { name: "Add note" }).click();
   await page.waitForFunction(() => true);
@@ -832,6 +866,48 @@ test("another option than the recommended one takes an optional why, which goes 
   assert.deepEqual(chosen, [{ by: "riley", option: "window", reason: "crew already on OKJ-01 that day" }]);
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
+
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.26h after Escalate the case reads again once its workflow has moved on, and waits for its options to draw (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    // the escalation is saved before the case's step reaches its new queue: the read made at once still shows the old one
+    let chosen = 0, readsAfter = 0, optionsAnswered = false;
+    const step = (role) => ({ id: 50, kind: "user", name: "Work the case", element: "work", role, assignee: null, process_id: 1,
+      due_at: null, created_at: "2026-11-22T12:00:00Z" });
+    const item = (role) => ({ id: 21, title: "20-K-2300B tripped", type: "machine_trip", state: "open", subjects: [],
+      created_by: "agent:sre", created_at: "2026-11-22T12:00:00Z", events: [], payload: { exception_id: 7 },
+      processes: [{ id: 1, process_key: "queue_item", state: "running", definition_id: 3, open: [step(role)] }] });
+    await page.route("**/work/items/21", (route) => {
+      if (chosen) readsAfter++;
+      return route.fulfill({ json: item(chosen && readsAfter > 1 ? "engineer" : "ops_lead") });
+    });
+    await page.route("**/work/items/21/options", async (route) => {
+      if (!optionsAnswered) await new Promise((r) => setTimeout(r, 600));
+      optionsAnswered = true;
+      return route.fulfill({ json: chosen ? caseOptions({ applies: false, why_not: "escalated", options: [] })
+        : caseOptions({ recommended: "escalate", reason: "an engineer decides" }) });
+    });
+    await page.route("**/exceptions/7/options/choose", (route) => {
+      chosen++;
+      return route.fulfill({ json: { choice: { id: 3, chosen: "escalate", recommended: "escalate", accepted: true },
+        event: { id: 7, item_id: 21, stage: "desk", state: "open" } } });
+    });
+    await page.goto(`${url}/#/cases/21`);
+    await page.evaluate(() => { localStorage.setItem("fuzer.reviewer", "riley"); localStorage.clear(); localStorage.setItem("fuzer.reviewer", "riley"); });
+    await page.reload();
+    // nothing of the case moves under the reader: Waiting on and the options draw together, once the options answer
+    const waiting = page.getByLabel("Next step");
+    await page.getByLabel("Options").waitFor();
+    assert.equal(await waiting.count(), 1, "Waiting on drew with the options, not before them");
+    await waiting.getByText(/With .*ops lead/i).waitFor();
+    await page.getByLabel("Options").getByRole("button", { name: "Escalate", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "Escalated" }).waitFor();
+    // the read made at once still has the old queue; the one after the workflow moved on shows where it went
+    await waiting.getByText(/With .*engineer/i).waitFor({ timeout: 5000 });
+    assert.equal(chosen, 1, "the escalation went once: only reads repeat");
+    await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+  });
+}
 
 // P5.25d (#1347): a dispatch that is not ready and not recommended goes with one optional why box, its fields stay
 // inside the option's card, and "Dispatched to …" shows in view on every width.
@@ -3941,7 +4017,12 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   await coming.getByRole("button", { name: "Done" }).click();
   await expectReports(changed, 1);
   assert.deepEqual(changed[0], { by: "fred", status: "done" });
-  assert.equal(await mine.getByRole("button", { name: "Could not do" }).isDisabled(), true);
+  // never greyed with its reason in a hover title, which a finger can't read (#1364): a tap with no note asks for
+  // one at the note box and sends nothing
+  await mine.getByRole("button", { name: "Could not do" }).click();
+  await mine.getByText("Say why in the note, then select Could not do.").waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "note-7");
+  assert.equal(reports.length, 0);
   await mine.getByRole("button", { name: "On site" }).click();
   await mine.getByLabel(/Note for the IOC/).fill("valve seized");
   await mine.getByRole("button", { name: "Could not do" }).click();
@@ -4010,7 +4091,7 @@ test("the field's report sits above the IOC's decision, and operators are only o
   await other.getByText("look at it").waitFor();
   assert.equal(await other.getByRole("link", { name: /Open step/ }).count(), 0);  // an engineer's form isn't theirs
 
-  const back = { ...base, id: 3, key: "c", title: "Seal weeping on P-101", item_id: 33, assignee: "erin",
+  const back = { ...base, id: 3, key: "c", title: "Seal weeping on P-101", item_id: 33, assignee: "erin", back_from_field: true,
     evidence: { field: [{ at: "2026-11-09T09:00:00Z", by: "otto", status: "done", note: "seal replaced" }] } };
   const fresh = { ...base, id: 4, key: "d", title: "Compressor trip", item_id: null, assignee: null };
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: [back, fresh] }));
@@ -4039,9 +4120,9 @@ test("the Board lays open work out by stage, splits it into lanes, and its cards
     exc(5, { title: "Seal leak at export pump B", item_id: 32, assignee: "sam",
       evidence: { field: [{ at: ago(185), by: "sam", status: "on_site", note: null }] } }),
     exc(6, { title: "Drain valve weeping", type: "round_finding", source: "rounds", item_id: 33, role: "operator" }),
-    exc(7, { title: "Strainer DP high", item_id: 34, assignee: "riley",
+    exc(7, { title: "Strainer DP high", item_id: 34, assignee: "riley", back_from_field: true,
       evidence: { field: [{ at: ago(40), by: "sam", status: "done", note: "cleaned" }] } }),
-    exc(8, { title: "Wellhead pressure high", source: "historian", item_id: 35, assignee: "riley",
+    exc(8, { title: "Wellhead pressure high", source: "historian", item_id: 35, assignee: "riley", back_from_field: true,
       evidence: { field: [{ at: ago(70), by: "sam", status: "could_not_do", note: "no permit" }] } }),
   ];
   const closed = [exc(9, { title: "Cooler fan tripped", state: "cleared", closed_at: ago(200) })];
@@ -4119,7 +4200,7 @@ test("All work is one list of every open event and case, filtered on any dimensi
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: [
     exc(1, { title: "Compressor trip" }),
     exc(2, { title: "Packing leak", item_id: 21, role: "operator" }),
-    exc(3, { title: "Seal weeping", item_id: 22, assignee: "erin",
+    exc(3, { title: "Seal weeping", item_id: 22, assignee: "erin", back_from_field: true,
       evidence: { field: [{ at: "2026-11-09T09:00:00Z", by: "otto", status: "done", note: "seal replaced" }] } }),
   ] }));
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "otto", roles: ["operator"] }] }));
@@ -4276,21 +4357,96 @@ for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]
     });
     assert.equal(fits, true, "the photo input stays inside its card");
     await card.getByLabel("Note for the IOC").fill("Bolts replaced");
+    // scrolled down to the card's buttons, as a phone is by then: the short confirmation replacing a tall card must
+    // not end up under the top bar (tour B, finding 15 of tour A)
+    // a long My work below the jobs, as on the live site, so the page keeps its scroll when the card shrinks
+    await page.evaluate(() => document.querySelector("#main, main")?.append(Object.assign(document.createElement("div"), { style: "height: 3000px" })));
+    const done = await card.getByRole("button", { name: "Done", exact: true }).boundingBox();
+    await page.evaluate((y) => window.scrollBy(0, y - 120), done.y);
     await card.getByRole("button", { name: "Done", exact: true }).click();
     await expectReports(reports, 1);
     assert.equal(reports[0].status, "done");
     const said = page.getByRole("status").filter({ hasText: "Done sent for" });
     await said.waitFor();
+    await said.getByText("It goes back to the IOC.").waitFor();  // the IOC's queue, not the dispatcher in person (#1364)
     await card.waitFor({ state: "detached" });
-    // said where the card was: below the job above it, in view
+    await page.waitForTimeout(300);
+    // P5.26h: each list's count is of the job cards under it, never one counting the job just reported
+    const counted = await page.evaluate(() => [...document.querySelectorAll("section.field-jobs")].map((s) =>
+      [Number(s.querySelector("h2 .muted, h2 small, h2 span")?.textContent ?? 0) || 0, s.querySelectorAll(".field-job").length]));
+    assert.ok(counted.length > 0 && counted.every(([n, cards]) => n === cards), JSON.stringify(counted));
+    // said where the card was: below the job above it, in view and clear of the top bar
     const [prev, note] = await Promise.all([page.locator(".field-job", { hasText: "Gauge check" }).boundingBox(), said.boundingBox()]);
+    const bar = await page.evaluate(() => { const b = document.querySelector(".topbar")?.getBoundingClientRect();
+      return b && getComputedStyle(document.querySelector(".topbar")).position === "sticky" ? b.bottom : 0; });
     assert.ok(note.y > prev.y, "the confirmation sits where the card was, not at the top");
-    assert.ok(note.y >= 0 && note.y + note.height <= height, "the confirmation is in view");
+    assert.ok(note.y >= bar && note.y + note.height <= height, `the confirmation is in view (top ${note.y}, bar ${bar})`);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await said.getByRole("button", { name: "OK" }).click();
     await said.waitFor({ state: "detached" });
   });
 }
+
+// P5.26b (#1364): on a touch screen nothing is greyed with its reason in a hover title. A tap on Could not do (or
+// Done) with nothing said asks for the note at the note box; with the reason typed, the next tap sends it.
+test("a field operator's tap on Could not do asks for why and then sends it (P5.26b, touch)", async () => {
+  const phone = await browser.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const p = await phone.newPage();
+  const job = { id: 31, type: "message_report", key: "m", source: "messages", state: "open", priority: null, value_usd: null,
+    subjects: [], unmatched: [], raised_count: 1, first_seen: "2026-11-25T06:00:00Z", last_seen: "2026-11-25T06:00:00Z",
+    evidence: {}, history: [], field: [], label: "Message report", role: "operator", assignee: "fred", item_id: 51,
+    title: "Wellhead weeping at the wing valve flange, slight gas smell", queued: false, assets: [], checklist: [],
+    finding: { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null,
+      end: null, confidence: null, items: [], checks: [], subjects: [], value_usd: null },
+    sent: { by: "riley", at: "2026-11-25T06:05:00Z", reason: "Go and have a look, report what you find" } };
+  const reports = [];
+  let jobs = [job];
+  await p.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  await p.route("**/*", (route) => {
+    const u = new URL(route.request().url());
+    if (u.pathname.startsWith("/assets/") || u.pathname === "/" || /\.(svg|png|webmanifest)$/.test(u.pathname)) return route.continue();
+    const json = {
+      "/auth/me": { mode: "local", configured: true, user: null },
+      "/work/inbox": { person: "fred", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } },
+      "/work/counts": { open: 0, overdue: 0, stages: { dispatch: 0, planned: 0, field: 0, back: 0, desk: 0 }, waiting_on_you: null },
+      "/exceptions/field": { person: "fred", coming_up: [], jobs },
+      "/work/notifications": { unread: 0, notifications: [] },
+      "/demo/config": { enabled: true },
+      "/stats": { facility: "Test facility", pack: "okan", records: 0, entities: {}, edges: 0, open_reviews: {}, rebuild: {} },
+      "/settings": { project: null, projects: [], settings: [] },
+      "/jobs/health": { available: false, level: "unknown", summary: "" },
+      "/jobs": { available: false, dagster: { url: "", reachable: false }, scheduler: { running: false, last_heartbeat: null },
+        jobs: [], sensors: [], checks: [], health: { summary: "No jobs configured" }, claude: null },
+    }[u.pathname];
+    if (u.pathname === "/exceptions/31/report") {
+      reports.push(route.request().postDataJSON());
+      jobs = [];  // the field's part is over: the job leaves their list for the IOC's queue
+      return route.fulfill({ json: job });
+    }
+    return route.fulfill({ json: json ?? [] });
+  });
+  await p.goto(`${url}/#/inbox`);
+  const card = p.locator(".field-job", { hasText: "gas smell" });
+  const couldNot = card.getByRole("button", { name: "Could not do" });
+  await couldNot.waitFor();
+  assert.equal(await couldNot.isDisabled(), false);
+  assert.equal(await card.getByRole("button", { name: "Done", exact: true }).isDisabled(), false);
+  await couldNot.tap();
+  await card.getByText("Say why in the note, then select Could not do.").waitFor();
+  assert.equal(await p.evaluate(() => document.activeElement?.id), "note-31");  // the note box, ready to type in
+  assert.equal(reports.length, 0);
+  await card.getByRole("button", { name: "Done", exact: true }).tap();
+  await card.getByText("Say you are on site, or add a note, reading or photo, then select Done.").waitFor();
+  assert.equal(reports.length, 0);
+  await card.getByLabel("Note for the IOC").fill("Gas detector in alarm, area barriered; needs a gas test and permit");
+  await couldNot.tap();
+  await expectReports(reports, 1);
+  assert.deepEqual([reports[0].status, reports[0].note], ["could_not_do", "Gas detector in alarm, area barriered; needs a gas test and permit"]);
+  await p.getByRole("status").filter({ hasText: "Could not do sent for" }).waitFor();
+  await card.waitFor({ state: "detached" });  // released: not still a live job with On site and Done
+  assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await phone.close();
+});
 
 test("My work stays My work for a desk role, and a row waiting in your queue is taken from All work", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ivy"));
@@ -4801,27 +4957,28 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   await page.setViewportSize({ width: 1280, height: 800 });
 });
 
-test("a handover reads in a minute on a phone: what needs the lead first, five lines a section, the rest on ask", async () => {
+test("a handover reads in a minute on a phone: what needs the lead first, three lines a section, the rest linked or on ask", async () => {
   const row = { id: 8, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z", state: "draft",
     status: "not acknowledged", acknowledged_by: null, acknowledged_at: null, item_id: 41, lines: 30 };
   await page.route("**/handovers", (route) => route.fulfill({ json: [row] }));
   const many = (word, n) => Array.from({ length: n }, (_, i) => ({ text: `${word} ${i + 1}`, cites: [`case:${i + 1}`] }));
   await page.route("**/handovers/8", (route) => route.fulfill({ json: { ...row, drafted_at: "2026-11-12T06:00:00Z",
     notes: null, acknowledged_note: null, facts: { sections: { "New exceptions": many("New case", 25), "In the field": [],
-      "Escalated or overdue": many("Escalated step", 2), "Active bypasses": [] }, more: { "New exceptions": 121 },
-      unknown: { "Active bypasses": "no bypass register loaded" } } } }));
+      "Back from the field": many("Back step", 5), "Active bypasses": [] }, more: { "New exceptions": 121 },
+      unknown: { "Active bypasses": "no bypass register loaded" }, links: { "Back from the field": "/list?stage=back" } } } }));
   await page.goto(`${url}/#/handover?id=8`);
-  await page.getByText("Escalated step 1").waitFor();
-  // the headline says what the incoming lead takes on first, in reading order (#11)
-  assert.equal(await page.locator(".handover-first").innerText(), "First: 2 escalated or overdue · 146 new exceptions");
+  await page.getByText("Back step 1").waitFor();
   const headings = await page.locator("main h3").allInnerTexts();
-  assert.ok(headings[0].startsWith("Escalated or overdue") && headings[1].startsWith("New exceptions"), headings.join(" | "));
-  assert.equal(await page.locator("main li", { hasText: /^New case/ }).count(), 5);
+  assert.ok(headings[0].startsWith("Back from the field") && headings[1].startsWith("New exceptions"), headings.join(" | "));
+  // P5.26i: three lines a section; the rest in the List filtered to them, where it can show them
+  assert.equal(await page.locator("main li", { hasText: /^Back step/ }).count(), 3);
+  assert.equal(await page.getByRole("link", { name: "2 more in All work" }).getAttribute("href"), "#/list?stage=back");
+  assert.equal(await page.locator("main li", { hasText: /^New case/ }).count(), 3);
   assert.ok(await page.getByText("Nothing in in the field.").count());
   // no bypass register: the section is unknown and why, never "nothing in active bypasses"
   assert.ok(await page.getByText("Active bypasses unknown: no bypass register loaded.").count());
   assert.doesNotMatch(await page.locator("main").innerText(), /nothing in [^.]*active bypasses/i);
-  await page.getByRole("button", { name: "Show all 146" }).click();
+  await page.getByRole("button", { name: "143 more" }).click();
   assert.equal(await page.locator("main li", { hasText: /^New case/ }).count(), 25);
   await page.getByText("and 121 more").waitFor();
   // the standing backlog is not listed: one link to All work for the rest (#1351)
@@ -4829,6 +4986,41 @@ test("a handover reads in a minute on a phone: what needs the lead first, five l
   // a past handover nobody acknowledged says so, never "draft" or "handed over"
   await page.getByRole("cell", { name: "not acknowledged" }).waitFor();
   assert.doesNotMatch(await page.locator("main").innerText(), /\bdraft\b(?! the)|handed over/i);
+});
+
+// P5.26i (#1371): a normal shift read on a phone was nine screens, 162 lines, and its times had no day. Each section shows
+// three lines, and every time says its day.
+test("a normal shift's handover is under three phone screens and every time carries its date (P5.26i)", async () => {
+  const row = { id: 10, shift_start: "2026-11-24T18:00:00Z", shift_end: "2026-11-25T06:00:00Z", state: "draft",
+    status: "not acknowledged", acknowledged_by: null, acknowledged_at: null, item_id: 43, lines: 120, notes_by: "bo" };
+  await page.route("**/handovers", (route) => route.fulfill({ json: [row] }));
+  const many = (word, n, timed = false) => Array.from({ length: n }, (_, i) => ({
+    text: `${word} ${i + 1} on 20-K-2300B, the lube oil skid, reported by the field` + (timed ? ": done {at}" : ""),
+    cites: [`case:${i + 1}`], ...(timed ? { at: `2026-11-24T2${i % 4}:10:00Z` } : {}) }));
+  await page.route("**/handovers/10", (route) => route.fulfill({ json: { ...row, drafted_at: "2026-11-25T06:00:00Z",
+    notes: "Compressor B on recycle overnight", notes_at: "2026-11-25T05:40:00Z", acknowledged_note: null,
+    facts: { sections: { "In the field": many("Gauge check", 17), "Open permits": many("PTW", 24), Rounds: many("Round", 6),
+      "Back from the field": many("Back", 6), "Escalated or overdue": many("Escalated", 4), Dispatched: many("Sent", 8, true),
+      "New exceptions": many("New", 30), Closed: many("Closed", 6, true), "Records to check": many("Gap", 2) },
+      more: { "New exceptions": 40 }, links: { "In the field": "/list?stage=field", "Back from the field": "/list?stage=back" } } } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/handover?id=10`);
+  await page.getByRole("button", { name: "I have read it: acknowledge" }).waitFor();
+  // the handover's card, Notes and Acknowledge first, under three screens
+  const card = page.locator("main .ui-card").first();
+  const box = await card.boundingBox();
+  assert.ok(box.y + box.height < 3 * 844, `the handover runs to ${Math.round(box.y + box.height)} px, more than three phone screens`);
+  assert.ok(await page.locator("main li").count() <= 30);
+  // a time says its day: never a bare "21:10" or "{at}"
+  const text = await card.innerText();
+  assert.doesNotMatch(text, /\{at\}/);
+  assert.match(text, /Closed 1 on 20-K-2300B[^\n]*: done Nov 24, \d+:10 [AP]M/);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.reload();
+  await page.getByRole("button", { name: "I have read it: acknowledge" }).waitFor();
+  const desk = await page.locator("main .ui-card").first().boundingBox();
+  assert.ok(desk.y + desk.height < 3 * 900, `on a desk it runs to ${Math.round(desk.y + desk.height)} px`);
 });
 
 // #1351: the banner opens the handover at the top, so Notes and Acknowledge sit in the first screen, on a phone too, however
@@ -6703,7 +6895,9 @@ test("a case closes out on a phone with what it was, its failure mode, cause and
   await page.goto(`${url}/#/cases/7`);
   const started = Date.now();
   await page.getByRole("button", { name: "Close out", exact: true }).click();
-  await page.getByText("Filled in from what the case says.", { exact: false }).waitFor();
+  // said beside each field it filled, not over the form (#1366): what it was, the failure mode and the action
+  await page.getByText("Filled in from what the case says").first().waitFor();
+  assert.equal(await page.getByText("Filled in from what the case says").count(), 3);
   assert.equal(await page.getByLabel("Failure mode").inputValue(), "VIB");
   assert.equal(await page.getByLabel("Action taken").inputValue(), "1");
   assert.equal(await page.getByRole("button", { name: "Close the case" }).isDisabled(), true);  // the cause is still to say
@@ -6721,6 +6915,58 @@ test("a case closes out on a phone with what it was, its failure mode, cause and
   assert.deepEqual(posts[0].suggested, { from: "words", disposition: "real", failure_mode: "VIB", activity: "1" });
   await page.setViewportSize({ width: 1280, height: 800 });
 });
+
+// P5.26d (#1366): a stuck level control valve was closed as "A real problem: Noise", the failure mode taken silently
+// from the folded "Equipment failure details (optional)" nobody opened. Off equipment, the folded fields are blank and
+// sent only when the person opens and sets them; "Filled in" is said only beside a field it filled that shows.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`a close-out saves only what a person chose, never a folded optional field (P5.26d, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const item = { ...demoTask.item, title: "Glycol contactor level high, gauge glass agrees", state: "open", closed_at: null,
+      processes: [], events: [] };
+    await page.route("**/work/items/7", (route) => route.fulfill({ json: item }));
+    const vocabulary = {
+      dispositions: { real: "A real problem", false_alarm: "False alarm", duplicate: "Duplicate", data_problem: "Data problem" },
+      outcomes: { fixed: "Fixed", contained: "Contained, follow-up planned" },
+      failure_modes: { NOI: "Noise", STD: "Structural deficiency" }, mechanisms: {}, causes: { "3": "Operation / maintenance" },
+      activities: { "1": "Replace", "4": "Adjust" },
+    };
+    const posts = [];
+    await page.route("**/work/items/7/closeout", (route) => {
+      if (route.request().method() === "POST") {
+        posts.push(route.request().postDataJSON());
+        return route.fulfill({ status: 400, json: { detail: "kept here" } });  // nothing to draw after: the body is the test
+      }
+      // even were a failure mode suggested, the form doesn't fill the folded section with it
+      return route.fulfill({ json: { item_id: 7, record: null, vocabulary, repeats: [], equipment: false, asked: false,
+        suggestion: { from: "words", disposition: "real", failure_mode: "NOI", activity: "4" } } });
+    });
+    await page.goto(`${url}/#/cases/7`);
+    await page.getByRole("button", { name: "Close out", exact: true }).click();
+    const form = page.locator(".closeout-form");
+    await form.getByLabel("What it was").waitFor();
+    assert.equal(await form.getByLabel("What it was").inputValue(), "real");
+    assert.equal(await form.getByText("Filled in from what the case says").count(), 1);  // beside What it was only
+    assert.equal(await form.getByLabel("Failure mode").count(), 0);  // folded away
+    await form.getByLabel("Outcome").selectOption("contained");
+    await form.getByRole("button", { name: "Close the case" }).click();
+    await form.getByText("kept here").waitFor();
+    assert.equal(posts.length, 1);
+    assert.deepEqual([posts[0].disposition, posts[0].outcome, posts[0].failure_mode, posts[0].activity, posts[0].cause],
+      ["real", "contained", undefined, undefined, undefined]);
+    // opened, the folded fields are blank and claim nothing; what the person sets there is sent
+    await form.getByRole("button", { name: "Equipment failure details (optional)" }).click();
+    assert.equal(await form.getByLabel("Failure mode").inputValue(), "");
+    assert.equal(await form.getByLabel("Action taken").inputValue(), "");
+    assert.equal(await form.getByText("Filled in from what the case says").count(), 1);
+    await form.getByLabel("Failure mode").selectOption("STD");
+    await form.getByRole("button", { name: "Close the case" }).click();
+    await expectReports(posts, 2);
+    assert.deepEqual([posts[1].failure_mode, posts[1].activity], ["STD", undefined]);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
 
 // P6.1b (#656): when the re-check is due, whoever closed the problem out answers "did the fix hold?" on its case.
 test("whoever closed a problem out answers whether the fix held, and a no reopens the case (#656)", async () => {

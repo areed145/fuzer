@@ -1,6 +1,8 @@
 /** Shift handover (#467): what changed this shift, drafted from live work at each shift change, every line citing its
  * case or exception. The outgoing lead adds notes; the incoming lead acknowledges it, which is kept with who and when.
- * Notes and Acknowledge lead, so a phone opens on them (#1351). Past handovers stay readable. */
+ * Notes and Acknowledge lead, so a phone opens on them (#1351). Each section lists its first few lines and links the
+ * rest, so a shift reads in under three phone screens; a line's time is said with its date (P5.26i). Past handovers
+ * stay readable. */
 import { useState } from "react";
 import { when } from "../format";
 import { api, type Handover } from "../api";
@@ -25,8 +27,8 @@ const citeLabel = (c: string) => {
     : kind === "entity" ? `the ${id.split("-")[1]?.replace(/_/g, " ") || "record"}` : kind.replace(/_/g, " ");
 };
 
-/** Lines shown per section until the reader asks for the rest. */
-const FIRST = 5;
+/** Lines shown per section (P5.26i): the rest are a link to the List filtered to them, or a tap away. */
+const FIRST = 3;
 const FIRST_READ = ["Escalated or overdue", "Back from the field", "In the field", "Active bypasses", "Open permits",
   "Records to check", "New exceptions", "Closed", "Dispatched", "Rounds"];
 const slug = (name: string) => name.toLowerCase().replace(/[^a-z]+/g, "-");
@@ -86,9 +88,6 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
   const said = sections.filter(([name]) => !(name in unknown));
   const busy = said.filter(([name, lines]) => lines.length + (h.facts.more?.[name] ?? 0) > 0);
   const quiet = said.filter(([name, lines]) => lines.length + (h.facts.more?.[name] ?? 0) === 0).map(([name]) => name);
-  const jumps = (part: typeof busy) => part.map(([name, lines], i) => <span key={name}>{i > 0 && " · "}
-    <a href={`#handover-${slug(name)}`} onClick={(e) => { e.preventDefault(); document.getElementById(`handover-${slug(name)}`)?.scrollIntoView({ block: "start" }); }}>
-      {lines.length + (h.facts.more?.[name] ?? 0)} {name.toLowerCase()}</a></span>);
   return (
     <Card title={`Shift ${when(h.shift_start)} to ${when(h.shift_end)}`}>
       <Text as="p" small>
@@ -115,16 +114,13 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
       {h.acknowledged_note && <Text as="p" small>Incoming: {h.acknowledged_note}</Text>}
       <ErrorText>{a.error}</ErrorText>
       {busy.length === 0 && <Empty className="small">Nothing to hand over.</Empty>}
-      {/* The headline (#11): what the incoming lead takes on first, in the order to read it, each a jump to its lines. */}
-      {busy.length > 0 && <p className="handover-first">
-        <strong>First:</strong> {jumps(busy.slice(0, 3))}
-        {busy.length > 3 && <Text muted>. Then {jumps(busy.slice(3))}</Text>}
-      </p>}
       {busy.map(([name, lines]) => {
         const more = h.facts.more?.[name] ?? 0;
         const total = lines.length + more;
         const open = shown.has(name);
         const visible = open ? lines : lines.slice(0, FIRST);
+        // the rest in the List filtered to them where it can show them, else a tap away here
+        const list = h.facts.links?.[name];
         return <div key={name} id={`handover-${slug(name)}`} className="handover-section">
           <Heading level={3} detail={total}>{name}</Heading>
           <List small>
@@ -132,14 +128,16 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
               // The line opens its case (else its exception); "open the case" after every line was noise (#11).
               const target = l.cites.find((c) => c.startsWith("case:")) ?? l.cites.find((c) => c.startsWith("exception:"));
               const rest = l.cites.filter((c) => !c.startsWith("case:") && !c.startsWith("exception:"));
-              return <li key={i}>{target ? <a className="handover-line" href={citeHref(target)}>{l.text}</a> : l.text}
+              const text = l.at ? l.text.replace("{at}", when(l.at)) : l.text;
+              return <li key={i}>{target ? <a className="handover-line" href={citeHref(target)}>{text}</a> : text}
                 {rest.map((c) => <span key={c}> · <a className="small" href={citeHref(c)}>{citeLabel(c)}</a></span>)}</li>;
             })}
             {open && more > 0 && <li className="muted">and {more} more</li>}
           </List>
-          {lines.length > FIRST && <Button size="sm" variant="ghost" aria-expanded={open}
+          {total > FIRST && list && <a className="small" href={href(list)}>{total - FIRST} more in All work</a>}
+          {lines.length > FIRST && !list && <Button size="sm" variant="ghost" aria-expanded={open}
             onClick={() => setShown((s) => { const n = new Set(s); if (open) n.delete(name); else n.add(name); return n; })}>
-            {open ? "Show fewer" : `Show all ${total}`}</Button>}
+            {open ? "Show fewer" : `${total - FIRST} more`}</Button>}
         </div>;
       })}
       {(quiet.length > 0 || Object.keys(unknown).length > 0) && <Text as="p" small muted>

@@ -332,23 +332,34 @@ def dispatch_item(conn, item_id: int, by: str, to: str, reason: str | None = Non
     return hand_off(conn, nxt[0]["id"], by, to, reason)
 
 
-def return_item(conn, item_id: int, person: str, to: str, reason: str | None = None) -> dict:
-    """Give back what `person` holds on a case to `to` (whoever sent it to them): their open person step, else the
-    case. Unlike dispatching, it never sends the process to the field: a field report coming back must land with the
-    IOC, not start another field check for the person it returns to."""
+def _desk_queue(role: str | None, fallback: str) -> str:
+    """Where work coming back from the field goes: the queue of the step (or case) it returns to, unless that is the
+    field's own, then `fallback` (the IOC's queue). Never a person, who may be off shift (#1364)."""
+    return f"role:{role}" if role and role != "operator" else fallback
+
+
+def return_item(conn, item_id: int, person: str, fallback: str, reason: str | None = None) -> dict | None:
+    """Give back what `person` holds on a case (their open person step, else the case) to its desk queue, else
+    `fallback`. Unlike dispatching, it never sends the process to the field: a field report coming back must land
+    with the IOC, not start another field check. None when nothing on the case is with them."""
     from .assignment import hand_off
 
-    step = conn.execute("select id from work_token where item_id = %s and kind = 'user' and state in ('ready', 'waiting') "
-                        "and assignee = %s order by due_at nulls last, id limit 1", (item_id, person)).fetchone()
+    step = conn.execute("select id, role from work_token where item_id = %s and kind = 'user' and state in "
+                        "('ready', 'waiting') and assignee = %s order by due_at nulls last, id limit 1",
+                        (item_id, person)).fetchone()
     if step:
-        return hand_off(conn, step["id"], person, to, reason)
-    return assign_item(conn, item_id, person, to, reason)
+        return hand_off(conn, step["id"], person, _desk_queue(step["role"], fallback), reason)
+    item = _item(conn, item_id)
+    if item["assignee"] != person or _has_process(conn, item_id):
+        return None
+    return assign_item(conn, item_id, person, _desk_queue(item["role"], fallback), reason)
 
 
-def report_field_step(conn, item_id: int, person: str, result: str, note: str | None, reason: str) -> dict | None:
+def report_field_step(conn, item_id: int, person: str, result: str, note: str | None, reason: str,
+                      fallback: str) -> dict | None:
     """Complete a field step (an open `operator` step `person` holds) with what they found (`field_result`,
-    `field_note`), then hand the step the process comes back to (the IOC's decision) to whoever sent them, with
-    `reason`. None when they hold no field step on the case."""
+    `field_note`), then hand the step the process comes back to (the IOC's decision) to its desk queue, else
+    `fallback`, with `reason`. None when they hold no field step on the case."""
     from .assignment import complete, hand_off
 
     step = conn.execute("select id from work_token where item_id = %s and kind = 'user' and state = 'waiting' "
@@ -356,66 +367,13 @@ def report_field_step(conn, item_id: int, person: str, result: str, note: str | 
                         (item_id, person)).fetchone()
     if not step:
         return None
-    sender = conn.execute(  # who sent them: the hand-off to them, else whoever completed the step before it
-        """
-        select coalesce((select actor from work_event where token_id = %(t)s and kind = 'handed_off'
-                         and data->>'to' = %(p)s and actor <> %(p)s order by id desc limit 1),
-                        (select actor from work_event where item_id = %(i)s and kind = 'completed' and token_id < %(t)s
-                         and actor not like 'agent:%%' and actor <> 'system' order by id desc limit 1)) as who
-        """, {"t": step["id"], "p": person, "i": item_id}).fetchone()["who"]
     # back from the field: the step it returns to decides afresh rather than sending them out again
     complete(conn, step["id"], person, {"field_result": result, "field_note": note or "", "field_route": "returned"})
     back = _open_user_steps(conn, item_id, after=step["id"])
-    if back and sender:
-        hand_off(conn, back[0]["id"], person, sender, reason)
-    return {"task_id": step["id"], "back_to": sender, "next": back[0]["id"] if back else None}
-
-
-def _back_to(prior: str | None, person: str, role: str | None) -> str | None:
-    """Where handed-back work goes: whoever it was handed from (a person or `role:<role>`), else its role's queue."""
-    from . import bpmn
-
-    if prior and ":" not in prior and prior in bpmn.PERSON_ROLES:
-        prior = f"role:{prior}"  # an item's own hand-off records its role bare
-    if prior and prior != person:
-        return prior
-    return f"role:{role}" if role else None
-
-
-def hand_back_item(conn, item_id: int, person: str, by: str, reason: str | None = None) -> dict | None:
-    """Give back what was sent to `person` on a case to whoever it was handed from: the open person step they hold
-    (a process case), else the case itself. A field operator reporting back on a dispatched job, say, returns the
-    IOC's decision step to the IOC instead of leaving it in the operator's list. None when nothing is with them."""
-    step = conn.execute(
-        "select id, role from work_token where item_id = %s and kind = 'user' and state in ('ready', 'waiting') "
-        "and assignee = %s order by due_at nulls last, id limit 1", (item_id, person)).fetchone()
-    if step:
-        prior = conn.execute(
-            "select actor, data->>'from' as f from work_event where token_id = %s and kind = 'handed_off' "
-            "and data->>'to' = %s order by id desc limit 1", (step["id"], person)).fetchone()
-        came = prior and prior["f"]
-        if came and came.startswith("role:") and prior["actor"] == person:
-            # they took it from the queue, which isn't being sent it: back to whoever sent it to that queue
-            sender = conn.execute(
-                "select actor from work_event where token_id = %s and kind = 'handed_off' and data->>'to' = %s "
-                "and actor <> %s and actor not like 'agent:%%' and actor <> 'system' order by id desc limit 1",
-                (step["id"], came, person)).fetchone()
-            came = sender["actor"] if sender else came
-        to = _back_to(came, person, step["role"])
-        return hand_off(conn, step["id"], by, to, reason) if to else None
-    item = _item(conn, item_id)
-    if item["assignee"] != person or item["state"] in ("done", "cancelled") or _has_process(conn, item_id):
-        return None
-    # Handed to them, else opened for them or for a queue they took it from: back to whoever opened it (the
-    # dispatcher). Taking it from the queue themselves isn't being sent it, so it doesn't send it back to the queue.
-    prior = conn.execute(
-        "select f from (select id, data->>'from' as f from work_event where item_id = %(i)s and token_id is null "
-        "and kind = 'handed_off' and data->>'to' = %(p)s and actor <> %(p)s union all select id, actor from work_event "
-        "where item_id = %(i)s and kind = 'created' and (data->>'assignee' = %(p)s "
-        "or (actor <> %(p)s and actor not like 'agent:%%'))) x order by id desc limit 1",
-        {"i": item_id, "p": person}).fetchone()
-    to = _back_to(prior and prior["f"], person, item["role"])
-    return assign_item(conn, item_id, by, to, reason) if to else None
+    to = _desk_queue(back[0]["role"], fallback) if back else None
+    if back:
+        hand_off(conn, back[0]["id"], person, to, reason)
+    return {"task_id": step["id"], "back_to": to, "next": back[0]["id"] if back else None}
 
 
 def person_roles(conn) -> list[str]:

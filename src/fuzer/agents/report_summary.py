@@ -7,10 +7,15 @@ The entity summary's pattern (agents/summary.py), kept per period instead of per
 who opens that report. Reading never calls a model. The daily report's checks apply (ops/daily_report.check): a point
 with no citation, a citation that isn't in the facts, or a number that isn't in them is flagged on the note.
 
+A kept note is shown only while the figures it talks about are the page's (P5.26e, #1367): a stat it cites, or whose
+value it says, that reads differently now makes the note stale, and a stale note is not shown (nothing is rewritten
+by a read). A measure key is never shown in the note's words: it reads as the measure's label.
+
     facts(conn, pack, key, scope, window, at)        the report's panel results, made small enough for one call
     check(note, facts)                               {uncited_points, unknown_citations, unknown_numbers, ok}
     latest(conn, key, scope, window, at)             the kept note for that period, or None
-    write(conn, pack, key, scope, window, at, by)    a new note from the facts now; callers check latest() first
+    current(conn, pack, key, scope, window, at)      the kept note if it was written against the figures now, or None
+    write(conn, pack, key, scope, window, at, by)    a new note from the facts now; callers check current() first
 """
 
 import json
@@ -19,7 +24,7 @@ from datetime import date
 
 from psycopg.types.json import Jsonb
 
-from ..core import llm, models, reports, settings
+from ..core import llm, metrics, models, reports, settings
 from ..core.jsonsafe import plain
 from ..ops import report_pages
 
@@ -37,8 +42,9 @@ note's words (no bypass register loaded); never read it as zero, none or nothing
 never say it rose, fell or changed from anything.
 Say numbers exactly as given, with their units; never add, subtract, round or work out a new number. Name entities by
 their labels. Never advise how to operate the plant. If the panels show nothing of note, say so in the headline and give
-one point at most. For each point list in `cites` what it rests on: measure keys (like "production.oil"), entity ids
-("fz-..."), or case numbers as "case:<n>", taken from the facts."""
+one point at most. In the text, name a measure by its panel's title, never by its key. For each point list in `cites`
+what it rests on: measure keys (like "production.oil"), entity ids ("fz-..."), or case numbers as "case:<n>", taken
+from the facts."""
 
 SCHEMA = {
     "type": "object", "additionalProperties": False, "required": ["headline", "points"],
@@ -57,6 +63,7 @@ FACTS_CAP = 24_000
 
 NUMBER = re.compile(r"(?<![\w.:-])-?\d[\d,]*(?:\.\d+)?(?![\w:-])")
 REF = re.compile(r"^(fz-[\w-]+|case:\d+)$")
+KEY = re.compile(r"\b[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+\b")
 DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 
 
@@ -200,6 +207,68 @@ def latest(conn, key: str, scope: str | None, window: str, at: date) -> dict | N
         "order by created_at desc limit 1", (key, scope or "", window, at)).fetchone())
 
 
+def _labels(pack) -> dict[str, str]:
+    return {k: m.label for k, m in metrics.registry(pack).items()}
+
+
+def worded(note: dict, pack) -> dict:
+    """The note in people's words: a measure key said in its text reads as the measure's label."""
+    labels = _labels(pack)
+    say = lambda t: KEY.sub(lambda m: labels.get(m.group(0), m.group(0)), t)
+    return {**note, "headline": say(note.get("headline") or ""),
+            "points": [{**p, "text": say(p["text"])} for p in note.get("points") or []],
+            "labels": {c: labels[c] for p in note.get("points") or [] for c in p.get("cites") or [] if c in labels}}
+
+
+def said(note: dict, f: dict) -> list[dict]:
+    """The stat panels of the facts the note talks about: those a point cites, or whose value its words say."""
+    cited = {c for p in note.get("points") or [] for c in p.get("cites") or []}
+    numbers = {_val(n) for t in [note.get("headline") or ""] + [p["text"] for p in note.get("points") or []]
+               for n in NUMBER.findall(t)}
+    out = []
+    for p in f.get("panels") or []:
+        if p["type"] != "stat":
+            continue
+        v = (p.get("result") or {}).get("value")
+        if p["id"] in cited or cited & set(p.get("measures") or []) or (
+                isinstance(v, (int, float)) and not isinstance(v, bool) and _val(v) in numbers):
+            out.append(p)
+    return out
+
+
+def _reading(r: dict) -> tuple:
+    """What a stat says, as the facts keep it (_small): its value, whether it is unknown, and what it compares with."""
+    v = r.get("value")
+    return (round(v, 2) if isinstance(v, float) else v, bool(r.get("unknown")), bool(r.get("previous_unknown")))
+
+
+def stale(conn, pack, kept: dict, scope: str | None, window: str, at: date | None) -> list[str]:
+    """The stat panels the kept note talks about that read differently now (empty: the note is current). Old notes
+    kept without their facts are stale."""
+    row = conn.execute("select facts from report_summary where report_key = %s and scope = %s and span = %s "
+                       "and at = %s order by created_at desc limit 1",
+                       (kept["report"], scope or "", window, date.fromisoformat(kept["at"]))).fetchone()
+    f = (row or {}).get("facts") or {}
+    if not f.get("panels"):
+        return ["facts"]
+    changed = []
+    for p in said(kept, f):
+        r = report_pages.panel_data(conn, pack, kept["report"], p["id"], scope, window, at, history=False)
+        then = p.get("result") or {}
+        if r.get("error") or _reading(r) != _reading(then) or (
+                r.get("previous") is not None and _reading({"value": r["previous"]})[0] != then.get("previous")):
+            changed.append(p["id"])
+    return changed
+
+
+def current(conn, pack, key: str, scope: str | None, window: str, at: date, asked: bool = True) -> dict | None:
+    """The kept note for the period if the figures it talks about still read as they did when it was written."""
+    kept = latest(conn, key, scope, window, at)
+    if kept is None or stale(conn, pack, kept, scope, window, at if asked else None):
+        return None
+    return worded(kept, pack)
+
+
 def write(conn, pack, key: str, scope: str | None, window: str, at: date, by: str, client=None,
           asked: bool = True) -> dict | None:
     """Write and keep a new note for the period; None for an unknown report."""
@@ -221,25 +290,28 @@ def write(conn, pack, key: str, scope: str | None, window: str, at: date, by: st
     note = {"headline": (out.get("headline") or "").strip(),
             "points": [{"text": p["text"].strip(), "cites": [str(c) for c in p.get("cites") or []][:6]}
                        for p in (out.get("points") or [])[:5] if (p.get("text") or "").strip()]}
+    note = {k: v for k, v in worded(note, pack).items() if k != "labels"}  # a key the model wrote reads as its label
     conn.execute(
         "insert into report_summary (report_key, scope, span, at, headline, points, facts, checks, usage, by_user) "
         "values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
         (key, scope or "", window, at, note["headline"], Jsonb(note["points"]), Jsonb(f), Jsonb(check(note, f)),
          Jsonb(usage), by))
     conn.commit()
-    return latest(conn, key, scope, window, at)
+    return worded(latest(conn, key, scope, window, at), pack)
 
 
 @report_pages.panel_type("summary")
 def panel(conn, pack, report: dict, panel: dict, scope: dict, window: dict) -> dict:
     """The `summary` panel's result: the kept note for the period, whether one can be written here, and whether this
-    visit should write it unasked (none kept, the report's default scope and window, ending on its default day). Never calls a
-    model."""
+    visit should write it unasked (none ever kept, the report's default scope and window, ending on its default day). A
+    kept note whose figures moved since is not returned. Never calls a model."""
     at = date.fromisoformat(window["at"])
-    kept = latest(conn, report["key"], scope.get("id"), window["key"], at)
+    kept = current(conn, pack, report["key"], scope.get("id"), window["key"], at, window.get("asked", True))
     today = report_pages.default_at(conn, report) == window["at"]  # today, or the last production day
+    # Written unasked only when none was ever kept: a stale one is rewritten when someone asks (a paid call)
+    never = kept is None and latest(conn, report["key"], scope.get("id"), window["key"], at) is None
     return {"summary": kept, "can_write": llm.has_credentials("agents"),
-            "due": kept is None and today and window["key"] == report["window"]["default"]
+            "due": never and today and window["key"] == report["window"]["default"]
             and scope.get("id") == report_pages.default_scope(conn, pack, report)["id"],
             "as_of": kept["at"] if kept else None, "refs": sorted({c for p in (kept or {}).get("points") or []
                                                                    for c in p["cites"] if REF.match(c)})}

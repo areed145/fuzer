@@ -14,12 +14,19 @@ import { Badge, Button, ErrorText, List, Text } from "../../ui";
 import { PanelFrame, usePanel } from "../panels";
 import type { PanelProps } from "../spec";
 
-function Cite({ c, names }: { c: string; names: ReturnType<typeof useEntityNames> }) {
+/** A citation by its name: a case, an entity, or a measure by its label (a key is never shown). */
+function Cite({ c, names, labels }: { c: string; names: ReturnType<typeof useEntityNames>; labels: Record<string, string> }) {
   const n = /^case:(\d+)$/.exec(c);
   if (n) return <a href={href(`/cases/${n[1]}`)}>case {n[1]}</a>;
   if (c.startsWith("fz-")) return <a href={entityHref(c)}>{display(c, names)}</a>;
-  if (/^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/.test(c)) return <a href={href(`/metrics/${encodeURIComponent(c)}`)}>{c}</a>;
+  if (labels[c]) return <a href={href(`/metrics/${encodeURIComponent(c)}`)}>{labels[c]}</a>;
   return null;
+}
+
+function Cites({ cites, names, labels }: { cites: string[]; names: ReturnType<typeof useEntityNames>; labels: Record<string, string> }) {
+  const shown = cites.filter((c) => /^case:\d+$/.test(c) || c.startsWith("fz-") || labels[c]);
+  if (!shown.length) return null;
+  return <Text small muted> {shown.map((c, j) => <span key={c}>{j > 0 ? " · " : ""}<Cite c={c} names={names} labels={labels} /></span>)}</Text>;
 }
 
 /** What the checks found, in one line: the note is shown, flagged, not hidden. */
@@ -42,7 +49,10 @@ export function SummaryPanel(props: PanelProps) {
   const [error, setError] = useState<string | null>(null);
   const asked = useRef<string | null>(null);
   const here = `${key}|${period.scope}|${window}|${at}`;
-  const summary = written?.here === here ? written.summary : kept.data?.summary ?? null;
+  const canWrite = ai && !!kept.data?.can_write;
+  const note = written?.here === here ? written.summary : kept.data?.summary ?? null;
+  // a note that fails its checks is shown only to whoever can write it again, with what the checks found
+  const summary = note && (canWrite || note.checks?.ok !== false) ? note : null;
   const names = useEntityNames([...new Set((summary?.points ?? []).flatMap((p) => p.cites).filter((c) => c.startsWith("fz-")))]);
   const write = (rewrite = false) => {
     asked.current = here;
@@ -56,7 +66,6 @@ export function SummaryPanel(props: PanelProps) {
     if (!ai || !kept.data?.due || !kept.data.can_write || asked.current === here) return;
     write();
   }, [ai, here, kept.data?.due, kept.data?.can_write]);
-  const canWrite = ai && !!kept.data?.can_write;
   // what the checks found is for whoever can write the note again, beside Write again; a reader sees the note
   const flag = canWrite && summary && checked(summary);
   return <PanelFrame title={panel.title ?? "Summary"} result={kept.data} loading={kept} className="report-summary"
@@ -64,7 +73,7 @@ export function SummaryPanel(props: PanelProps) {
     {summary && <>
       <Text as="p"><strong>{summary.headline}</strong></Text>
       {summary.points.length > 0 && <List>{summary.points.map((p, i) => <li key={i}>{p.text}
-        {p.cites.length > 0 && <Text small muted> {p.cites.map((c, j) => <span key={c}>{j > 0 ? " · " : ""}<Cite c={c} names={names} /></span>)}</Text>}
+        <Cites cites={p.cites} names={names} labels={summary.labels ?? {}} />
       </li>)}</List>}
       {flag && <Text as="p" small><Badge tone="warn">Check</Badge> {flag}</Text>}
       {canWrite && !writing && <Button variant="link" size="sm" onClick={() => write(true)}>Write again</Button>}

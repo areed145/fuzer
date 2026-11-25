@@ -125,8 +125,14 @@ export const afterMap = <T,>(ready: boolean, read: () => Promise<T>): Promise<T>
 /** What went wrong, as text to show. */
 export const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
+/** How long after a change the views read once more: a case's workflow moves on (the escalated step reaches its new
+ * queue, a closed case's process ends) just after the change is saved, so the read made at once can still show the
+ * case where it was, and the Work badge its old count (P5.26h). */
+export const SETTLE_MS = 1500;
+
 /** The one way a button runs an async action: `busy` names the action in flight, `error` holds the failure, and a
- * success tells every view to refresh. A failed action is never retried. */
+ * success tells every view to refresh, at once and again when the workflow has moved on (`SETTLE_MS`). Only reads
+ * repeat: a failed action is never retried. */
 export function useAction() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +143,7 @@ export function useAction() {
       const r = await fn();
       after?.(r);
       notifyChanged();
+      window.setTimeout(notifyChanged, SETTLE_MS);
       return r;
     } catch (e) {
       setError(errorMessage(e));

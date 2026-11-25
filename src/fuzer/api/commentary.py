@@ -31,13 +31,13 @@ def _period(key: str, window: str, at: date | None, conn) -> tuple[str, date]:
 @router.post("/reports/{key}/summary/generate")
 def report_summary_generate(key: str, window: str, scope: str | None = None, at: date | None = None,
                             rewrite: bool = False, by: str = "anonymous", conn=Depends(get_conn)):
-    """Write the AI note for this period, unless one is kept (then that one comes back and nothing is called) or
-    `rewrite` asks for a newer one. Needs AI access: one short call on agents.summary_model."""
+    """Write the AI note for this period, unless a current one is kept (then that one comes back and nothing is called)
+    or `rewrite` asks for a newer one. Needs AI access: one short call on agents.summary_model."""
     from ..agents import report_summary as rs
     from ..core import llm, usage
 
     w, a = _period(key, window, at, conn)
-    if not rewrite and (kept := rs.latest(conn, key, scope, w, a)) is not None:
+    if not rewrite and (kept := rs.current(conn, deps.pack(), key, scope, w, a, asked=at is not None)) is not None:
         return {"summary": kept, "written": False}
     if not llm.configured("agents", person=True):
         raise HTTPException(503, "No AI provider is set up here, so the note can't be written.")

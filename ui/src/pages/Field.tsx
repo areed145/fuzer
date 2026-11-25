@@ -359,8 +359,16 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
     void run("Taking it", () => api.dispatch(job.id, person, person, "taken from the queue"), () => { setTaken(true); onChange(); })
       .finally(() => { taking.current = false; });
   };
+  // Done and Could not do stay enabled, since a tap has no hover to read a greyed button's reason by (#1364): without
+  // what they need, the tap asks for it at the note box instead of sending.
+  const ask = (what: string) => {
+    setProblem(what);
+    document.getElementById(`note-${job.id}`)?.focus();
+  };
   const say = (status: string) => {
     const sent = note.trim();
+    if (status === "could_not_do" && !sent) return ask("Say why in the note, then select Could not do.");
+    if (status === "done" && !onSite && !evidence) return ask("Say you are on site, or add a note, reading or photo, then select Done.");
     if (reading && (!Number.isFinite(reading.value) || !reading.unit)) return setProblem("A reading needs a number and its unit.");
     setProblem(null);
     // Clear only the note that went: words typed while the request was in flight stay.
@@ -372,7 +380,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
         setNote((n) => (n.trim() === sent ? "" : n)); setValue(""); setWhat(""); setPhotos([]); setAdding(false);
         setKept(how === "queued");
         if (how === "sent" && (status === "done" || status === "could_not_do"))
-          onReported?.(`${SAID[status]} sent for "${words(job.title)}". It goes back to ${job.sent?.by ? personName(job.sent.by) : "the IOC"} to close out.`);
+          onReported?.(`${SAID[status]} sent for "${words(job.title)}". It goes back to the IOC.`);
         if (how === "sent") onChange();
       });
   };
@@ -486,11 +494,8 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
         <Button variant={onSite ? undefined : "primary"} disabled={!!busy || onSite || (blocked && !why.trim())}
           title={onSite ? "You are on site" : blocked && !why.trim() ? "No valid permit: say why it starts anyway" : undefined}
           onClick={() => say("on_site")}>{onSite ? "On site ✓" : "On site"}</Button>
-        <Button variant={onSite ? "primary" : undefined} disabled={!!busy || (!onSite && !evidence)}
-          title={onSite || evidence ? undefined : "Say you are on site, or add a note, reading or photo first"}
-          onClick={() => say("done")}>Done</Button>
-        <Button disabled={!!busy || !note.trim()} title={note.trim() ? undefined : "Say why in the note first"}
-          onClick={() => say("could_not_do")}>Could not do</Button>
+        <Button variant={onSite ? "primary" : undefined} disabled={!!busy} onClick={() => say("done")}>Done</Button>
+        <Button disabled={!!busy} onClick={() => say("could_not_do")}>Could not do</Button>
       </div>
       <div className="row field-actions">
         <Button size="sm" disabled={!!busy || !note.trim()} onClick={() => say("note")}>Add note</Button>

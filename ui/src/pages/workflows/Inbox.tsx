@@ -52,7 +52,8 @@ export function InboxPage() {
   useEffect(() => setPicked(new Set()), [person]);
   // What the field just reported, said where its card was: the card leaves the list once the IOC has it (#1344).
   const [reported, setReported] = useState<{ id: number; said: string; at: number; list: "sent" | "waiting" } | null>(null);
-  useEffect(() => { if (reported) document.getElementById("field-reported")?.scrollIntoView({ block: "nearest" }); }, [reported]);
+  // Kept in view clear of the top bar, again once the jobs are read afresh and the list around it settles.
+  useEffect(() => { if (reported) document.getElementById("field-reported")?.scrollIntoView({ block: "nearest" }); }, [reported, field.data]);
   if (!person) return <section><PageHeader>My work</PageHeader><UICard title="Pick your name to see your work">
     <p>Choose your name under “You are” in the menu.</p>
     <ButtonLink href={href("/teams")}>View team workload</ButtonLink>
@@ -70,17 +71,16 @@ export function InboxPage() {
     (!q || `${r.title} ${r.name ?? ""} ${r.type}`.toLowerCase().includes(q.toLowerCase()));
   const jobs = field.data?.jobs ?? [];
   const coming = field.data?.coming_up ?? [];
-  // Field work leads an operator's page; anyone else (an ops lead a field check escalated to) sends it out again from
-  // its row, so a job waiting in their queue is not offered to them as a field card with "Take it".
+  // Field work leads an operator's page. Only the operator queue's jobs come as field cards with "Take it" (#1364):
+  // anyone else (an ops lead a field check came back to) sends it out again from its row.
   const fieldRole = d.roles.includes("operator");
   const sent = jobs.filter((j) => !j.queued && keep(j as unknown as WorkRow));
-  const waitingJobs = jobs.filter((j) => j.queued && keep(j as unknown as WorkRow)
-    && (fieldRole || !j.role || j.role === "operator"));
+  const waitingJobs = jobs.filter((j) => j.queued && keep(j as unknown as WorkRow));
   // A job's card carries its case's step, its instruction and the report buttons, so the same case isn't listed twice.
   const onCard = new Set([...sent, ...waitingJobs].map((j) => j.item_id).filter((id): id is number => id != null));
   // Done or Could not do is said where the job's card was, in its place until OK.
   const cards = (list: FieldJob[], name: "sent" | "waiting") => {
-    const said = reported?.list === name && <Notice key="reported" id="field-reported" role="status" className="row">
+    const said = reported?.list === name && <Notice key="reported" id="field-reported" role="status" className="row field-reported">
       <span>{reported.said}</span><Button size="sm" onClick={() => setReported(null)}>OK</Button></Notice>;
     const out = list.map((j, i) => said && reported?.id === j.id ? said
       : <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload}
@@ -148,7 +148,8 @@ export function InboxPage() {
       {!all.length && !jobs.length && <Empty>Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}.</Empty>}
       {!all.length && !jobs.length && <SampleTeam onAdded={inbox.reload} />}
       {(sent.length > 0 || reported?.list === "sent") && <section className="field-jobs" aria-labelledby="sent-to-you">
-        <Heading id="sent-to-you" detail={sent.length}>Your field jobs</Heading>
+        {/* the count is of the job cards under it: a job just reported shows its notice in place, not counted */}
+        <Heading id="sent-to-you" detail={sent.filter((j) => j.id !== reported?.id).length || undefined}>Your field jobs</Heading>
         {cards(sent, "sent")}
       </section>}
       {!offline && fieldRole && <NoteToIOC person={person} />}
@@ -156,7 +157,7 @@ export function InboxPage() {
       <Group title={chip.key ? chip.label : "Waiting on you"} rows={chip.rows} person={person} picked={picked} toggle={toggle}
         hint={chip.key === "queue" ? "claim one to make it yours" : chip.key === "escalated" ? "past their SLA and moved to you or your role" : undefined} />
       {(waitingJobs.length > 0 || reported?.list === "waiting") && <section className="field-jobs" aria-labelledby="waiting-jobs">
-        <Heading id="waiting-jobs" detail={waitingJobs.length}>{d.roles.includes("operator") ? "Field jobs" : "Jobs"} waiting in your queues</Heading>
+        <Heading id="waiting-jobs" detail={waitingJobs.filter((j) => j.id !== reported?.id).length || undefined}>{d.roles.includes("operator") ? "Field jobs" : "Jobs"} waiting in your queues</Heading>
         {cards(waitingJobs, "waiting")}
       </section>}
       {(d.roles.includes("operator") || offline) && <RoundsThisShift person={person} />}

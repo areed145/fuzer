@@ -9,7 +9,7 @@ flowchart LR
   j["Job arrives<br><small>sent to you, or<br>Take it from the queue</small>"] --> o["On site"]
   o --> d["Done<br><small>note, photo,<br>reading</small>"]
   o --> n["Could not do<br><small>and why</small>"]
-  d --> ioc["Back to whoever<br>sent it"]
+  d --> ioc["Back to the<br>IOC's queue"]
   n --> ioc
   o --> h["Hand over at<br>shift change"]
 ```
@@ -48,11 +48,12 @@ A job in a queue shows just what, where and how urgent, so a queue of three is n
 On the job, tap **On site** when you get there. When you are finished:
 
 - **Done**, with a note, a photo or a reading. Dictation works in the note field.
-- **Could not do**, with why: no access, parts missing, needs a different trade.
+- **Could not do**, with why: no access, parts missing, needs a different trade. Tapped before the note says why, it
+  asks for the note first.
 - **Add note** for anything in between.
 
-Every report lands on the case the IOC sees, and Done or Could not do hands the job back to whoever sent it. You do
-not need to close anything yourself; the IOC closes it out. The one exception is a job nobody sent (raised straight
+Every report lands on the case the IOC sees, and Done or Could not do ends your part: the job leaves your list for
+the IOC's queue. You do not need to close anything yourself; the IOC closes it out or sends it out again. The one exception is a job nobody sent (raised straight
 into your queue and taken from there), which Done closes.
 
 If the shift ends before the job does, **Hand over at shift change**: who takes it, what was done, what is left, and
@@ -84,8 +85,8 @@ job, or discard it. Nothing is sent twice.
 ## Good to know
 
 - Work reaches you three ways: the IOC dispatches it to you, a desk sends it to the field from a case, or a
-  workflow reaches a **Field check** step. All three look the same on My work, and all three go back to whoever
-  sent them.
+  workflow reaches a **Field check** step. All three look the same on My work, most urgent first, and all three go
+  back to the IOC's queue (a desk's step to that desk's queue) when you report.
 - You cannot close work the IOC sent you, and you do not need to: **Done** is the end of your part.
 
 - **Coming up** on My work lists planned work you are booked on; **Started** and **Done** update the plan.
