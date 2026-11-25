@@ -790,7 +790,7 @@ def exception_options(exception_id: int, conn=Depends(get_conn)):
     from ..ops import options
     _loaded_types()
     try:
-        return options.for_exception(conn, exception_id)
+        return options.for_exception(conn, exception_id, viewer=_viewer_roles(conn))
     except options.OptionsError as e:
         raise HTTPException(404, str(e)) from e
 
@@ -800,7 +800,15 @@ def case_options(item_id: int, conn=Depends(get_conn)):
     """The options for the event a case works (P5.20)."""
     from ..ops import options
     _loaded_types()
-    return options.for_case(conn, item_id)
+    return options.for_case(conn, item_id, viewer=_viewer_roles(conn))
+
+
+def _viewer_roles(conn) -> list[str] | None:
+    """The routing roles the signed-in person acts as, so an option never escalates to them (#1381); None signed out."""
+    from ..core import work
+    from .security import current
+    who = current.get()
+    return work.roles_of(conn, who.actor) if who is not None else None
 
 
 @router.post("/exceptions/{exception_id}/options/choose")

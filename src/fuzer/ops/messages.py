@@ -60,6 +60,13 @@ CONCERN = re.compile(r"\?|\b(please|can (you|someone|we|anyone)|could (you|someo
                      r"stuck|stick\w*|fail\w*|fault\w*|broke\w*|crack\w*|damage\w*|cavitat\w*|bypass\w*|gas|fire|"
                      r"spill\w*|zero|wrong|problem|issue|not)\b", re.IGNORECASE)
 LOG_ONLY = "log only: it says what was done and asks for nothing"
+# A message that says what happened is already over, and one that asks for something or says it is still wrong.
+OVER = re.compile(r"\b(closed again|(is |are )?back (to normal|in service|online|on line)|returned to normal|"
+                  r"cleared( again)?|reset (and|ok)|recovered|restored|normal again|stable again|for info(rmation)?|"
+                  r"fyi|no action (needed|required))\b", re.IGNORECASE)
+ASKS = re.compile(r"\?|\b(please|can (you|someone|we|anyone)|could (you|someone)|needs?|needed|check|look at|"
+                  r"have a look|urgent|asap|help|still|keeps?|leak\w*|weep\w*|drip\w*|smell\w*|"
+                  r"fire|smoke|h2s)\b", re.IGNORECASE)
 GREETING = re.compile(r"^((good )?(morning|afternoon|evening)|hi|hello|hey|dear)\b[^,.:;!]{0,30}[,.:;!]\s*",
                       re.IGNORECASE)
 
@@ -87,6 +94,19 @@ def _noise(text: str, subject: str | None) -> bool:
 def _log_only(text: str, subject: str | None) -> bool:
     """Whether a message only says what was done: an operating move, with nothing wrong or asked in it."""
     return bool(DONE.search(text)) and not CONCERN.search(f"{subject or ''} {text}")
+
+
+def info_only(text: str) -> bool:
+    """Whether a message only says what happened and that it is over ("bypass opened during the restart, closed again
+    at 09:10"), asking for nothing: no field work to dispatch, though it opened a case (#1381)."""
+    return bool(OVER.search(text)) and not ASKS.search(text)
+
+
+def text_of(conn, exception_id: int) -> str | None:
+    """The text of the message an exception came from; None for one raised another way."""
+    row = conn.execute("select text from message where exception_id = %s order by received_at limit 1",
+                       (exception_id,)).fetchone()
+    return row["text"] if row else None
 
 
 def read(text: str, pack, register, subject: str | None = None, min_confidence: float = 0.8) -> Reading:

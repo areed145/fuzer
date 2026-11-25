@@ -345,7 +345,7 @@ export interface CaseOptions {
   loss?: { oil_bbld: number; gas_mscfd: number; usd_per_day: number; wells: number; basis: string } | null;
   if_it_trips?: { oil_bbld: number; gas_mscfd: number; usd_per_day: number; wells: number; basis: string } | null;
   criticality?: string | null; prices?: { oil_bbl: number; gas_mscf: number; source: string };
-  options: CaseOption[]; recommended?: CaseOption["key"]; reason?: string; unknown?: string[];
+  options: CaseOption[]; recommended?: CaseOption["key"] | null; reason?: string; unknown?: string[];
   decided?: OptionDecision[] | null;
 }
 

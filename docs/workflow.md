@@ -204,7 +204,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   priority, lower for a short wait, or a hazard to people (gas escaping, H2S, fire or smoke in what was reported, or a
   safety or HSE type), which is high to wait on and never reads low; with neither, no risk word is shown and the
   criticality is named as not known. A field report that says the job needs a gas test, a permit, an isolation, a
-  scaffold or parts holds Dispatch now until a later report, and says what it waits on. The crew checked is the one
+  scaffold, depressurising or parts holds Dispatch now and a ride along until a later report, and says what it waits
+  on (#1381). The crew checked is the one
   the job's words need (a transmitter or gauge is the instrument crew's), and a full crew is one line with its count.
   What it defers now is the producing wells it reaches at their latest test, all of it while a machine is stopped (a
   trip, with its share where parallel trains carry the rest), else the pack's share for a process upset still going
@@ -214,14 +215,21 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   site at the same asset (riding along sends it to them, and their job is not a clash), else the next scheduled plan
   item under way or starting on the same equipment (its assets or what they are part of, short of the area, which can
   be half a plant) within `options.window_days`; the area's next turnaround or shutdown, at most
-  `exceptions.max_shelve_days`, for a shelf; the engineer queue's SLA and then a dispatch to escalate. Prices are the
+  `exceptions.max_shelve_days`, for a shelf, never offered when what was reported (its title, the message, the
+  field's notes) is past or heading past a limit, or a leak, with production behind it (#1381); the engineer queue's
+  SLA and then a dispatch to escalate, the ops lead's for what waits on a gas test, a permit, an isolation or
+  depressurising, and never to a role the reader acts as (an owner holding every role narrows nothing). A ride along
+  never rides a field job that came back done or could not do. Prices are the
   pack's value config. One option is **recommended** by one rule, the same on every case: wait while it leaves no high
   risk and defers less than a separate trip costs (`options.trip_usd`); dispatch now when waiting costs more or leaves
-  a high risk; escalate when it should go now and can't. What is not known is named. The recommended option is one
+  a high risk; escalate when it should go now and can't, or nothing when that escalation would come back to the
+  reader (the reason says to clear the blocker, then dispatch). A message case that only says what happened and that
+  it is over ("closed again at 09:10") has no options: close it out. What is not known is named. The recommended option is one
   tap (a dispatch goes to the operator queue, or **Choose who…** for a person, what to do, when it is wanted back and a
   priority); any choice takes one optional why, and nothing holds the button back, a dispatch that is not ready included
   (`POST /exceptions/{id}/options/choose`). Once the field reports it done the options go and the case leads with Close out. The dispatch carries what to check or do
-  to the field job ("Go and have a look, report what you find" when the IOC writes nothing) and nothing else: why it goes
+  to the field job (when the IOC writes nothing, the message a message case came from, word for word, else "Go and
+  have a look, report what you find"; a ride along prefixes it with "While you are there:") and nothing else: why it goes
   now, the IOC's or the recommendation's costing, stays on the case, not on the field's instruction; the choice, the recommendation and the reason go on the case's history, and Work performance by work type
   shows how often the recommendation was taken (`GET /options/acceptance`).
 - **Dispatch.** The IOC sends an exception to a person, with what to check or do. Its case (or the case's open

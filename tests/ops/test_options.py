@@ -304,3 +304,112 @@ def test_an_operator_on_site_at_the_same_asset_is_the_ride_along_not_a_clash(con
     conn.commit()
     held = conn.execute("select assignee from work_item where id = %s", (chosen["event"]["item_id"],)).fetchone()
     assert held["assignee"] == "sam" and chosen["choice"]["accepted"] is True
+
+
+def message(conn, exception_id: int, text: str) -> None:
+    """The message an exception came from, as the message reader keeps it."""
+    conn.execute("insert into message (id, channel, sender, text, received_at, outcome, exception_id) "
+                 "values (%s, 'radio', 'CRO', %s, now(), 'case', %s)", (f"m-{exception_id}", text, exception_id))
+    conn.commit()
+
+
+def test_a_limit_or_a_leak_with_production_behind_it_is_never_shelved(conn, report_type):
+    """#1381: Shelve 30 days was recommended for a pump at 193 °F against a 185 °F limit with a seal weep and 60,000
+    bbl/d behind it, and for a falling lift gas header with 177 wells behind it."""
+    hot = raise_report(conn, "hot", f"{WELLS[3]} flowline temperature: 193 °F, limits 32 to 185 °F",
+                       [f"well:{WELLS[3]}"])
+    out = options.for_exception(conn, hot["id"])
+    assert out["if_it_trips"]["oil_bbld"] > 0
+    s = by_key(out)["shelve"]
+    assert s["available"] is False and s["unavailable"].startswith("“limits” with about"), s
+    assert "bbl/d behind it can't be shelved" in s["unavailable"]
+    assert out["recommended"] != "shelve"
+    # what the message said counts as the title does
+    header = raise_report(conn, "header", "Lift gas on the pad", [f"well:{WELLS[2]}"])
+    message(conn, header["id"], "Lift gas header pressure dropping, down to 1150 psig from 1276.")
+    assert by_key(options.for_exception(conn, header["id"]))["shelve"]["available"] is False
+    # nothing past a limit or leaking: a shelf is still offered
+    tidy = raise_report(conn, "sign", f"Faded sign at the wellhead of {WELLS[2]}", [f"well:{WELLS[2]}"])
+    assert by_key(options.for_exception(conn, tidy["id"]))["shelve"]["available"] is True
+
+
+def test_a_gas_test_and_permit_goes_to_the_ops_lead_and_never_back_to_whoever_reads_it(conn, report_type):
+    """#1381: Escalate to the engineer was offered for a job waiting on a gas test and a permit, and "Escalate to the
+    ops lead, Recommended" was shown to the ops lead."""
+    e = raise_report(conn, "gas test", f"Gas smell at the wellhead of {WELLS[1]}", [f"well:{WELLS[1]}"])
+    options.choose(conn, e["id"], "riley", "dispatch", to="sam")
+    ex.report(conn, e["id"], "sam", "could_not_do", "Gas detector in alarm, needs a gas test and a permit")
+    conn.commit()
+    out = options.for_exception(conn, e["id"])
+    assert by_key(out)["escalate"]["label"] == "Escalate to the ops lead"
+    assert out["recommended"] == "escalate" and "the ops lead decides" in out["reason"], out["reason"]
+    # read by the ops lead: no escalating to themselves, nothing recommended, and the blocker is theirs
+    mine = options.for_exception(conn, e["id"], viewer=["ops_lead"])
+    esc = by_key(mine)["escalate"]
+    assert esc["available"] is False and esc["unavailable"] == "it would come back to you"
+    assert mine["recommended"] is None and mine["reason"].endswith("clear that, then dispatch it."), mine["reason"]
+    # read by the engineer, a case with no permit work escalates past the engineer
+    other = raise_report(conn, "rattle", f"Rattle at the wellhead of {WELLS[0]}", [f"well:{WELLS[0]}"])
+    assert by_key(options.for_exception(conn, other["id"]))["escalate"]["label"] == "Escalate to the engineer"
+    assert by_key(options.for_exception(conn, other["id"], viewer=["engineer"]))["escalate"]["label"] == \
+        "Escalate to the ops lead"
+    # someone holding every role narrows nothing
+    every = [r["name"] for r in conn.execute("select name from work_role where kind = 'person'")]
+    assert by_key(options.for_exception(conn, e["id"], viewer=every))["escalate"]["available"] is True
+
+
+def test_a_ride_along_waits_on_what_the_field_said_and_never_rides_a_visit_that_came_back(conn, report_type):
+    """#1381: a ride-along was recommended for a job the field said needs depressurising, onto a visit that had itself
+    come back Could not do."""
+    first = raise_report(conn, "gland 2", "Loose cable gland on 20-TT-2250B", ["tag:20-TT-2250B"])
+    options.choose(conn, first["id"], "riley", "dispatch", to="sam")
+    ex.report(conn, first["id"], "sam", "on_site")
+    conn.commit()
+    e = raise_report(conn, "flange", "Flange bolts loose on 20-TT-2250B", ["tag:20-TT-2250B"])
+    options.choose(conn, e["id"], "riley", "dispatch", to="sam")
+    ex.report(conn, e["id"], "sam", "could_not_do", "Line still live, needs depressurising before the bolts")
+    conn.commit()
+    w = by_key(options.for_exception(conn, e["id"]))["window"]
+    assert w["available"] and w["person"] == "sam"
+    assert w["ready"] is False and w["blockers"][0].startswith("Field: waits on depressurising"), w
+    # the visit itself comes back: nobody there to ride along with, even after a note
+    ex.report(conn, first["id"], "sam", "could_not_do", "No access, scaffold down")
+    ex.report(conn, first["id"], "sam", "note", "Will try again tomorrow")
+    conn.commit()
+    w = by_key(options.for_exception(conn, e["id"]))["window"]
+    assert w["available"] is False, w
+
+
+def test_a_message_that_says_it_is_over_is_not_dispatched(conn, report_type):
+    """#1381 (B-N10): "Compression bypass opened during the train A restart, closed again at 09:10" asks for nothing,
+    yet got "Dispatch now, Recommended"."""
+    from fuzer.ops import messages
+
+    e = raise_report(conn, "bypass", "Compression bypass opened during the train A restart", ["tag:20-TT-2250B"])
+    message(conn, e["id"], "Compression bypass opened during the train A restart, closed again at 09:10.")
+    out = options.for_exception(conn, e["id"])
+    assert out["applies"] is False and out["why_not"].startswith("the message says what happened and that it is over")
+    assert not messages.info_only("Bypass closed again at 09:10, can someone check the valve?")
+    assert not messages.info_only("Seal leak on 10-P-1001A, cleared the drain but still weeping")
+
+
+def test_a_ride_along_and_a_dispatch_carry_the_message_as_the_ask(conn, report_type):
+    """#1381 (C5): a one-tap ride-along sent "go and have a look"; the field never saw "PT-2001 reading erratic"."""
+    first = raise_report(conn, "gland 3", "Loose cable gland on 20-TT-2250B", ["tag:20-TT-2250B"])
+    options.choose(conn, first["id"], "riley", "dispatch", to="sam")
+    ex.report(conn, first["id"], "sam", "on_site")
+    conn.commit()
+    e = raise_report(conn, "erratic 2", "20-TT-2250B reading erratic", ["tag:20-TT-2250B"])
+    message(conn, e["id"], "20-TT-2250B reading erratic, jumping 73 degF")
+    out = options.choose(conn, e["id"], "riley", "window")
+    conn.commit()
+    sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind in "
+                        "('handed_off', 'created') order by id desc limit 1", (out["event"]["item_id"],)).fetchone()["r"]
+    assert sent == "While you are there: 20-TT-2250B reading erratic, jumping 73 degF"
+    d = raise_report(conn, "erratic 3", "Gauge on OKJ01-GLM reads low", ["allocation_node:OKJ01-GLM"])
+    message(conn, d["id"], "Gauge on OKJ01-GLM reads low since the night shift")
+    out = options.choose(conn, d["id"], "riley", "dispatch", to="sam")
+    conn.commit()
+    sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind in "
+                        "('handed_off', 'created') order by id desc limit 1", (out["event"]["item_id"],)).fetchone()["r"]
+    assert sent == "Gauge on OKJ01-GLM reads low since the night shift"

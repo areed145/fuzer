@@ -963,6 +963,30 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["iPad l
   });
 }
 
+// P5.27c (#1381): the ops lead reading a job that waits on a gas test and a permit is not offered "Escalate to the ops
+// lead, Recommended": escalating is closed, nothing is recommended, and the one line says the blocker is theirs.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`options never escalate to whoever reads them (#1381, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    const blocker = "Field: waits on a gas test and a permit, from sam's report";
+    const options = caseOptions({ recommended: null, reason: `It can't go now (${blocker}): clear that, then dispatch it.`,
+      options: caseOptions().options.map((o) => o.key === "dispatch" ? { ...o, ready: false, blockers: [blocker] }
+        : o.key === "escalate" ? { key: "escalate", label: "Escalate", available: false, unavailable: "it would come back to you" } : o) });
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "Gas detector at 65-HCV-1004", type: "round_finding",
+      state: "open", subjects: [], created_by: "alex", created_at: "2026-11-22T12:00:00Z", events: [], processes: [],
+      payload: { exception_id: 7 } } }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: options }));
+    await page.goto(`${url}/#/cases/21`);
+    const card = page.getByLabel("Options");
+    await card.getByText("clear that, then dispatch it.").waitFor();
+    assert.equal(await card.getByText("Recommended", { exact: true }).count(), 0, "nothing recommended");
+    await card.getByText("it would come back to you").waitFor();
+    assert.equal(await card.getByRole("button", { name: /Escalate/ }).count(), 0, "no escalate button");
+    const width = await page.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(width <= viewport.width, `no sideways scroll (${width})`);
+  });
+}
+
 // P5.25d (#1347): once the field has reported it done, the case offers no dispatch, and no cost beside Close out.
 for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
   test(`a case the field reported done shows no options and no second send (#1347, ${size})`, async () => {

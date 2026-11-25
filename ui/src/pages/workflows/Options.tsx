@@ -70,6 +70,8 @@ function OptionsView({ d, person, readOnly, onChosen }: {
   return (
     <Card className="case-options" aria-label="Options" title="Options">
       <Cost d={d} />
+      {/* nothing recommended (it can't go now and escalating would come back to the reader): the reason is the line */}
+      {!d.recommended && d.reason && <Text as="div" small>{d.reason}</Text>}
       <ul className="case-options-list">
         {d.options.filter((opt) => opt.available).map((opt) => <Option key={opt.key} opt={opt} d={d} readOnly={readOnly || !person} busy={!!a.busy}
           open={open === opt.key} anyOpen={open !== null} onOpen={() => setOpen(open === opt.key ? null : opt.key)}
