@@ -34,7 +34,10 @@ Read from what Fuzer already has, never from equipment type:
 
 The recommendation is a rule, the same on every case, so two people reading one case get one answer: the cheapest
 option that is ready and does not leave a high risk waiting, where a separate trip (`options.trip_usd`) has to save
-more than it costs. Anything not known is named, not guessed.
+more than it costs. It names the factor that decided it (`deciding`, one of FACTORS). Every open option carries the
+same fields (YARDSTICK), so options read on one scale whoever reads them: the shared skill
+`shared/options-and-tradeoffs` (P4.8) tells every specialist to answer from them. Anything not known is named, not
+guessed.
 """
 
 import re
@@ -55,6 +58,12 @@ HAZARD = re.compile(r"(?i)\b(h2s|hydrogen sul[pf]hide|smoke|flames?|explosion|le
 OPEN_STAGES = ("dispatch", "desk", "back", "planned")
 JOB_HOURS = 4.0  # the job itself, once someone is there: added after a wait for a visit or a shelf
 LEVELS = ("Low", "Medium", "High")
+# The fields every open option carries, on one scale: when it is done, what it defers until then, the risk of waiting,
+# readiness, clashes, what is not known about it, and the basis for the time. A closed option says why it is closed.
+YARDSTICK = ("hours", "by", "deferred", "risk", "ready", "blockers", "clashes", "unknown", "basis")
+# What decides a recommendation: what waiting defers against a separate trip, the risk of waiting, or whether it can go
+# now (readiness: crew, permit, parts, clashes; or someone already at the asset).
+FACTORS = ("deferred", "risk", "readiness")
 
 
 class OptionsError(ExceptionError):
@@ -467,7 +476,7 @@ def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
               "detail": f"{until:%a %d %b}" + (f", {ta['title']}" if to_ta else ""),
               "until": until.isoformat(), "hours": round(hours, 1), "by": (at + timedelta(hours=hours)).isoformat(),
               "deferred": _deferred(now, hours, prices), "risk": _risk(base, hours, crit, behind),
-              "ready": True, "blockers": [], "warnings": [], "clashes": [], "available": not safety,
+              "ready": True, "blockers": [], "warnings": [], "clashes": [], "unknown": [], "available": not safety,
               "basis": (f"the next {ta['kind']} of its area starts {ta['start_at']:%d %b}" if ta else
                         "no turnaround of its area on the plan") +
                        (f"; shelving is for at most {longest} days" if not to_ta else "")}
@@ -482,14 +491,14 @@ def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
         "key": "escalate", "label": f"Escalate to the {to.replace('_', ' ')}", "detail": "decides what happens next",
         "to": f"role:{to}", "hours": round(hours, 1), "by": (at + timedelta(hours=hours)).isoformat(),
         "deferred": _deferred(now, hours, prices), "risk": _risk(base, hours, crit, behind),
-        "ready": True, "blockers": [], "warnings": [], "clashes": [], "available": True,
+        "ready": True, "blockers": [], "warnings": [], "clashes": [], "unknown": [], "available": True,
         "basis": f"the {to.replace('_', ' ')} queue answers within {_hours(conn, to, 24.0):g} h, then a dispatch"})
 
-    key, reason = recommend(options, now, float(settings.get(conn, "options.trip_usd")))
+    key, reason, deciding = recommend(options, now, float(settings.get(conn, "options.trip_usd")))
     return {**head, "applies": True, "why_not": None, "at": at.isoformat(), "loss": now, "if_it_trips": behind,
             "criticality": crit, "prices": {"oil_bbl": prices["oil_bbl"], "gas_mscf": prices["gas_mscf"],
                                             "source": prices["source"]},
-            "options": options, "recommended": key, "reason": reason, "unknown": unknown,
+            "options": options, "recommended": key, "reason": reason, "deciding": deciding, "unknown": unknown,
             "undetermined": undetermined_of(unknown, ready)}
 
 
@@ -507,10 +516,10 @@ def _safety_types(conn) -> set[str]:
     return set(gates.safety_case_types(conn))
 
 
-def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[str, str]:
-    """One option, by one rule, and the factor that decided it. Waiting is preferred while it leaves no high risk and
-    defers less than a separate trip costs; dispatch now when waiting costs more, or the risk of waiting is high;
-    escalate when it should go now and can't."""
+def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[str, str, str]:
+    """One option, by one rule, the reason and the factor that decided it (one of FACTORS). Waiting is preferred while
+    it leaves no high risk and defers less than a separate trip costs; dispatch now when waiting costs more, or the
+    risk of waiting is high or not known; escalate when it should go now and can't."""
     from ..core.wording import money
 
     by = {o["key"]: o for o in options if o.get("available")}
@@ -530,15 +539,18 @@ def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[s
             cost = (f"{_money(saved)} more deferred than going now, less than a separate trip "
                     f"({money(trip_usd)})" if now and saved > 0 else "nothing deferred while it waits")
             if cheapest.get("person"):
-                return "window", f"{cheapest['person']} is already there: riding along does it with {cost}; {risk}."
-            return "window", f"The visit on {cheapest['detail'].rsplit(', ', 1)[-1]} does it with {cost}; {risk}."
+                return ("window", f"{cheapest['person']} is already there: riding along does it with {cost}; {risk}.",
+                        "readiness")
+            return ("window", f"The visit on {cheapest['detail'].rsplit(', ', 1)[-1]} does it with {cost}; {risk}.",
+                    "deferred")
         cost = (f"Waiting defers {_bbl(cheapest)} ({_money(usd(cheapest))}), less than a separate trip "
                 f"({money(trip_usd)})" if now and usd(cheapest) else "Nothing is deferred while it waits")
-        return "shelve", f"{cost}; {risk}."
+        return "shelve", f"{cost}; {risk}.", "deferred"
     alt = min(waiting, key=lambda o: (usd(o), o["hours"])) if waiting else None
     if d["ready"]:
-        why = []
+        why, deciding = [], None
         if alt and now:
+            deciding = "deferred"
             name = (f"the visit on {alt['detail'].rsplit(', ', 1)[-1]}" if alt["key"] == "window"
                     else f"{round(alt['hours'] / 24)} days")
             wait = f"for {name}" if alt["key"] == "window" else name
@@ -546,13 +558,17 @@ def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[s
                        f"({_money(usd(d))}) if it goes now")
         if any(level(o) == "High" for o in waiting):
             why.append("waiting leaves the risk high" if why else "Waiting leaves the risk high")
+            deciding = deciding or "risk"
+        if not deciding and not any(level(o) for o in waiting):
+            why.append("The risk of waiting is not known (no criticality on record)")
+            deciding = "risk"
         why.append("nothing blocks it")
-        return "dispatch", "; ".join(why) + "."
+        return "dispatch", "; ".join(why) + ".", deciding or "readiness"
     blocked = (d["blockers"] or d["clashes"] or ["not ready"])[0]
     if "window" in by and by["window"]["ready"] and level(by["window"]) != "High":
-        return "window", f"It can't go now ({blocked}); the next visit can take it."
+        return "window", f"It can't go now ({blocked}); the next visit can take it.", "readiness"
     high = " and waiting leaves the risk high" if any(level(o) == "High" for o in waiting) else ""
-    return "escalate", f"It can't go now ({blocked}){high}: an engineer decides the way round."
+    return "escalate", f"It can't go now ({blocked}){high}: an engineer decides the way round.", "readiness"
 
 
 def about(v: float) -> float:
@@ -636,7 +652,8 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
     row = _event(conn, eid)
     accepted = option == rec
     rec_label = next(x["label"] for x in offered["options"] if x["key"] == rec)
-    kept = {k: offered[k] for k in ("loss", "if_it_trips", "criticality", "recommended", "reason", "unknown")}
+    kept = {k: offered[k] for k in ("loss", "if_it_trips", "criticality", "recommended", "reason", "deciding",
+                                    "unknown")}
     kept["options"] = [{k: x.get(k) for k in ("key", "label", "detail", "hours", "deferred", "risk", "ready")}
                        for x in offered["options"] if x.get("available")]
     d = conn.execute(
