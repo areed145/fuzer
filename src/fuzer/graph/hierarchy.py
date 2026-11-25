@@ -11,6 +11,10 @@ parents, the one reached first wins, so nothing is counted twice when totals rol
 """
 
 CONTAINMENT = ("part_of", "installed_at", "located_at")
+# What work can be about: the assets a case is filed under (ops.worklist, nearest well or line first, then the tag, then
+# equipment) and the only kinds a person may match work to (a message's entity, P5.26f). Places, records and readings
+# (a work order, a log entry, a time series) are not.
+WORK_KINDS = ("well", "pipeline", "pipeline_segment", "tag", "equipment")
 OFF_TREE = ("activity", "document_section", "timeseries")
 MAX_DEPTH = 8
 PER_LEVEL = 200  # children listed under one node; the rest are counted

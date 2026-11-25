@@ -44,9 +44,9 @@ the menu, the tabs pages declare in `ui/src/pageTabs.ts`, and records through th
 uses; a question (a question word, a question mark or four words or more) puts Ops IQ first and opens it with the question, asked once; any other search keeps Ask Ops IQ in view at the foot of the results. It is a way in, not an owner: each result opens its owning page. Sources secondary pages are Sources and configure-protected
 Ontology, the model each source maps onto.
 Demo is one route outside the menu, the guided tour; it starts the Okan walkthrough, which keeps `#/investigate/okan`. Reports opens on the report gallery and contains Downtime, Incidents,
-Metrics, Regulatory, Lessons and Studies; the daily report is the narrative on the Daily operations report. Work has three pages, My work, List and Board, and opens on My work for every role on every device (#1345): the
+Metrics, Regulatory, Lessons and Studies; the daily report is the narrative on the Daily operations report. Work has four pages, My work, List, Board and Master data, and opens on My work for every role on every device (#1345): the
 Work tab, its badge and Home's count of what waits on you all open it. List and Board are all the work as a table or
-as columns, with the same filters; Master data's questions are a preset on it, not a menu entry. Workflows (formerly Processes; "process" means the plant in oil and gas) sit in Settings beside Routing:
+as columns, with the same filters; Master data is the data steward's register questions and the work they match to (#1368), a desk tab a field operator's phone leaves out, and its questions are also a preset on the List. Its kinds of question are chips that wrap, so none sits off the screen. Workflows (formerly Processes; "process" means the plant in oil and gas) sit in Settings beside Routing:
 they are the playbooks the work follows; a case or task links to the workflow it
 is following. Plan contains Plan (the timeline), Schedules, Resources and Logistics (read-only: each day's crews and jobs, travel, crews aboard between jobs, seats, beds, lifts and materials to send, read from the plan and the work orders' reservations; changes are made on a schedule or on Resources). A work item planned for a day links to its
 bar (`#/plan?item=ID&from=DATE` opens it), and a bar planned from work links back to it in All work. Shift handover is

@@ -453,6 +453,8 @@
   font-size: var(--t-subhead); font-weight: 500; line-height: 1; color: var(--text);
   background: var(--fill); background-image: none; box-shadow: none;
 }
+/* A chip that is a link (Master data's kinds of question) centres its label as a button chip does. */
+:root.ios #main-content .chips:not(.attention-bar .chips, .segmented) > a.chip { display: inline-flex; align-items: center; text-decoration: none; }
 :root.ios #main-content .chips:not(.attention-bar .chips, .segmented) > .chip:is(.on, [aria-pressed="true"]) {
   background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-weight: 600;
 }

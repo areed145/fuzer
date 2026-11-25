@@ -178,6 +178,35 @@ def test_a_steward_question_carries_the_message_and_its_answer_makes_the_case(re
     assert conn.execute("select outcome from message where id = 'MSG-0017'").fetchone()["outcome"] == "handled"
 
 
+def test_a_message_is_matched_only_to_what_work_can_be_about(read):
+    """The steward's choices for a message are the entities work can be about, each with its kind, description and
+    place; a log entry or a work order is refused on the server (#1368, tour N9: a log entry was accepted as the
+    asset)."""
+    conn, _ = read
+    from fuzer import api
+    from fuzer.graph import queries
+    from fuzer.graph.hierarchy import WORK_KINDS
+
+    qid = conn.execute("select id from review_item where kind = 'message' and subject = 'MSG-0020'").fetchone()["id"]
+    [item] = queries.reviews(conn, kind="message", item=qid)
+    cands = item["payload"]["candidates"]
+    assert len(cands) == 5 and item["payload"]["kinds"] == list(WORK_KINDS)
+    assert all(c["kind"] == "tag" and c["label"].endswith("V-2002") and c["parent_label"] for c in cands), cands
+    assert len({c["parent_label"] for c in cands}) == 5  # five areas: the place tells them apart
+    place = conn.execute("select id from review_item where kind = 'message' and subject = 'MSG-0009'").fetchone()["id"]
+    assert queries.reviews(conn, kind="message", item=place)[0]["payload"]["candidates"] == []  # an area is no asset
+    record = conn.execute("select fuzer_id, kind from entity where kind <> all(%s) and kind not in ('area', 'facility') "
+                          "and merged_into is null and retired_at is null order by kind limit 1",
+                          (list(WORK_KINDS),)).fetchone()
+    with pytest.raises(review.ReviewError, match=f"not a {record['kind'].replace('_', ' ')}"):
+        review.decide(conn, qid, "choose", record["fuzer_id"], "ana")
+    conn.rollback()
+    with TestClient(api.app) as client:
+        r = client.post(f"/review/{qid}", json={"decision": "choose", "value": record["fuzer_id"], "by": "ana"})
+        assert r.status_code == 400 and "a message's case is about a" in r.text
+    assert conn.execute("select status from review_item where id = %s", (qid,)).fetchone()["status"] == "open"
+
+
 def test_a_field_operators_note_from_the_phone_becomes_routed_work(read):
     conn, _ = read
     from fuzer import api

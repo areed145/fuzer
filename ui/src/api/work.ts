@@ -72,7 +72,11 @@ export interface MessageSaid {
 
 /** A message that named no entity for certain (P2.8): why the reader stopped and the entities it might be about. */
 export interface MessagePayload {
-  message: MessageSaid; why: string; question: string; candidates: { fuzer_id: string; label: string | null }[];
+  message: MessageSaid; why: string; question: string;
+  /** the entities it might be about that work can be about, each with its kind, description and place (P5.26f) */
+  candidates: { fuzer_id: string; kind: string; label: string | null; description: string | null; parent_label: string | null }[];
+  /** the kinds a message's case can be about: the register search for another is limited to them */
+  kinds?: string[];
 }
 
 /** A note sent from the phone, read as any message to the IOC is: what became of it, in one line (`said`). */
