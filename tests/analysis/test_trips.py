@@ -110,6 +110,54 @@ def test_machine_health_raises_flagged_machines_and_clears_them_when_fixed(conn)
     assert conn.execute("select state from exception_record where id = %s", (row["id"],)).fetchone()["state"] == "cleared"
 
 
+def test_a_closed_machine_health_case_holds_until_the_machine_changes(conn):
+    """#1379: a person closes a machine health case and the next hourly screen, seeing the machine just as before,
+    opens nothing; when the machine's flags change the closed case reopens rather than a fresh one; once the screen
+    stops flagging it the hold ends and a later flag opens as usual."""
+    from fuzer.core import work
+    from fuzer.ops import exceptions
+
+    for r in conn.execute("select key from exception_record where type = 'machine_health' and state = 'open'"):
+        exceptions.clear(conn, "machine_health", r["key"], "test", "not this test's")
+    conn.execute("update exception_record set signal = null where type = 'machine_health'")
+    conn.commit()
+
+    def rows(since: int) -> list[dict]:
+        return conn.execute("select * from exception_record where type = 'machine_health' and key = '20-K-2200B' "
+                            "and id >= %s order by id", (since,)).fetchall()
+
+    def case(item_id: int) -> str:
+        return conn.execute("select state from work_item where id = %s", (item_id,)).fetchone()["state"]
+
+    rotating.watch(conn, "2024-03-05T00:00")
+    first = conn.execute("select * from exception_record where type = 'machine_health' and key = '20-K-2200B' "
+                         "and state = 'open'").fetchone()
+    assert first["signal"].startswith("act: ") and first["item_id"]
+    work.close_case(conn, first["item_id"], "done", "user:ann", reason="bearings checked, running on")
+    exceptions.reconcile(conn)
+    conn.commit()
+
+    again = rotating.watch(conn, "2024-03-05T00:00")  # the next scan, the machine unchanged
+    assert "20-K-2200B" in again["held"] and not any(r["machine"] == "20-K-2200B" for r in again["raised"])
+    [held] = rows(first["id"])
+    assert held["state"] == "closed" and held["raised_count"] == first["raised_count"] + 1
+    assert case(first["item_id"]) == "done"
+
+    rotating.watch(conn, "2024-05-01T00:00")  # bearings replaced: now only its efficiency to watch, a new signal
+    [back] = rows(first["id"])
+    assert back["state"] == "open" and back["item_id"] == first["item_id"] and back["signal"].startswith("watch: ")
+    assert case(first["item_id"]) == "open"
+
+    work.close_case(conn, first["item_id"], "done", "user:ann", reason="watching it")
+    exceptions.reconcile(conn)
+    conn.commit()
+    rotating.watch(conn, "2025-12-31T00:00")  # the screen no longer flags it: the hold ends
+    assert rows(first["id"])[0]["signal"] is None
+    rotating.watch(conn, "2024-03-05T00:00")
+    *_, fresh = rows(first["id"])
+    assert fresh["id"] != first["id"] and fresh["state"] == "open" and fresh["item_id"] != first["item_id"]
+
+
 def test_trip_causes_vibration_and_ambient_read_roles_not_descriptions_or_tag_names(conn):
     """P1.4c: with every point's description blanked and the tags renamed out of their -K-, -V- and -E- letters, the
     trip causes, the train's run signal, the vibration zones and the ambient point come out the same. They read the

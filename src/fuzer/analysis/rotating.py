@@ -27,7 +27,8 @@ expected, flag, basis, sources}) the maintenance and integrity specialist cites.
   for the class rather than as a reason to look at each machine.
 
 - `watch(at)`: the screen raised for the IOC: one `machine_health` exception per machine whose condition is flagged,
-  routed to the engineers' queue, updated while it holds and cleared (closing its case) when it doesn't. Failure-
+  routed to the engineers' queue, updated while it holds and cleared (closing its case) when it doesn't. A case a
+  person closed stays closed while the machine is flagged the same way, and reopens when that changes. Failure-
   history flags alone stay with the reliability review.
 
 - `surge_events(ref)`: outright surges on a centrifugal stage from their signature (the suction flow collapsing as the
@@ -817,7 +818,8 @@ def _prognosis(conn, fid: str, until: str | None) -> dict:
 def watch(conn, until: str | None = None, by: str = "agent:rotating_screen", watch_level: bool = True) -> dict:
     """The fleet screen at `until` raised as `machine_health` exceptions: one per machine whose condition is flagged
     (failure-history flags stay with the reliability review), kept while the screen flags it (new evidence updates
-    the open one), cleared when it doesn't. `act` machines come at priority 2, `watch` ones at 0.5 (left out with
+    the open one), cleared when it doesn't. A machine whose case a person closed stays closed while the screen flags
+    it the same way (its status and flags), listed as `held`; a change reopens that case (#1379). `act` machines come at priority 2, `watch` ones at 0.5 (left out with
     `watch_level=False`). Each carries its status, the flags in words, the first
     recommendation and the findings behind them, so the engineer the case reaches starts from the evidence."""
     from ..core import work
@@ -828,9 +830,10 @@ def watch(conn, until: str | None = None, by: str = "agent:rotating_screen", wat
         from ..graph.operations import data_through
 
         s["at"] = data_through(conn)
-    held = {r["key"] for r in conn.execute("select key from exception_record where type = %s and state = 'open'",
-                                           (HEALTH_TYPE,))}
-    raised, cleared, errors, keep = [], [], [], set()
+    # open ones, and closed ones whose close-out still holds (a signal on them), which clear when the screen stops
+    held = {r["key"] for r in conn.execute("select key from exception_record where type = %s and (state = 'open' or "
+                                           "(state = 'closed' and signal is not null))", (HEALTH_TYPE,))}
+    raised, cleared, errors, keep, standing = [], [], [], set(), []
     for m in s["machines"]:
         flags = sorted((f for f in dict.fromkeys(m["flags"]) if f not in HISTORY),
                        key=lambda f: (f not in SEVERE, FIRST.index(f) if f in FIRST else len(FIRST)))
@@ -853,14 +856,19 @@ def watch(conn, until: str | None = None, by: str = "agent:rotating_screen", wat
                    fact("Next window", life.get("next_window")), fact("Makes the window", life.get("makes_the_window"))))
         try:
             r = raise_exception(conn, HEALTH_TYPE, m["machine"], title, by, source="rotating_screen", refs=[m["id"]],
-                                priority=PRIORITY[m["status"]], finding=found)
+                                priority=PRIORITY[m["status"]], finding=found,
+                                signal=f"{m['status']}: {', '.join(flags)}")
         except (work.WorkError, ExceptionError) as e:
             errors.append(f"{m['machine']}: {e}")
+            continue
+        if r.get("held"):
+            standing.append(m["machine"])  # closed by a person and unchanged since: their close-out holds
             continue
         raised.append({"machine": m["machine"], "status": m["status"], "exception_id": r["id"], "item_id": r["item_id"],
                        "new": r["raised"]})
     for key in held - keep:
-        clear_exception(conn, HEALTH_TYPE, key, by, reason="the fleet screen no longer flags it")
-        cleared.append(key)
+        if clear_exception(conn, HEALTH_TYPE, key, by, reason="the fleet screen no longer flags it") is not None:
+            cleared.append(key)
     conn.commit()
-    return {"at": until, "checked": s["machines_checked"], "raised": raised, "cleared": cleared, "errors": errors}
+    return {"at": until, "checked": s["machines_checked"], "raised": raised, "held": standing, "cleared": cleared,
+            "errors": errors}
