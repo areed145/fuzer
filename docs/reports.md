@@ -58,8 +58,8 @@ Every panel has an `id` (unique in the report, kept across versions so notes and
 
 | Type | Fields | Draws | Owner |
 |---|---|---|---|
-| `stat` | `measure`, `history` (false: no sparkline, for a measure slow to read per point) | The value, its target, the change against the window before and a sparkline | engine |
-| `trend` | `measures` (one or more) | The measures over the window on the one trend chart, from `trend_spec.from_measures` | engine |
+| `stat` | `measure`, `history` (false: no sparkline, for a measure slow to read per point) | The value, its target, the change against the window before ("no history" when that window has none), a sparkline, and one line under it: what it is read from (`source`, from the measure's `records`) and the day it is for | engine |
+| `trend` | `measures` (one or more) | The measures on the one trend chart, from `trend_spec.from_measures`: a measure that adds up over days (oil produced, cases opened) draws each day's own part, labelled "per day"; any other (a share, a median, a stock) draws the measure over the report's window ending each day, so its last point is the stat beside it | engine |
 | `figure` | `measure`, `grain`, `chart` (`bar`, `pareto` or `share`), `limit` | The measure cut by one of its grains | engine |
 | `table` | `rows` (a row set), or `measure` (or `measures`, a column each) + `grain`, `limit` | Rows, each opening its case or entity | engine |
 | `cases` | `filter` (the Work list's filters: `state`, `kind`, `stage`, `holder`, `queue`, `source`, `overdue`, `q`, `sort`), `limit` | Live case rows, the same rows as Work (`ops/worklist.rows`, scoped with `within`), with a link to that list | engine |
@@ -121,7 +121,11 @@ the measure's own period) ending `at`. Its result keeps today's fields (`value`,
 be cut by scope returns `scope: None`, and a report says the figure is for the whole register rather than pretend.
 A measure whose records aren't there at all returns `value: None`, `unknown: True` and the reason in `note` (a YAML
 measure's `from.missing`, such as "no bypass register loaded"): a stat panel shows Unknown with that line, a table the
-line alone, the AI note is told never to read it as zero, and the shift handover says the section is unknown.
+line alone, the AI note is told never to read it as zero, and the shift handover says the section is unknown. A YAML
+measure with `from.empty` is unknown for a window with no record in it, as Oil deferred is on a day with no downtime
+record ("no downtime recorded in the window"), never 0 beside a gap to potential. A case measure over a window that
+ends before the first case was opened is unknown ("no history"), so a stat says "no history the period before", never
+"0 the period before", and `previous_unknown` tells the AI note there is nothing to compare against.
 
 `trend_spec.from_measures` draws measures over a window as a trend spec (`analysis/trend_spec.py`), one series per
 measure with its label and unit, so the one chart (`ui/src/trends/TrendChart.tsx`) draws it.
@@ -179,7 +183,9 @@ as panel results, so reading a report never calls a model.
 window and day (`report_pages.panel_data` of every panel except the commentary and the repeat rows), made small enough
 for one short call on `agents.summary_model` at medium effort. It writes a headline and two to five points; each point
 cites the measure keys, entity ids or `case:<n>` it rests on. The daily report's checks run on it and are kept with it:
-a number not in the facts, a citation not in them or a point with no citation is flagged on the note, not hidden.
+a number not in the facts, a citation not in them or a point with no citation is flagged on the note for whoever can
+write it again, beside Write again; a reader sees the note alone. A `cases` panel's facts are its rows without their
+count: a live list's count moves by the minute, so the panel says it and the note never repeats a stale one.
 Notes are kept in `report_summary`, shared with everyone. The panel's result says `due` when none is kept for the
 report's default window ending today: the first visit with AI access to the report's own view writes it. Any other
 scope, window or day shows "Write the note" to someone with AI access and nothing to write for anyone else.

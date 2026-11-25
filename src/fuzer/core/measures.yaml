@@ -84,12 +84,14 @@ measures:
     better: lower
     definition: >-
       Oil lost to downtime that started in the window, as each downtime record states it, by its cause and by what it
-      stopped. The deferment by cause and by entity on a report is this measure cut by cause or by kind.
+      stopped. The deferment by cause and by entity on a report is this measure cut by cause or by kind. A window with
+      no downtime record is unknown, not 0: a loss nobody recorded is still a loss.
     formula: sum(lost_oil_bbl) over downtime starting in the window
     records: downtime records (start, cause, lost volume) and what each affects or was caused by
     cutoff: production_day
     window: 30d
-    from: {kind: downtime, at: start, links: [affects, caused_by], value: lost_oil_bbl}
+    from: {kind: downtime, at: start, links: [affects, caused_by], value: lost_oil_bbl,
+           empty: no downtime recorded in the window}
     aggregate: sum
     grains: [facility, area, well, tag, cause]
     cuts: {cause: reason_category}

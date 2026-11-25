@@ -86,7 +86,8 @@ export function NotePanel(props: PanelProps) {
         onChange={(e) => setDraft(e.target.value)} />
       <Line wrap small muted>
         <Button size="sm" variant="primary" disabled={!!busy || !draft.trim()} onClick={add}>Add note</Button>
-        {example && <span>{`{${example}}`} shows a live value</span>}
+        {/* how to put a live value in, for the person writing one, not everyone who opens the report */}
+        {example && draft.trim() && <span>{`{${example}}`} shows a live value</span>}
       </Line>
     </>}
     <ActionStatus busy={busy} error={error} />

@@ -56,8 +56,9 @@ export function SummaryPanel(props: PanelProps) {
     if (!ai || !kept.data?.due || !kept.data.can_write || asked.current === here) return;
     write();
   }, [ai, here, kept.data?.due, kept.data?.can_write]);
-  const flag = summary && checked(summary);
   const canWrite = ai && !!kept.data?.can_write;
+  // what the checks found is for whoever can write the note again, beside Write again; a reader sees the note
+  const flag = canWrite && summary && checked(summary);
   return <PanelFrame title={panel.title ?? "Summary"} result={kept.data} loading={kept} className="report-summary"
     detail={summary ? <>Claude · {ago(summary.written_at)} · shared</> : undefined}>
     {summary && <>

@@ -393,9 +393,12 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
       { key: "value", label: "Cases opened", unit: "cases", align: "end" }], rows: [{ key: "x", cells: { label: "context gap", value: 5 }, href: "/list?kind=x" }], total: 1 } });
     if (id === "w") return route.fulfill({ json: { ...base, type: "cases", title: "Overdue", cases: [], total: 0, overdue: 0, labels: {}, href: "/list?overdue=true" } });
     if (id === "d") return route.fulfill({ json: { ...base, type: "stat", title: "Safeguards bypassed", measure: "safety.bypasses_active",
-      value: null, unknown: true, note: "no bypass register loaded", unit: "bypasses", target: 0, better: "lower", previous: null, history: [] } });
+      value: null, unknown: true, note: "no bypass register loaded", unit: "bypasses", target: 0, better: "lower", previous: null,
+      source: "bypass register", history: [] } });
+    if (id === "c") return route.fulfill({ json: { ...base, type: "stat", title: "Cases opened", measure: "work.arrivals", value: 12, unit: "cases",
+      target: null, better: "none", previous: null, previous_unknown: true, source: "cases", history: [] } });
     return route.fulfill({ json: { ...base, type: "stat", title: "Open cases", measure: "work.backlog", value: 12, unit: "cases", target: null,
-      better: "lower", previous: 10, history: [] } });
+      better: "lower", previous: 10, source: "cases", history: [] } });
   });
   const tops = async () => page.locator(".report-type-stat").evaluateAll((ns) => ns.map((n) => Math.round(n.getBoundingClientRect().top)));
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -406,6 +409,10 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
   const unknown = page.locator(".report-type-stat", { hasText: "Safeguards bypassed" });
   await unknown.getByText("no bypass register loaded").waitFor();
   assert.equal(await unknown.locator(".report-stat-value").innerText(), "Unknown");
+  // every figure says what it is read from and the day it is for; a window with no history is never 0
+  await unknown.getByText("bypass register · Nov 23").waitFor();
+  const fresh = page.locator(".report-type-stat", { hasText: "Cases opened" });
+  await fresh.getByText("no history the period before").waitFor();
   // rows reading a measure that is unknown here are one line, said once, instead of empty panels
   assert.equal(await page.getByText("No business plan loaded").count(), 1);
   assert.equal(await page.locator(".report-type-stat").count(), 4);
@@ -421,7 +428,7 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
   await page.setViewportSize({ width: 1440, height: 900 });
 });
 
-test("a report's AI note cites what it rests on and flags what the checks found; a note shows its live values and adds for the period", async () => {
+test("a report's AI note cites what it rests on and keeps what the checks found from readers; a note shows its live values and adds for the period", async () => {
   const win = { key: "7d", at: "2026-11-24", start: "2026-11-18", end: "2026-11-24", days: 7, label: "7 days to 24 Nov 2026",
     previous: { start: "2026-11-11", end: "2026-11-17" } };
   const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
@@ -449,8 +456,9 @@ test("a report's AI note cites what it rests on and flags what the checks found;
   await page.goto(`${url}/#/reports/work`);
   await page.getByText("Backlog up to 42 cases this week").waitFor();
   await page.getByRole("link", { name: "case 12" }).waitFor();
-  await page.getByText("12% not on the page").waitFor();
   await page.getByText("1,250 cases", { exact: true }).waitFor();
+  // what the checks found is for whoever can write the note again: a reader sees the note alone
+  assert.equal(await page.getByText("12% not on the page").count(), 0);
   await page.getByRole("textbox", { name: "Add a note" }).fill("Compressor back on Thursday.");
   await page.getByRole("button", { name: "Add note" }).click();
   await page.waitForFunction(() => true);
@@ -7216,7 +7224,7 @@ const BURN_NONE = { since: "", until: "", source: "", note: "", months: [], summ
   open_at_start: 0, open_at_end: null, trend: "steady" }, lag: { orders: 0, with_notification: 0, without_notification: 0,
   ordered_before_notified: 0, median_days: null, p90_days: null, max_days: null, longest: [] } };
 const ACCOUNTS_NONE = { reconciliation: { since: "", until: "", tolerance_pct: 1, months: [], summary: { agrees: 0,
-  differs: 0, preliminary: 0, incomplete: 0, no_accounting: 0, no_operational: 0 }, sources: { operational: "", accounting: "" },
+  differs: 0, preliminary: 0, incomplete: 0, no_accounting: 0, no_operational: 0, not_compared: 0 }, sources: { operational: "", accounting: "" },
   note: "" }, unit_cost: { since: "", until: "", currencies: [], months: [], window: {}, sources: { cost: "", volume: "" }, note: "" } };
 
 // The plant's own analyses moved from the retired Scorecard into the reports they belong to (`view` panels). Each test
@@ -7476,7 +7484,7 @@ test("Against the accounts cites both sources and periods, and keeps currencies 
     reconciliation: { since: "2024-12-31", until: "2025-12-31", tolerance_pct: 1, sources: {
       operational: "daily allocated production (EC DAY001 daily reports)", accounting: "production accounting" },
       note: "The accounted volume is the authority.",
-      summary: { agrees: 1, differs: 1, preliminary: 1, incomplete: 0, no_accounting: 0, no_operational: 0 },
+      summary: { agrees: 1, differs: 1, preliminary: 1, incomplete: 0, no_accounting: 0, no_operational: 0, not_compared: 0 },
       months: [
         { period: "2025-12", product: "oil", unit: "bbl", difference: 1300, difference_pct: 0.59, verdict: "preliminary",
           why: "accounting hasn't closed 2025-12 (preliminary); daily reports cover 30 of its 31 days",
@@ -7503,7 +7511,7 @@ test("Against the accounts cites both sources and periods, and keeps currencies 
       ] } } }));
   await openViews(page);
   const card = page.locator(".against-accounts");
-  await card.getByText("1 months agree within 1%, 1 differ, 1 preliminary", { exact: false }).waitFor();
+  await card.getByText("oil and gas by month: 1 agree within 1%, 1 differ, 1 preliminary, 0 can't be compared", { exact: false }).waitFor();
   const aug = card.locator('tr[data-month="2025-08 oil"]');
   await aug.locator(".ui-badge").getByText("differs").waitFor();
   await aug.getByText("2025-08-01 to 2025-08-31, 31 days").waitFor();

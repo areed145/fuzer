@@ -55,9 +55,12 @@ function StatPanel(props: PanelProps) {
       <strong className={`report-stat-value${good === false ? " report-off-target" : ""}`}>{d.unknown ? "Unknown" : show(d.value, d.unit)}</strong>
       <Text as="div" small muted>
         {[d.target != null && `target ${d.better === "lower" ? "≤" : "≥"} ${show(d.target, d.unit)}`,
-          d.previous != null && `${show(d.previous, d.unit)} the period before`].filter(Boolean).join(" · ")}
+          d.previous_unknown ? "no history the period before"
+            : d.previous != null && `${show(d.previous, d.unit)} the period before`].filter(Boolean).join(" · ")}
       </Text>
       {d.history.length > 1 && <Sparkline points={d.history} target={d.target} label={d.title} />}
+      {/* where the figure comes from and the day it is for, from the measure's declaration */}
+      <Text as="div" small muted>{[d.source, d.as_of && whenDay(d.as_of)].filter(Boolean).join(" · ")}</Text>
     </>}
   </PanelFrame>;
 }

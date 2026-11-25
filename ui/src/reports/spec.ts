@@ -188,6 +188,10 @@ export interface StatResult extends PanelResultBase {
   better: "higher" | "lower" | "none";
   /** The value for the window before, when the measure can say it. */
   previous: number | null;
+  /** The window before has no value because what it is read from wasn't there yet (no case history): never 0. */
+  previous_unknown?: boolean | null;
+  /** What the figure is read from, in a few words ("daily reports"), shown with its as-of day under it. */
+  source: string;
   history: { at: string; value: number }[];
 }
 

@@ -89,15 +89,15 @@ def facts(conn, pack, day: str) -> dict:
     prev = _day001(conn, (d - timedelta(days=1)).isoformat())
     week = [r for r in (_day001(conn, (d - timedelta(days=i)).isoformat()) for i in range(1, 8)) if r]
     avg = sum(num(r.get("oil_bbl")) for r in week) / len(week) if week else None
-    # The day's oil against its reported potential, named so it can't be read as the registered production efficiency,
-    # which follows next, read from the metric registry for the 14 days to this report (P7.1b).
-    prod = _f("Oil {oil} bbl against a potential of {pot} bbl ({share}% of potential)", [today["id"]], oil=oil, pot=pot,
-              share=round(oil / pot * 100, 1) if pot else None)
+    # The day's oil against its reported potential, in barrels: a share of potential beside production efficiency read
+    # as a second efficiency. The one efficiency is the registered metric for this day, the figure Daily operations
+    # shows beside this report (P7.1b, #1349).
+    prod = _f("Oil {oil} bbl against a potential of {pot} bbl", [today["id"]], oil=oil, pot=pot)
     sections["Production and deferment"].append(prod)
-    eff = metrics.value(conn, pack, "production.efficiency", at=d)
+    eff = metrics.value(conn, pack, "production.efficiency", window="1d", at=d)
     if eff["value"] is not None:
         sections["Production and deferment"].append(_f(
-            "Production efficiency {eff}% over the 14 days to {day} ({standard})", eff["refs"], eff=eff["value"], day=day,
+            "Production efficiency {eff}% on {day} ({standard})", eff["refs"], eff=eff["value"], day=day,
             standard=eff["standard"]))
     if prev:
         p_oil = num(prev.get("oil_bbl"))

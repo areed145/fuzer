@@ -52,6 +52,27 @@ def test_months_that_cant_be_compared_say_why(okan_db):
     conn.rollback()
 
 
+def test_a_rolled_demonstration_names_months_by_their_dates_and_never_lists_a_compared_day_again(okan_db):
+    """#1349: a rolling demonstration moves every date by the days since its exports were written but not the period
+    label beside them, so a '2025-12' booking covered a 2026 window, and the calendar months it covered were listed
+    again as having no accounted volume beside the months said to agree."""
+    conn = okan_db.conn
+    conn.execute("""
+        update golden g set value = to_jsonb(((g.value #>> '{}')::date + 330)::text)
+        from entity e where e.fuzer_id = g.fuzer_id and (e.kind = 'production_day' and g.field = 'report_date'
+              or e.kind = 'accounting_volume' and g.field in ('period_start', 'period_end'))""")
+    out = accounting.reconcile(conn, "2026-01-01", "2026-12-01")
+    booked = [m for m in out["months"] if m["accounting"]]
+    assert booked and all(m["period"] == m["accounting"]["since"][:7] for m in booked)
+    spans = {(m["product"], m["accounting"]["since"], m["accounting"]["through"]) for m in booked}
+    for m in out["months"]:
+        if m["verdict"] == "no_accounting":  # only days no accounting period covers
+            assert not any(p == m["product"] and a <= m["operational"]["since"] <= b for p, a, b in spans), m
+    s = out["summary"]
+    assert s["not_compared"] == s["incomplete"] + s["no_accounting"] + s["no_operational"]
+    conn.rollback()
+
+
 def test_unit_cost_keeps_currencies_apart(okan_db):
     conn = okan_db.conn
     out = accounting.unit_cost(conn)

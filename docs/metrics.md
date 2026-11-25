@@ -187,7 +187,7 @@ A **scoped** metric answers for any entity (`?scope=<id>`) and rolls up everythi
 
 ## production.deferred
 
-**Oil deferred.** Oil lost to downtime that started in the window, as each downtime record states it, by its cause and by what it stopped. The deferment by cause and by entity on a report is this measure cut by cause or by kind.
+**Oil deferred.** Oil lost to downtime that started in the window, as each downtime record states it, by its cause and by what it stopped. The deferment by cause and by entity on a report is this measure cut by cause or by kind. A window with no downtime record is unknown, not 0: a loss nobody recorded is still a loss.
 
 - **Formula:** sum(lost_oil_bbl) over downtime starting in the window
 - **Unit:** bbl (lower is better)

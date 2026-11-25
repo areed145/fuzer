@@ -32,7 +32,9 @@ Write what the people who read this report (named in `for`) need to take from th
 - points: two to five short sentences, most important first: what is off target or moved most against the last
   window, where the losses or the work concentrate, what needs someone now.
 A panel with `unknown: true` has no value because what it is read from isn't loaded: say it is unknown and why, in its
-note's words (no bypass register loaded); never read it as zero, none or nothing to report.
+note's words (no bypass register loaded); never read it as zero, none or nothing to report. A panel with
+`previous_unknown: true`, or with no `previous`, has nothing to compare against for the window before (no history yet):
+never say it rose, fell or changed from anything.
 Say numbers exactly as given, with their units; never add, subtract, round or work out a new number. Name entities by
 their labels. Never advise how to operate the plant. If the panels show nothing of note, say so in the headline and give
 one point at most. For each point list in `cites` what it rests on: measure keys (like "production.oil"), entity ids
@@ -55,6 +57,7 @@ FACTS_CAP = 24_000
 
 NUMBER = re.compile(r"(?<![\w.:-])-?\d[\d,]*(?:\.\d+)?(?![\w:-])")
 REF = re.compile(r"^(fz-[\w-]+|case:\d+)$")
+DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 
 
 def _series(xs: list) -> list:
@@ -113,6 +116,8 @@ def facts(conn, pack, key: str, scope: str | None, window: str, at: date, asked:
                                 for s in spec.get("series") or []]
         if p["type"] == "figure":
             result.pop("figure", None)  # the rows carry the same numbers
+        if p["type"] == "cases":  # a live list's count moves by the minute: the panel says it, the note never does
+            result = {k: v for k, v in result.items() if k not in ("total", "overdue")}
         panels.append({"id": p["id"], "type": p["type"], "title": r.get("title") or p.get("title"),
                        "measures": _measures(p), "result": _small(result)})
     out = {"report": key, "title": defn.get("title"), "for": defn.get("for") or [], "scope": scope_ref,
@@ -158,8 +163,8 @@ def allowed(f: dict) -> tuple[set[str], set[float]]:
                 cites.add(v)
             elif re.fullmatch(r"[a-z][a-z0-9_]*(\.[a-z0-9_]+)+", v):
                 cites.add(v)  # a measure or row set key named in a result
-            else:
-                numbers |= {_val(n) for n in NUMBER.findall(v)}
+            else:  # a date's parts may be said: "on 25 Nov" for 2026-11-25
+                numbers |= {_val(n) for n in NUMBER.findall(DATE.sub(r"\1 \2 \3", v))}
     return cites, numbers
 
 

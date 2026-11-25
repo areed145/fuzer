@@ -176,7 +176,8 @@ export interface UnitCostMonth {
 
 export interface PlantAccounting {
   reconciliation: { since: string; until: string; tolerance_pct: number; months: AccountingMonth[];
-    summary: Record<AccountingMonth["verdict"], number>; sources: { operational: string; accounting: string };
+    /** `not_compared`: the incomplete months and those with no accounted volume or no daily reports, counted once. */
+    summary: Record<AccountingMonth["verdict"] | "not_compared", number>; sources: { operational: string; accounting: string };
     note: string };
   unit_cost: { since: string; until: string; currencies: string[]; months: UnitCostMonth[];
     window: Record<string, { cost: number; oil_bbl: number; per_bbl: number }>;

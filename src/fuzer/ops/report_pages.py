@@ -16,6 +16,7 @@ here. The modules in `DECLARED_IN` register types: this one registers stat, tren
 commentary registers note (ops/report_notes) and summary (agents/report_summary).
 """
 
+import re
 from collections.abc import Callable
 from datetime import date
 from importlib import import_module
@@ -217,18 +218,26 @@ def _row_href(key: str, grain: str, value: str, scope: dict) -> str:
     return f"/metrics/{key}?" + urlencode({"grain": grain})
 
 
+def source(records: str) -> str:
+    """What a measure is read from, in a few words for the line under its figure: its declaration's `records` up to
+    the first detail ("downtime records (start, cause...) and what each affects" reads "downtime records")."""
+    return re.split(r" \(| and |, ", records or "", maxsplit=1)[0].strip()
+
+
 @panel_type("stat")
 def stat(conn, pack, d, panel, scope, w) -> dict:
     # history: false for a measure too slow to read once per sparkline point (a stat without its sparkline)
     m = _value(conn, pack, panel["measure"], scope, w, history=panel.get("history", True))
     past = m.get("history") or []
-    previous = m.get("previous")
-    if previous is None and len(past) >= 2 and str(past[-1]["at"])[:10] == str(m.get("as_of") or "")[:10]:
+    previous, before_unknown = m.get("previous"), m.get("previous_unknown", False)
+    if previous is None and not before_unknown and len(past) >= 2 \
+            and str(past[-1]["at"])[:10] == str(m.get("as_of") or "")[:10]:
         previous = past[-2]["value"]
     return {"title": m["label"], "measure": m["key"], "value": m["value"], "unknown": m["unknown"], "unit": m["unit"],
-            "target": m["target"],
-            "better": m["better"], "previous": previous, "history": past, "as_of": m.get("as_of"),
-            "note": _note(scope, m), "scoped": _scoped(scope, m), "refs": m["refs"], "href": f"/metrics/{m['key']}"}
+            "target": m["target"], "better": m["better"], "previous": previous,
+            "previous_unknown": before_unknown or None, "history": past, "as_of": m.get("as_of"),
+            "source": source(m["records"]), "note": _note(scope, m), "scoped": _scoped(scope, m), "refs": m["refs"],
+            "href": f"/metrics/{m['key']}"}
 
 
 @panel_type("trend")

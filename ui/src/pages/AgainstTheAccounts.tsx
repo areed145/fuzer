@@ -27,8 +27,8 @@ export function AgainstTheAccounts() {
     <ReadCard of={data} className="against-accounts" title="Against the accounts" note={u && u.months.length > 0 && <>{u.sources.cost} over {u.sources.volume}. {u.note}</>}>
       {r && <>
         <Text as="div" small>
-          {r.since} to {r.until}: {r.summary.agrees} months agree within {r.tolerance_pct}%, {r.summary.differs} differ,
-          {" "}{r.summary.preliminary} preliminary, {r.summary.incomplete + r.summary.no_accounting + r.summary.no_operational} can't be compared.
+          {r.since} to {r.until}, oil and gas by month: {r.summary.agrees} agree within {r.tolerance_pct}%,
+          {" "}{r.summary.differs} differ, {r.summary.preliminary} preliminary, {r.summary.not_compared} can't be compared.
         </Text>
         {r.months.length ? (
           <Table density="compact">

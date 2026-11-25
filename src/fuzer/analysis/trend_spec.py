@@ -256,9 +256,10 @@ def from_measures(conn, pack, keys: list[str], scope: str | None, window: str, a
     """Registered measures over a window as a spec (docs/reports.md): one series per measure, worded by its
     declaration, so the one chart draws a report's trend like any other.
 
-    A windowed measure gives its value for each day of the window (`metrics.series`: what happened that day, or what
-    was open at its end for a stock), at least 14 days so a one-day window still has a line; one that isn't windowed
-    gives its own history. A measure with a fixed target gets a flat target line beside it. Measures of different units
+    A windowed measure gives a point for each day of the window (`metrics.series`), at least 14 days so a one-day window
+    still has a line: one that adds up over days (oil produced, cases opened) each day's own part, labelled "per day"
+    so it isn't read as the window's figure; any other its value over the window ending that day, so the last point
+    is the report's stat for it. One that isn't windowed gives its own history. A measure with a fixed target gets a flat target line beside it. Measures of different units
     go on panels of their own, in the order asked. A measure that can't be cut by the scope asked says so in
     `errors`, as does one with nothing in the window."""
     from ..core import metrics
@@ -274,7 +275,8 @@ def from_measures(conn, pack, keys: list[str], scope: str | None, window: str, a
         if not got["points"]:
             errors.append(f"{m['label']}: nothing in the window" + (f" ({got['note']})" if got.get("note") else ""))
             continue
-        s = _measure_series(f"measure:{key}", m, got["points"])
+        s = _measure_series(f"measure:{key}", m, got["points"],
+                            f"{m['label']} per day" if m.get("daily") and got["window"] else None)
         series.append(s)
         panel = panels.setdefault(s["axis"], {"key": s["axis"], "label": s["unit"] or m["label"], "show": True,
                                               "axis": "auto", "series": []})
