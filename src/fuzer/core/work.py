@@ -10,7 +10,7 @@ deployment could hand the same requests to another system (an SAP PM or ServiceN
     cancel_case(conn, item_id, by, reason)                cancel a case and any process running it
     agent_steps(conn, role, limit)                        open agent steps for a role (the board reads these)
     dispatch(conn, item_id, by, to, reason)               give a case (or its open person step) to someone
-    return_to(conn, item_id, person, to, reason)          give back what a person holds to whoever sent it
+    return_to(conn, item_id, person, fallback, reason)    give back what a person holds to a desk queue
     set_due(conn, item_id, by, due, reason)               move a case's due date (its open person steps' SLA clock)
     attach_process(conn, item_id, process_key, data, by)  put an open case with no process onto a published one
     report_field_step(conn, item_id, person, result, ...) the field's report completes its step in the process
@@ -87,9 +87,10 @@ def dispatch(conn, item_id: int, by: str, to: str, reason: str | None = None) ->
     return _engine().dispatch_item(conn, item_id, by, to, reason)
 
 
-def return_to(conn, item_id: int, person: str, to: str, reason: str | None = None) -> dict:
-    """Give back what `person` holds on a case to `to`, the one who sent it, without sending it on to the field."""
-    return _engine().return_item(conn, item_id, person, to, reason)
+def return_to(conn, item_id: int, person: str, fallback: str, reason: str | None = None) -> dict | None:
+    """Give back what `person` holds on a case to its step's (or its) desk queue, else `fallback` (the IOC's queue),
+    without sending it on to the field. None when nothing on the case is with them."""
+    return _engine().return_item(conn, item_id, person, fallback, reason)
 
 
 def set_due(conn, item_id: int, by: str, due, reason: str | None = None) -> dict:
@@ -102,16 +103,11 @@ def set_priority(conn, item_id: int, by: str, priority: float, reason: str | Non
     return _engine().set_item(conn, item_id, by, reason=reason, priority=priority)
 
 
-def hand_back(conn, item_id: int, person: str, by: str, reason: str | None = None) -> dict | None:
-    """Return what was sent to `person` on a case (its open person step they hold, else the case) to whoever it was
-    handed from, or its role's queue. None when nothing on the case is with them."""
-    return _engine().hand_back_item(conn, item_id, person, by, reason)
-
-
-def report_field_step(conn, item_id: int, person: str, result: str, note: str | None, reason: str) -> dict | None:
+def report_field_step(conn, item_id: int, person: str, result: str, note: str | None, reason: str,
+                      fallback: str) -> dict | None:
     """Complete the field step `person` holds on a case (`done` or `could_not_do`, with their note) and hand the step
-    the process returns to back to whoever sent them. None when they hold no field step there."""
-    return _engine().report_field_step(conn, item_id, person, result, note, reason)
+    the process returns to to its desk queue, else `fallback`. None when they hold no field step there."""
+    return _engine().report_field_step(conn, item_id, person, result, note, reason, fallback)
 
 
 def take(conn, item_id: int, person: str) -> dict:

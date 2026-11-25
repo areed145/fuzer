@@ -247,9 +247,10 @@ def test_the_ioc_dispatches_and_the_field_reports_back(conn, types):
         ex.report(conn, e["id"], "fred", "could_not_do")
     done = ex.report(conn, e["id"], "fred", "done", note="tightened the gland")
     assert [f["status"] for f in done["evidence"]["field"]] == ["on_site", "done"]
-    # back with the IOC to close out, saying what it was (#1115), not closed by the field's Done
-    case = conn.execute("select state, assignee from work_item where id = %s", (sent["item_id"],)).fetchone()
-    assert done["state"] == "open" and case == {"state": "open", "assignee": "ioc-ann"}
+    # back in the IOC's queue to close out, saying what it was (#1115), not closed by the field's Done, and not with
+    # the dispatcher in person, who may be off shift (#1364)
+    case = conn.execute("select state, assignee, role from work_item where id = %s", (sent["item_id"],)).fetchone()
+    assert done["state"] == "open" and case == {"state": "open", "assignee": None, "role": "ops_lead"}
     assert conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind = 'handed_off' "
                         "order by id desc limit 1", (sent["item_id"],)).fetchone()["r"].startswith("Back from the field: done")
     assert not [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]  # done: off their list
@@ -356,16 +357,46 @@ def test_the_field_reporting_back_returns_the_ioc_step_to_its_queue(conn, types)
     conn.commit()
 
 
-def test_a_job_the_field_could_not_do_goes_back_to_the_dispatcher(conn, types):
+def test_could_not_do_releases_the_job_to_the_ioc_queue_and_its_stage_follows_the_next_dispatch(conn, types):
+    """Could not do ends the field's part (#1364): the job leaves the operator, even one who also holds the ops lead
+    role, for the IOC's queue, Back from the field. Sent out again, it is with the field, not still back."""
+    from fuzer.core import work
     from fuzer.ops import exceptions as ex
+    from fuzer.workflow import engine
 
+    engine.set_person(conn, "fred", ["operator", "ops_lead"])  # like the demo account, both ends of the job
     types("walkdown", audience=("ioc", "field"))
     e = raise_exception(conn, "walkdown", "walk-12", "Smell of gas near P-101", "olga", refs=["tag:P-101"])
     sent = ex.dispatch(conn, e["id"], "ioc-ann", "fred", reason="walk the area")
+    stage = lambda: next(r["stage"] for r in ex.listing(conn) if r["id"] == e["id"])
+    assert stage() == "field"
     ex.report(conn, e["id"], "fred", "could_not_do", note="area barriered off for lifting")
-    case = conn.execute("select state, assignee from work_item where id = %s", (sent["item_id"],)).fetchone()
-    assert case == {"state": "open", "assignee": "ioc-ann"}
-    assert not [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]
+    case = conn.execute("select state, assignee, role from work_item where id = %s", (sent["item_id"],)).fetchone()
+    assert case["state"] == "open" and case["assignee"] is None and case["role"] == "ops_lead"
+    assert not [j for j in ex.field_jobs(conn, "fred") if j["id"] == e["id"]]  # not theirs, nor a field job queued
+    assert stage() == "back"
+    ex.dispatch(conn, e["id"], "ioc-ann", "role:operator", reason="try again after the lift")
+    assert stage() == "field"  # the latest dispatch decides, not the earlier visit's Could not do
+    work.take(conn, sent["item_id"], "fred")
+    assert stage() == "field"
+    ex.report(conn, e["id"], "fred", "done", note="no gas, hatch reseated")
+    assert stage() == "back"
+    work.take(conn, sent["item_id"], "ioc-ann")  # the IOC taking it to close out: still back from the field
+    assert stage() == "back"
+    conn.commit()
+
+
+def test_the_fields_jobs_are_listed_by_priority_then_due(conn, types):
+    """A gas smell was seventh of eight behind older jobs (#1364): the most urgent job leads, then the soonest due."""
+    from fuzer.ops import exceptions as ex
+
+    types("look_round", audience=("ioc", "field"), joins=False)
+    raised = [raise_exception(conn, "look_round", f"pri-{k}", f"Job {k}", "olga", refs=["tag:P-101"], priority=p)
+              for k, p in (("old-low", 0.2), ("gas", 0.95), ("mid", 0.6), ("none", None))]
+    for e in raised:
+        ex.dispatch(conn, e["id"], "ioc-ann", "pria", reason="have a look")
+    mine = [j["key"] for j in ex.field_jobs(conn, "pria") if j["id"] in {e["id"] for e in raised}]
+    assert mine == ["pri-gas", "pri-mid", "pri-old-low", "pri-none"]
     conn.commit()
 
 
@@ -390,7 +421,7 @@ def test_a_job_routed_to_the_operators_queue_reaches_the_field(conn, types):
 
 def test_a_job_taken_from_the_queue_keeps_what_the_ioc_asked_and_goes_back_to_it(conn, types):
     """The IOC dispatches to the operators' queue with what to check; an operator takes it. Their job still says what
-    was asked and by whom, and Could not do hands it back to the dispatcher, not to the queue it was taken from."""
+    was asked and by whom, and Could not do hands it to the IOC's queue, not to the queue it was taken from."""
     from fuzer.ops import exceptions as ex
     from fuzer.workflow import engine
 
@@ -404,13 +435,13 @@ def test_a_job_taken_from_the_queue_keeps_what_the_ioc_asked_and_goes_back_to_it
     assert job["sent"]["by"] == "ivy" and job["sent"]["reason"].startswith("Check the leak rate")
     ex.report(conn, e["id"], "olly", "could_not_do", "Gland at end of travel; needs repacking")
     item = conn.execute("select assignee, role from work_item where id = %s", (job["item_id"],)).fetchone()
-    assert item["assignee"] == "ivy"
+    assert item == {"assignee": None, "role": "ops_lead"}
     conn.commit()
 
 
-def test_a_job_taken_from_the_queue_with_take_it_goes_back_to_the_dispatcher(conn, types):
-    """Take it claims the queue's step rather than handing it to yourself; Could not do still goes back to whoever
-    sent it to the queue, so the IOC decides, not the next operator taking it blind (#1115)."""
+def test_a_job_taken_from_the_queue_with_take_it_goes_back_to_the_ioc_queue(conn, types):
+    """Take it claims the queue's step rather than handing it to yourself; Could not do still goes to the IOC's queue,
+    so the IOC decides, not the next operator taking it blind (#1115, #1364)."""
     from fuzer.core import work
     from fuzer.ops import exceptions as ex
     from fuzer.workflow import engine
@@ -422,17 +453,17 @@ def test_a_job_taken_from_the_queue_with_take_it_goes_back_to_the_dispatcher(con
     item = ex.dispatch(conn, e["id"], "ivy", "role:operator", reason="Check the gland")["item_id"]
     work.take(conn, item, "olly")
     ex.report(conn, e["id"], "olly", "could_not_do", "Needs a scaffold")
-    held = conn.execute("select assignee from work_token where item_id = %s and kind = 'user' and state in "
-                        "('ready', 'waiting') union all select assignee from work_item where id = %s "
+    held = conn.execute("select assignee, role from work_token where item_id = %s and kind = 'user' and state in "
+                        "('ready', 'waiting') union all select assignee, role from work_item where id = %s "
                         "and not exists (select 1 from work_process where item_id = %s)",
                         (item, item, item)).fetchall()
-    assert [h["assignee"] for h in held] == ["ivy"]
+    assert [(h["assignee"], h["role"]) for h in held] == [(None, "ops_lead")]
     conn.commit()
 
 
 def test_a_queue_case_goes_to_the_field_through_its_own_field_check_and_comes_back(conn, types):
     """Sending a queue case to the field is a step of queue_item (#1145): the IOC's Work the case completes into the
-    operator's Field check; their report brings Work the case back to whoever sent them, in its own queue's role, and
+    operator's Field check; their report brings Work the case back to its own queue (#1364), and
     completing it then closes the case instead of sending it out again."""
     from fuzer.core import work as core_work
     from fuzer.ops import exceptions as ex
@@ -452,7 +483,8 @@ def test_a_queue_case_goes_to_the_field_through_its_own_field_check_and_comes_ba
     assert job["sent"]["reason"].startswith("Sniff the seal vent")
     ex.report(conn, e["id"], "olly", "done", note="vent flow 4 l/min, logged")
     s = open_step()
-    assert (s["element"], s["assignee"], s["role"]) == ("work", "ivy", "ops_lead")
+    assert (s["element"], s["assignee"], s["role"]) == ("work", None, "ops_lead")
+    core_work.take(conn, e["item_id"], "ivy")
     core_work.complete_step(conn, s["id"], "ivy", {})
     assert conn.execute("select state from work_item where id = %s", (e["item_id"],)).fetchone()["state"] == "done"
     conn.commit()
@@ -506,7 +538,7 @@ def test_a_queue_case_started_before_the_field_check_moves_onto_it_when_sent_out
 @pytest.mark.parametrize("said", ["done", "could_not_do"])
 def test_a_report_on_a_case_handed_to_the_queue_goes_back_to_the_ioc_not_out_again(conn, types, said):
     """A case the IOC handed straight to the operators' queue (no field check of its own, as cases did before #1145)
-    and an operator took: their report hands the IOC's step back to the IOC person who sent it, and is Back from the
+    and an operator took: their report hands the IOC's step to the IOC's queue (#1364), and is Back from the
     field. It must not move the case onto the field check and send that person out to the field."""
     from pathlib import Path
 
@@ -527,7 +559,7 @@ def test_a_report_on_a_case_handed_to_the_queue_goes_back_to_the_ioc_not_out_aga
     assignment.hand_off(conn, s["id"], "ivy", "role:operator", "Go and have a look, report what you find")
     assignment.hand_off(conn, s["id"], "olly", "olly", "taken from the queue")
     ex.report(conn, e["id"], "olly", said, note="Valve is isolated; nothing to hear")
-    assert [(r["element"], r["assignee"]) for r in step()] == [("work", "ivy")]
+    assert [(r["element"], r["assignee"]) for r in step()] == [("work", None)]
     listed = [r for r in ex.listing(conn) if r["id"] == e["id"]]
     assert listed and listed[0]["back_from_field"] is True
     conn.commit()
@@ -594,7 +626,7 @@ def test_a_dispatch_is_posted_to_the_alert_webhook(conn, types, monkeypatch):
 def test_dispatching_an_upset_sends_it_through_its_own_field_check(conn, types):
     """The upset's Triage declares a way to the field: dispatching it to an operator completes Triage with
     `field_check` and hands the process's Field check step to them, so the engineer's decision never lands in the
-    operator's list. Their report completes the Field check and Triage comes back to whoever sent them."""
+    operator's list. Their report completes the Field check and Triage comes back to the engineer queue."""
     from fuzer.ops import exceptions as ex
     from fuzer.workflow import engine
 
@@ -613,10 +645,10 @@ def test_dispatching_an_upset_sends_it_through_its_own_field_check(conn, types):
     assert job["task_name"] == "Field check" and job["own_step"] is True
     assert job["sent"]["reason"] == "read the wellhead gauge" and job["sent"]["by"] == "erin"
     ex.report(conn, e["id"], "otto", "done", note="gauge reads 13 barg, wing valve part closed")
-    assert steps() == [{"element": "triage", "assignee": "erin", "role": "engineer"}]  # back with whoever sent them
+    assert steps() == [{"element": "triage", "assignee": None, "role": "engineer"}]  # back in its own queue (#1364)
     data = conn.execute("select data from work_process where item_id = %s", (e["item_id"],)).fetchone()["data"]
     assert data["field_result"] == "done" and "13 barg" in data["field_note"]
-    [row] = [r for r in engine.my_work(conn, "erin")["mine"] if r["item_id"] == e["item_id"]]
+    [row] = [r for r in engine.my_work(conn, "erin")["queue"] if r["item_id"] == e["item_id"]]
     assert row["handed_reason"].startswith("Back from the field: done: gauge reads 13 barg")  # why it is back
     assert not [j for j in ex.field_jobs(conn, "otto") if j["id"] == e["id"]]
     [listed] = [r for r in ex.listing(conn) if r["id"] == e["id"]]
@@ -1254,7 +1286,7 @@ def test_a_queue_type_runs_as_the_queue_item_process(conn, types):
     done = ex.report(conn, f["id"], "fred", "done", note="meter reset")
     step = conn.execute("select assignee from work_token where item_id = %s and kind = 'user' and state = 'waiting'",
                         (f["item_id"],)).fetchone()
-    assert done["state"] == "open" and step["assignee"] == "ioc-ann"  # the IOC closes it out (#1115)
+    assert done["state"] == "open" and step["assignee"] is None  # the IOC's queue closes it out (#1115, #1364)
 
     g = raise_exception(conn, "gas_day_short", "GD-3", "Gas day short a third time", "kestrel", refs=["tag:NOPE-3"])
     work.take(conn, g["item_id"], "fred")  # nobody sent it: it was raised straight into the field's queue
@@ -1275,8 +1307,8 @@ def test_a_queue_type_runs_as_the_queue_item_process(conn, types):
                         "and state = 'waiting'", (sent["item_id"],)).fetchone()
     assert step["assignee"] == "fred" and step["due_at"] is not None
     ex.report(conn, w["id"], "fred", "could_not_do", note="no access")
-    assert conn.execute("select assignee from work_token where item_id = %s and kind = 'user' and state = 'waiting'",
-                        (sent["item_id"],)).fetchone()["assignee"] == "ioc-ann"  # back to whoever sent it
+    assert conn.execute("select assignee, role from work_token where item_id = %s and kind = 'user' and state = "
+                        "'waiting'", (sent["item_id"],)).fetchone() == {"assignee": None, "role": "ops_lead"}  # #1364
 
     types("odd_queue", role="role:not_a_person_role")  # a queue no person role backs stays a plain case
     g = raise_exception(conn, "odd_queue", "OQ-1", "Odd", "kestrel", refs=["tag:NOPE-3"])

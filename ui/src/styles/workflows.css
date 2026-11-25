@@ -48,7 +48,7 @@ details.exception-types { margin-top: 16px; }
 .case-check > div { margin-left: 26px; }
 .work-draft-steps { margin: 4px 0 8px; }
 /* Taken from the queue, the page follows the job up to the operator's own list, clear of the sticky top bar (#9). */
-.field-job { scroll-margin-top: 80px; }
+.field-job, .field-reported { scroll-margin-top: 80px; }
 .field-job:focus { outline: none; }
 /* A handover line opens its case (#11); it reads as text, so a section isn't a wall of link colour. */
 .handover-line { color: var(--text); }

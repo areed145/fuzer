@@ -57,8 +57,7 @@ def _event(conn, exception_id: int) -> dict:
     row = conn.execute(
         """
         select e.*, w.state as case_state, w.assignee, w.role, w.step as case_step, w.priority as case_priority,
-               coalesce((select h.data->>'reason' from work_event h where h.item_id = e.item_id and h.kind = 'handed_off'
-                         order by h.id desc limit 1) like 'Back from the field%%', false) as back_from_field,
+               """ + exceptions.BACK_FROM_FIELD + """,
                (select json_build_object('id', p.id, 'start_at', p.start_at, 'end_at', p.end_at, 'crew', p.crew)
                 from plan_item p where p.exception_id = e.id and p.status in ('proposed', 'scheduled', 'in_progress')
                 order by p.start_at limit 1) as planned

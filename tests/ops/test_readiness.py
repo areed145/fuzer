@@ -382,13 +382,13 @@ def test_a_job_handed_over_at_shift_change_stays_with_the_outgoing_operator_unti
     assert any(s.startswith("Handover to gina: done: isolated and blown down; left: fit new discharge valve") and
                "unsafe to leave: cylinder 3 cover is off" in s for s in said)
     assert said[-1] == "Accepted the handover from fred"
-    # what gina can't finish goes back past fred, who is off shift, to the IOC that sent it
+    # what gina can't finish goes back past fred, who is off shift, to the IOC's queue (#1364)
     assert client.post(f"/exceptions/{e}/report", json={"by": "gina", "status": "could_not_do",
                                                       "note": "wrong valve delivered"}).is_success
-    holder = conn.execute("select coalesce((select assignee from work_token where item_id = %(i)s and kind = 'user' "
-                          "and state in ('ready', 'waiting') limit 1), (select assignee from work_item where id = %(i)s))"
-                          " as a", {"i": item}).fetchone()["a"]
-    assert holder == "ioc-ann"
+    holder = conn.execute("select coalesce((select coalesce(assignee, 'role:' || role) from work_token where item_id = "
+                          "%(i)s and kind = 'user' and state in ('ready', 'waiting') limit 1), (select coalesce(assignee, "
+                          "'role:' || role) from work_item where id = %(i)s)) as a", {"i": item}).fetchone()["a"]
+    assert holder == "role:ops_lead"
 
 
 def test_the_shift_handover_lists_jobs_in_the_field_and_open_permits_from_the_records(kestrel, client):

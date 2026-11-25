@@ -12,7 +12,7 @@ processes, every step a row, every change an event. Its implementation is split 
 The Workflows section is where people do it and manage it:
 
 - **My work** (`#/inbox`): what's waiting for you, most urgent first: escalated to you, jobs the IOC sent you,
-  assigned to you (or to someone away you cover for), unclaimed in your roles' queues, field jobs waiting there and
+  assigned to you (or to someone away you cover for), unclaimed in your roles' queues, field jobs waiting in the operator queue and
   what you're planned onto. It replaces the separate Inbox and My jobs pages (#503); `#/field` redirects here, and a
   case with a field job shows once, as its job card. A task opens as a page: its form and evidence,
   claim / release / hand off (to a person, a role's queue or an agent), where it sits in its process, the case's
@@ -128,12 +128,11 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   role is `=role` and its case type `=case_type`, both from the type, so one process serves every queue and each
   case still shows as its own kind of work. Its one step has the role's default SLA (Users, workflow assignments)
   and escalates along the role's chain like any process step. Clearing the condition still closes it as it closed
-  a plain queue case; the field's **Done** and **Could not do** hand the step back to whoever sent it. A dispatch from All work runs as
-  queue_item too: the step opens in the lane of the role it was sent to (for a person, the type's queue when they
-  hold it, else their first role), the dispatcher hands it to them with the reason, so Could not do comes back to
-  the dispatcher, and it is due by the type's policy (SAP priority) or the role's SLA. Someone who takes a job from
-  the queue and hands it back returns it to whoever sent it to the queue. A queue no person role backs and a case
-  raised for a named person still open a plain case.
+  a plain queue case; the field's **Done** and **Could not do** hand the step to the IOC's queue (see Back to the
+  IOC). A dispatch from All work runs as queue_item too: the step opens in the lane of the role it was sent to (for
+  a person, the type's queue when they hold it, else their first role), the dispatcher hands it to them with the
+  reason, and it is due by the type's policy (SAP priority) or the role's SLA. A queue no person role backs and a
+  case raised for a named person still open a plain case.
 - **Task.** `task.bpmn` is the same one step for work no exception raised: an opportunity the scan finds (the
   engineer's queue), a draft the assistant proposed and a person confirmed, and `POST /work/items` asked of a role.
   Its start data names the role, the case type and a `task_key` (one open task per key). Both standard processes are
@@ -209,20 +208,23 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   shows how often the recommendation was taken (`GET /options/acceptance`).
 - **Dispatch.** The IOC sends an exception to a person, with what to check or do. Its case (or the case's open
   person step) goes to them, and the instruction travels with it.
-- **Field jobs** on My work are the operator's phone view: jobs sent to them, then jobs waiting in their roles' queues
-  (**Take it**), each with the IOC's instruction, where to go, what was seen and what happened there lately. They
-  report **On site**, **Done**, **Could not do** (with why) or a note; every report lands on the exception and the
-  case history.
-- **Back to the IOC.** Done or Could not do hands the job back to whoever sent it, to that person or the queue they
-  sent it from (the engineer queue's Triage step goes back to that queue), so it reappears on the IOC's My work with the
-  field's note as "Back from the field". The IOC closes a done job out, saying what it was, which closes it and its
-  exception. Only a job nobody sent (raised straight into the field's queue and taken from there) is closed by Done.
+- **Field jobs** on My work are the operator's phone view: jobs sent to them, then jobs waiting in the operator queue
+  (**Take it**), each by priority, then due, with the IOC's instruction, where to go, what was seen and what happened
+  there lately. They report **On site**, **Done**, **Could not do** (with why) or a note; every report lands on the
+  exception and the case history. Done and Could not do are never greyed out: tapped without a note (or, for Done,
+  before On site, a reading or a photo), they ask for it at the note box.
+- **Back to the IOC.** Done or Could not do ends the field's part (#1364): the job leaves the operator's list for the
+  ops lead queue, not the dispatcher in person, who may be off shift, so it reappears on the IOC's My work with the
+  field's note as "Back from the field". A step a process returns to that has a desk queue of its own goes there
+  instead (the upset's Triage to the engineer queue). The IOC closes a done job out, saying what it was, which closes
+  it and its exception, or sends it out again, which moves it on to With the field. Only a job nobody sent (raised
+  straight into the field's queue and taken from there) is closed by Done.
 - **Field check, a step of its own.** The upset process has a **Field check** step in a Field operator lane. Triage
   can choose "Not sure: send someone to look" (with what to check), and dispatching an upset from Exceptions to
   someone outside the engineer role does the same: Triage declares `fuzer:dispatch="triage=field_check"`, so it is
   completed with that choice and the Field check is handed to whoever was picked. The engineer's form never lands in
   the operator's list. The operator's Done or Could not do completes the Field check (`field_result`, `field_note`)
-  and Triage comes back to whoever sent them. Any process can do the same with the **Field check** component in the
+  and Triage comes back to the engineer queue. Any process can do the same with the **Field check** component in the
   modeler and `fuzer:dispatch` on the step that sends to it.
 - **Seeing it come back.** The task page shows a **From the field** box above the form, My work says why a step
   came back ("Back from the field: done: gauge reads 13 barg"), and All work has a **Back from the field** view.

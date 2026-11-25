@@ -108,7 +108,7 @@ function workList(rows, f = {}, people = []) {
   const field = new Set(people.filter((p) => (p.roles ?? []).includes("operator")).map((p) => p.name));
   const shaped = rows.map((r) => {
     const last = r.evidence?.field?.[r.evidence.field.length - 1];
-    const back = r.back_from_field || (!!last && ["done", "could_not_do"].includes(last.status) && r.assignee !== last.by);
+    const back = !!r.back_from_field;  // the latest hand-on returned it from the field (#1364)
     const stage = r.stage ?? (r.state && r.state !== "open" ? "closed" : !r.item_id ? (r.planned ? "planned" : "dispatch")
       : back ? "back" : r.role === "operator" || field.has(r.assignee) || last?.status === "on_site" ? "field" : "desk");
     return { subjects: [], unmatched: [], joined: [], ...r, uid: `e${r.id}`, exception_id: r.id, kind: r.type,
@@ -3941,7 +3941,12 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   await coming.getByRole("button", { name: "Done" }).click();
   await expectReports(changed, 1);
   assert.deepEqual(changed[0], { by: "fred", status: "done" });
-  assert.equal(await mine.getByRole("button", { name: "Could not do" }).isDisabled(), true);
+  // never greyed with its reason in a hover title, which a finger can't read (#1364): a tap with no note asks for
+  // one at the note box and sends nothing
+  await mine.getByRole("button", { name: "Could not do" }).click();
+  await mine.getByText("Say why in the note, then select Could not do.").waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "note-7");
+  assert.equal(reports.length, 0);
   await mine.getByRole("button", { name: "On site" }).click();
   await mine.getByLabel(/Note for the IOC/).fill("valve seized");
   await mine.getByRole("button", { name: "Could not do" }).click();
@@ -4010,7 +4015,7 @@ test("the field's report sits above the IOC's decision, and operators are only o
   await other.getByText("look at it").waitFor();
   assert.equal(await other.getByRole("link", { name: /Open step/ }).count(), 0);  // an engineer's form isn't theirs
 
-  const back = { ...base, id: 3, key: "c", title: "Seal weeping on P-101", item_id: 33, assignee: "erin",
+  const back = { ...base, id: 3, key: "c", title: "Seal weeping on P-101", item_id: 33, assignee: "erin", back_from_field: true,
     evidence: { field: [{ at: "2026-11-09T09:00:00Z", by: "otto", status: "done", note: "seal replaced" }] } };
   const fresh = { ...base, id: 4, key: "d", title: "Compressor trip", item_id: null, assignee: null };
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: [back, fresh] }));
@@ -4039,9 +4044,9 @@ test("the Board lays open work out by stage, splits it into lanes, and its cards
     exc(5, { title: "Seal leak at export pump B", item_id: 32, assignee: "sam",
       evidence: { field: [{ at: ago(185), by: "sam", status: "on_site", note: null }] } }),
     exc(6, { title: "Drain valve weeping", type: "round_finding", source: "rounds", item_id: 33, role: "operator" }),
-    exc(7, { title: "Strainer DP high", item_id: 34, assignee: "riley",
+    exc(7, { title: "Strainer DP high", item_id: 34, assignee: "riley", back_from_field: true,
       evidence: { field: [{ at: ago(40), by: "sam", status: "done", note: "cleaned" }] } }),
-    exc(8, { title: "Wellhead pressure high", source: "historian", item_id: 35, assignee: "riley",
+    exc(8, { title: "Wellhead pressure high", source: "historian", item_id: 35, assignee: "riley", back_from_field: true,
       evidence: { field: [{ at: ago(70), by: "sam", status: "could_not_do", note: "no permit" }] } }),
   ];
   const closed = [exc(9, { title: "Cooler fan tripped", state: "cleared", closed_at: ago(200) })];
@@ -4119,7 +4124,7 @@ test("All work is one list of every open event and case, filtered on any dimensi
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: [
     exc(1, { title: "Compressor trip" }),
     exc(2, { title: "Packing leak", item_id: 21, role: "operator" }),
-    exc(3, { title: "Seal weeping", item_id: 22, assignee: "erin",
+    exc(3, { title: "Seal weeping", item_id: 22, assignee: "erin", back_from_field: true,
       evidence: { field: [{ at: "2026-11-09T09:00:00Z", by: "otto", status: "done", note: "seal replaced" }] } }),
   ] }));
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "otto", roles: ["operator"] }] }));
@@ -4276,21 +4281,92 @@ for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]
     });
     assert.equal(fits, true, "the photo input stays inside its card");
     await card.getByLabel("Note for the IOC").fill("Bolts replaced");
+    // scrolled down to the card's buttons, as a phone is by then: the short confirmation replacing a tall card must
+    // not end up under the top bar (tour B, finding 15 of tour A)
+    // a long My work below the jobs, as on the live site, so the page keeps its scroll when the card shrinks
+    await page.evaluate(() => document.querySelector("#main, main")?.append(Object.assign(document.createElement("div"), { style: "height: 3000px" })));
+    const done = await card.getByRole("button", { name: "Done", exact: true }).boundingBox();
+    await page.evaluate((y) => window.scrollBy(0, y - 120), done.y);
     await card.getByRole("button", { name: "Done", exact: true }).click();
     await expectReports(reports, 1);
     assert.equal(reports[0].status, "done");
     const said = page.getByRole("status").filter({ hasText: "Done sent for" });
     await said.waitFor();
+    await said.getByText("It goes back to the IOC.").waitFor();  // the IOC's queue, not the dispatcher in person (#1364)
     await card.waitFor({ state: "detached" });
-    // said where the card was: below the job above it, in view
+    await page.waitForTimeout(300);
+    // said where the card was: below the job above it, in view and clear of the top bar
     const [prev, note] = await Promise.all([page.locator(".field-job", { hasText: "Gauge check" }).boundingBox(), said.boundingBox()]);
+    const bar = await page.evaluate(() => { const b = document.querySelector(".topbar")?.getBoundingClientRect();
+      return b && getComputedStyle(document.querySelector(".topbar")).position === "sticky" ? b.bottom : 0; });
     assert.ok(note.y > prev.y, "the confirmation sits where the card was, not at the top");
-    assert.ok(note.y >= 0 && note.y + note.height <= height, "the confirmation is in view");
+    assert.ok(note.y >= bar && note.y + note.height <= height, `the confirmation is in view (top ${note.y}, bar ${bar})`);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await said.getByRole("button", { name: "OK" }).click();
     await said.waitFor({ state: "detached" });
   });
 }
+
+// P5.26b (#1364): on a touch screen nothing is greyed with its reason in a hover title. A tap on Could not do (or
+// Done) with nothing said asks for the note at the note box; with the reason typed, the next tap sends it.
+test("a field operator's tap on Could not do asks for why and then sends it (P5.26b, touch)", async () => {
+  const phone = await browser.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const p = await phone.newPage();
+  const job = { id: 31, type: "message_report", key: "m", source: "messages", state: "open", priority: null, value_usd: null,
+    subjects: [], unmatched: [], raised_count: 1, first_seen: "2026-11-25T06:00:00Z", last_seen: "2026-11-25T06:00:00Z",
+    evidence: {}, history: [], field: [], label: "Message report", role: "operator", assignee: "fred", item_id: 51,
+    title: "Wellhead weeping at the wing valve flange, slight gas smell", queued: false, assets: [], checklist: [],
+    finding: { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null,
+      end: null, confidence: null, items: [], checks: [], subjects: [], value_usd: null },
+    sent: { by: "riley", at: "2026-11-25T06:05:00Z", reason: "Go and have a look, report what you find" } };
+  const reports = [];
+  let jobs = [job];
+  await p.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+  await p.route("**/*", (route) => {
+    const u = new URL(route.request().url());
+    if (u.pathname.startsWith("/assets/") || u.pathname === "/" || /\.(svg|png|webmanifest)$/.test(u.pathname)) return route.continue();
+    const json = {
+      "/auth/me": { mode: "local", configured: true, user: null },
+      "/work/inbox": { person: "fred", roles: ["operator"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } },
+      "/work/counts": { open: 0, overdue: 0, stages: { dispatch: 0, planned: 0, field: 0, back: 0, desk: 0 }, waiting_on_you: null },
+      "/exceptions/field": { person: "fred", coming_up: [], jobs },
+      "/work/notifications": { unread: 0, notifications: [] },
+      "/demo/config": { enabled: true },
+      "/stats": { facility: "Test facility", pack: "okan", records: 0, entities: {}, edges: 0, open_reviews: {}, rebuild: {} },
+      "/settings": { project: null, projects: [], settings: [] },
+      "/jobs/health": { available: false, level: "unknown", summary: "" },
+      "/jobs": { available: false, dagster: { url: "", reachable: false }, scheduler: { running: false, last_heartbeat: null },
+        jobs: [], sensors: [], checks: [], health: { summary: "No jobs configured" }, claude: null },
+    }[u.pathname];
+    if (u.pathname === "/exceptions/31/report") {
+      reports.push(route.request().postDataJSON());
+      jobs = [];  // the field's part is over: the job leaves their list for the IOC's queue
+      return route.fulfill({ json: job });
+    }
+    return route.fulfill({ json: json ?? [] });
+  });
+  await p.goto(`${url}/#/inbox`);
+  const card = p.locator(".field-job", { hasText: "gas smell" });
+  const couldNot = card.getByRole("button", { name: "Could not do" });
+  await couldNot.waitFor();
+  assert.equal(await couldNot.isDisabled(), false);
+  assert.equal(await card.getByRole("button", { name: "Done", exact: true }).isDisabled(), false);
+  await couldNot.tap();
+  await card.getByText("Say why in the note, then select Could not do.").waitFor();
+  assert.equal(await p.evaluate(() => document.activeElement?.id), "note-31");  // the note box, ready to type in
+  assert.equal(reports.length, 0);
+  await card.getByRole("button", { name: "Done", exact: true }).tap();
+  await card.getByText("Say you are on site, or add a note, reading or photo, then select Done.").waitFor();
+  assert.equal(reports.length, 0);
+  await card.getByLabel("Note for the IOC").fill("Gas detector in alarm, area barriered; needs a gas test and permit");
+  await couldNot.tap();
+  await expectReports(reports, 1);
+  assert.deepEqual([reports[0].status, reports[0].note], ["could_not_do", "Gas detector in alarm, area barriered; needs a gas test and permit"]);
+  await p.getByRole("status").filter({ hasText: "Could not do sent for" }).waitFor();
+  await card.waitFor({ state: "detached" });  // released: not still a live job with On site and Done
+  assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await phone.close();
+});
 
 test("My work stays My work for a desk role, and a row waiting in your queue is taken from All work", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ivy"));

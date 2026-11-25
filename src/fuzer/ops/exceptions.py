@@ -592,10 +592,7 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
         """
         select e.*, w.state as case_state, w.assignee, w.role, w.step as case_step,
                e.raised_count + coalesce((select sum(j.raised_count) from exception_record j where j.joined_to = e.id), 0)::int as reports,
-               -- back from the field: the case's last hand-on was the field's report returning it to the IOC. Said
-               -- by the hand-on, not by who holds it, since the person it came back to can be the one who went
-               coalesce((select h.data->>'reason' from work_event h where h.item_id = e.item_id and h.kind = 'handed_off'
-                         order by h.id desc limit 1) like 'Back from the field%%', false) as back_from_field,
+               """ + BACK_FROM_FIELD + """,
                (select json_build_object('id', p.id, 'start_at', p.start_at, 'end_at', p.end_at, 'crew', p.crew)
                 from plan_item p where p.exception_id = e.id and p.status in ('proposed', 'scheduled', 'in_progress')
                 order by p.start_at limit 1) as planned,
@@ -637,6 +634,14 @@ STAGES = ("dispatch", "planned", "field", "back", "desk", "closed")
 
 
 OPERATOR_ROLE = "operator"
+IOC_QUEUE = "role:ops_lead"  # where the field's Done and Could not do go, unless the step they return to has a queue
+
+# Back from the field: the case's latest hand-on was the field's report returning it to the IOC. Said by the hand-on,
+# not by who holds it, so a case sent out again is with the field once more (#1364); taking it from a queue (a
+# hand-off to oneself with no reason) isn't a hand-on. Every page that decides a stage selects it.
+BACK_FROM_FIELD = """coalesce((select h.data->>'reason' from work_event h where h.item_id = e.item_id
+    and h.kind = 'handed_off' and not (h.data->>'to' = h.actor and h.data->>'reason' is null)
+    order by h.id desc limit 1) like 'Back from the field%%', false) as back_from_field"""
 
 
 def operators(conn) -> set[str]:
@@ -647,8 +652,8 @@ def operators(conn) -> set[str]:
 def stage(r: dict, field_people: set[str], now: datetime | None = None) -> str:
     """Where an event stands, the one place it is decided; All work's views and Home's tiles count by it.
     `dispatch`: open, raised and given to nobody, nor planned for a later day. `planned`: put on the plan for a later
-    day (it comes back to dispatch on its day). `back`: its case's last hand-on returned it from the field, or the
-    field's last report (done, could not do) came from someone other than who holds it now. `field`: its case is held
+    day (it comes back to dispatch on its day). `back`: its case's latest hand-on returned it from the field
+    (`BACK_FROM_FIELD`), so a case sent out again follows that dispatch (#1364). `field`: its case is held
     by a field operator or the operator queue, or the field said they are on site. `desk`: any other open case.
     `closed`: no longer open."""
     if r["state"] != OPEN:
@@ -661,12 +666,10 @@ def stage(r: dict, field_people: set[str], now: datetime | None = None) -> str:
             if clock.aware(when) > day_end:
                 return "planned"
         return "dispatch"
+    if r.get("back_from_field") and r.get("case_state") not in ("done", "cancelled"):
+        return "back"
     reports = ((r.get("evidence") or {}).get("field") or []) if isinstance(r.get("evidence"), dict) else []
     last = reports[-1] if reports else None
-    if r.get("case_state") not in ("done", "cancelled") and (
-            r.get("back_from_field") or (last and last.get("status") in ("done", "could_not_do")
-                                         and r.get("assignee") != last.get("by"))):
-        return "back"
     if r.get("role") == "operator" or (r.get("assignee") in field_people) or (last and last.get("status") == "on_site"):
         return "field"
     return "desk"
@@ -881,56 +884,29 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
                                    (row["item_id"], routing.QUEUE_PROCESS)).fetchone()
         state = conn.execute("select state from work_item where id = %s", (row["item_id"],)).fetchone()["state"]
         if status in ("done", "could_not_do") and state not in ("done", "cancelled"):
-            # The field's part is over. A process with a field step of its own (the upset's Field check) has it
-            # completed with what they found, and the IOC's decision it returns to goes to whoever sent them; else
-            # what the IOC sent them (its decision step, or the case) goes back to whoever sent it. Either way it
-            # lands in that person's or queue's Inbox, with the reason saying it is back from the field. Done comes
-            # back too (#1115): the IOC closes it out, saying what it was, so the field's work is counted.
+            # The field's part is over: the job leaves the field operator for the IOC's queue, never a person who
+            # may be off shift, nor the operator queue for the next operator to take blind (#1364). A process with
+            # a field step of its own (the upset's Field check) has it completed with what they found, and the step
+            # it returns to goes to that step's own queue. Done comes back too (#1115): the IOC closes it out,
+            # saying what it was, so the field's work is counted.
             back = f"Back from the field: {said.lower()}" + (f": {note.strip()[:140]}" if note else "")
             # a field step of the case's process (an upset's, or queue_item's since #1145) takes the report
-            if not work.report_field_step(conn, row["item_id"], by, status, note, back):
-                came = (row["evidence"] or {}).get("handover") or {}
-                # handed over at shift change (P5.11c): back past the outgoing person to whoever sent it to them;
-                # taken from a queue: back to whoever sent it to that queue, not to the queue (#1115), so the IOC
-                # decides what happens to a could-not-do instead of the next operator taking it blind
-                if came.get("accepted_at") and came.get("to") == by:
-                    sender = _sent(conn, row["item_id"], came["from"])
-                elif status == "done" and not has_process:
-                    sender = _dispatcher(conn, row["item_id"], by)
-                else:
-                    sender = None if _sent_to(conn, row["item_id"], by) else _sent(conn, row["item_id"], by)
-                human = bool(sender and sender["by"] and sender["by"] != by and not gates.machine(sender["by"]))
-                if human:  # back to the IOC person who sent it: never a fresh field check for them
-                    work.return_to(conn, row["item_id"], by, sender["by"], back)
-                elif status == "done" and not has_process:
+            if not work.report_field_step(conn, row["item_id"], by, status, note, back, IOC_QUEUE):
+                sent = _dispatcher(conn, row["item_id"], by)
+                if status == "done" and not has_process and not (sent and not gates.machine(sent["by"])):
                     # nobody sent it (raised straight into the field's queue): the field's Done closes it
                     work.close_case(conn, row["item_id"], "done", by, reason=note or "done in the field")
                     if _close_if_case_finished(conn, row) is None:  # closed with its case now, not at the next tick
                         events.publish(conn, "exception.closed", f"exception:{row['id']}",
                                        _payload(_row(conn, exception_id)))
-                else:
-                    work.hand_back(conn, row["item_id"], by, by, reason=back)
+                else:  # back to the IOC: never a fresh field check
+                    work.return_to(conn, row["item_id"], by, IOC_QUEUE, back)
     row = _row(conn, exception_id)
     from . import closeout
 
     closeout.on_field_report(conn, row, by, status, note)  # the system that raised it hears what the field did (#466)
     events.publish(conn, "exception.reported", f"exception:{row['id']}", {**_payload(row), **entry})
     return row
-
-
-# SAP's own status and notification type codes, as words (#494); the code stays beside them.
-def _sent(conn, item_id: int, person: str) -> dict | None:
-    """Who sent this job to `person`, when, and what they asked for: the latest hand-off to them or to a queue they
-    took it from, else the case being opened for them or that queue (taking it isn't being sent it)."""
-    return conn.execute(
-        """
-        select actor as by, at, data->>'reason' as reason from work_event
-        where item_id = %(i)s and ((kind = 'handed_off' and actor <> %(p)s
-                                    and (data->>'to' = %(p)s or data->>'to' like 'role:%%'))
-                                   or (kind = 'created' and (data->>'assignee' = %(p)s
-                                       or (actor <> %(p)s and actor not like 'agent:%%'))))
-        order by id desc limit 1
-        """, {"i": item_id, "p": person}).fetchone()  # taking a job from the queue isn't being sent it
 
 
 def _dispatcher(conn, item_id: int, person: str) -> dict | None:
@@ -940,20 +916,6 @@ def _dispatcher(conn, item_id: int, person: str) -> dict | None:
                         "(kind = 'handed_off' and (data->>'to' = %(p)s or data->>'to' like 'role:%%')) "
                         "or (kind = 'created' and data->>'assignee' = %(p)s)) "
                         "order by id desc limit 1", {"i": item_id, "p": person}).fetchone()
-
-
-def _sent_to(conn, item_id: int, person: str) -> bool:
-    """Whether someone handed this case (or its step) to `person` by name, rather than them taking it from a queue."""
-    return conn.execute("select 1 from work_event where item_id = %s and kind = 'handed_off' and data->>'to' = %s "
-                        "and actor <> %s limit 1", (item_id, person, person)).fetchone() is not None
-
-
-def _asked(conn, item_id: int) -> dict | None:
-    """Who sent a process to the field and when: whoever last completed a step with a field ask (an engineer's
-    Triage choosing a field check), not the operator who then took it from the queue."""
-    return conn.execute(
-        "select actor as by, at from work_event where item_id = %s and kind = 'completed' "
-        "and coalesce(data->'data'->>'field_ask', '') <> '' order by id desc limit 1", (item_id,)).fetchone()
 
 
 def _assets(conn, ids: list[str]) -> list[dict]:
@@ -993,8 +955,9 @@ def _assets(conn, ids: list[str]) -> list[dict]:
 
 
 def field_jobs(conn, person: str, brief: bool = False) -> list[dict]:
-    """The open exceptions whose case is with this person (the case, or its open person step), most urgent first,
-    then the ones waiting unclaimed in their roles' queues (`queued`, for them to take), each with where to go, what
+    """The open exceptions whose case is with this person (the case, or its open person step), then the ones waiting
+    unclaimed in the operator queue when they hold that role (`queued`, for them to take), each by priority, then due
+    (#1364): a gas smell is not seventh behind older jobs. Each comes with where to go, what
     was seen, what happened at the asset lately and the field log. `brief` leaves out everything looked up per job
     (assets, findings, history, permit), for a reader that only counts and names them."""
     rows = conn.execute(
@@ -1013,14 +976,17 @@ def field_jobs(conn, person: str, brief: bool = False) -> list[dict]:
           -- a job they reported done is the IOC's to close, not still theirs to do (red team #30)
           and not coalesce(e.evidence->'field'->-1->>'status' = 'done' and e.evidence->'field'->-1->>'by' = %(p)s, false)
           and (t.assignee = %(p)s or (t.id is null and w.assignee = %(p)s)
-               or (t.id is not null and t.assignee is null and t.role = any(%(roles)s))
-               or (t.id is null and w.assignee is null and w.role = any(%(roles)s))
+               -- the field's queue only: what came back to the IOC's queue is not a field job (#1364)
+               or (%(field)s and t.id is not null and t.assignee is null and t.role = %(op)s)
+               or (%(field)s and t.id is null and w.assignee is null and w.role = %(op)s)
                or (e.evidence->'handover'->>'to' = %(p)s and e.evidence->'handover'->>'accepted_at' is null))
         order by coalesce(e.evidence->'handover'->>'to' = %(p)s and e.evidence->'handover'->>'accepted_at' is null,
                           false) desc,
                  coalesce(t.assignee = %(p)s, false) or (t.id is null and coalesce(w.assignee = %(p)s, false)) desc,
-                 coalesce(t.due_at, w.due) nulls last, e.value_usd desc nulls last, e.priority desc nulls last
-        """, {"p": person, "roles": (roles := work.roles_of(conn, person))}).fetchall()
+                 coalesce(w.priority, e.priority) desc nulls last, coalesce(t.due_at, w.due) nulls last,
+                 e.value_usd desc nulls last
+        """, {"p": person, "field": OPERATOR_ROLE in (roles := work.roles_of(conn, person)),
+              "op": OPERATOR_ROLE}).fetchall()
     out, known = [], types(conn)
     if brief:
         return [{**r, "label": known[r["type"]].label if r["type"] in known else r["type"].replace("_", " "),
@@ -1059,7 +1025,8 @@ def field_jobs(conn, person: str, brief: bool = False) -> list[dict]:
             where e.id = any(%s) order by e.id, h.first_seen desc
             """, (ids,)):
         history.setdefault(h.pop("job"), []).append(h)
-    # Who sent each job to this person (see _sent), and who sent a process to the field (see _asked)
+    # Who sent each job to this person (the latest hand-off to them or a queue they took it from, else the case
+    # being opened for them or that queue), and who sent a process to the field (the step with the field ask)
     sent = {x.pop("item_id"): x for x in conn.execute(
         """
         select distinct on (item_id) item_id, actor as by, at, data->>'reason' as reason from work_event

@@ -118,7 +118,8 @@ different event its own case.
 
 ## Read what comes back
 
-When the field reports **Done** or **Could not do**, the job comes back to whoever sent it. Pick the **Back from the
+When the field reports **Done** or **Could not do**, the job comes back to the ops lead queue, not to whoever sent it
+in person, so it is waiting for whoever is on shift. Pick the **Back from the
 field** preset: each row carries the operator's note (and photo or reading, if they took one). **Close** on the row
 opens the close-out, or open the case and either:
 

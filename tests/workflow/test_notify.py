@@ -66,7 +66,7 @@ def test_handing_back_tells_whoever_sent_it(conn):
     item = case(conn, "Read the flare meter", assignee="ines")
     engine.dispatch_item(conn, item, "ines", "pia")
     conn.commit()
-    engine.hand_back_item(conn, item, "pia", "pia", "meter reads zero")
+    engine.dispatch_item(conn, item, "pia", "ines", "meter reads zero")  # given back to whoever sent it
     conn.commit()
     n = told(conn, "ines")[0]
     assert n["kind"] == "handed_back" and n["item_id"] == item and "pia handed back" in n["text"]
