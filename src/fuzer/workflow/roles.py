@@ -1,8 +1,12 @@
 """Roles, routing and escalation as data: who does a step, how long they have, and where it goes next.
 
 - A role (work_role) is a person role or an agent role. Its default SLA applies to person steps that set none;
-  its escalate_to is where an overdue step goes when the step names nowhere itself; its assignment says whether
-  steps wait in the queue for someone to claim them, or go to a member round-robin or to the least loaded.
+  its escalate_to is where an overdue step goes when the step names nowhere itself. No built-in role names one: an
+  overdue step stays in its own team's queue, marked escalated, unless a site sets a target (#1369). Its assignment
+  says whether steps wait in the queue for someone to claim them, or go to a member round-robin or to the least
+  loaded.
+- The IOC lead (`LEAD`, the ops lead) may act on any queue's work, as the lead who sent it out; so may a role that
+  a site has other queues escalate to. Leading is not escalation: no work moves to the lead by itself.
 - A person can be away (until a time) with a delegate: steps assigned to them go to the delegate, auto-assignment
   skips them, and the delegate's inbox shows what was theirs.
 - Workload, statistics per process and the running instances of a process, for the Workflows pages.
@@ -14,16 +18,18 @@ from datetime import datetime, timedelta
 
 from . import bpmn
 
+# Overdue work stays with its own team, marked escalated (#1346, #1369): no built-in role escalates into another's queue,
+# where nobody can answer it (the ops lead's My work filled with steward, engineer and planner work). A site that has
+# a lead for a team sets that role's escalate_to.
 BUILTIN = {
-    "engineer": ("person", "Process and facilities engineers: triage upsets, confirm fixes", "P1D", "ops_lead"),
+    "engineer": ("person", "Process and facilities engineers: triage upsets, confirm fixes", "P1D", None),
     "ops_lead": ("person", "Operations lead: approves actions with an effect outside Fuzer, reviews daily reports",
                  "PT8H", None),
-    "production_engineer": ("person", "Production engineering: wells, gas lift, deferment", "P1D", "ops_lead"),
-    # an overdue steward question stays with the stewards, marked escalated (#1346): the ops lead can't answer it
+    "production_engineer": ("person", "Production engineering: wells, gas lift, deferment", "P1D", None),
     "data_steward": ("person", "Master data steward: source problems and register gaps", "P1D", None),
-    "maintenance_planner": ("person", "Plans maintenance: raises and schedules SAP notifications", "P2D", "ops_lead"),
-    "operator": ("person", "Control room and field operators", "PT4H", "ops_lead"),
-    "hse_specialist": ("person", "HSE and environmental: flaring and emissions evidence, incidents", "P1D", "ops_lead"),
+    "maintenance_planner": ("person", "Plans maintenance: raises and schedules SAP notifications", "P2D", None),
+    "operator": ("person", "Control room and field operators", "PT4H", None),
+    "hse_specialist": ("person", "HSE and environmental: flaring and emissions evidence, incidents", "P1D", None),
     "workflow_admin": ("person", "Designs and publishes processes, manages roles", None, None),
     "sre": ("agent", "Agentic SRE: detects and groups upsets", None, None),
     "production-surveillance": ("agent", "Production trends, deferment, constraints and gas lift", None, None),
@@ -40,6 +46,7 @@ BUILTIN = {
     "reporter": ("agent", "Drafts the daily operations report", None, None),
 }
 ASSIGNMENTS = ("queue", "round_robin", "least_loaded")
+LEAD = "ops_lead"  # the IOC lead: acts on any queue's work (api.security), without any of it escalating there
 MAX_HOPS = 3
 
 

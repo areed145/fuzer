@@ -182,8 +182,8 @@ with the one before to catch a source changing shape.
 
 **Project.** One asset's configuration: its pack, data folder, timezone and time-series source.
 
-**Queue.** Where work for a role waits until one of its holders takes it. A step in a queue has the role's SLA and
-escalates along the role's chain.
+**Queue.** Where work for a role waits until one of its holders takes it. A step in a queue has the role's SLA; when
+it is overdue it is marked escalated there, or moves on where a site has set the role's chain.
 
 **Record.** One row from a source system, before identity resolution decides which entity it describes. Not a word
 for the entity itself.

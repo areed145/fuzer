@@ -80,12 +80,18 @@ the published version, and running cases stay on their original version.
 **Routing and escalation are data** (`workflow/roles.py`, `work_role`, `work_person`):
 
 - A **role** is a person role or an agent role, with what it's for, a **default SLA** for person steps that set
-  none, **escalate_to** (where an overdue step goes when the step names nowhere itself) and an **assignment**:
+  none, **escalate_to** (where an overdue step goes when the step names nowhere itself; no built-in role names one) and an **assignment**:
   steps wait in the queue to be claimed, or go to members round-robin or to the least loaded. Roles are edited under
   Settings > Users; the BPMN checks read them, so a new role can be used in a process straight away.
 - **Escalation**: when a person step's SLA passes (the `work_tick` job, every 5 minutes), it moves to the step's
   `escalateTo`, then along the role chain, each hop with the next role's own SLA, up to three hops. The reason
-  (which SLA, who had it) is kept on the case.
+  (which SLA, who had it) is kept on the case. Overdue work stays in its own team's queue by default, marked
+  escalated (#1346, #1369): no built-in role and no shipped process names a target, since the ops lead can't answer a
+  steward's question or an engineer's triage. A site that has a lead for a team sets that role's escalate_to (or a
+  step's `escalateTo` in its own model). A step's `escalateTo` is read from the process as published now, so a case
+  running on an earlier version follows the current model. Work that escalated into another team's queue before
+  went back once, at the schema update, to whoever held it (a person or the queue), still marked escalated; a step
+  someone took since stays theirs. Leading is separate from escalation: the IOC lead may act on any queue's work.
 - **Away**: a person can be away until a time, with a delegate. What they hold, and anything assigned or handed to
   them while away, goes to the delegate (or back to the role's queue when no one covers); auto-assignment skips
   them; the delegate's inbox shows what was theirs.

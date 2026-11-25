@@ -244,8 +244,8 @@ settings and never in the repository or chat. Microsoft stays the sign-in for pe
   ops lead, a data steward). The pick is kept on that sign-in's session, per project, so
   two people demonstrating at once each keep their own role, queue and Tower
   (`PUT /work/me/roles`, demo account only; an empty list is every role again).
-- A lead covers for another lead: a case in a lead's queue (one other queues escalate
-  to, such as the ops lead's) that another person holds can be acted on by anyone holding
+- A lead covers for another lead: a case in a lead's queue (the ops lead's, or one a site
+  has other queues escalate to) that another person holds can be acted on by anyone holding
   that role, so the IOC lead on shift can close out a job that came back from the field
   to another lead. A job in the field stays with whoever is doing it.
 - Every sign-in and action is recorded as `user:demo`. Its sessions last at most

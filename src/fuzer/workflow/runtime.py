@@ -534,7 +534,7 @@ def _escalate(conn, process_id: int, token_id: int, now: datetime) -> int:
     hops = conn.execute("select count(*) as n from work_event where token_id = %s and kind = 'escalated'",
                         (token_id,)).fetchone()["n"]
     # the step's own escalateTo first; after that (and for steps naming none) the role's escalation chain
-    to = n.attrs.get("escalateTo") if hops == 0 and n.attrs.get("escalateTo") else roles.escalation_target(conn, t["role"], None)
+    to = (hops == 0 and _step_escalation(run, proc, t["element"])) or roles.escalation_target(conn, t["role"], None)
     if hops >= roles.MAX_HOPS or to == t["role"]:
         to = None
     sla_text = n.attrs.get("sla") if hops == 0 and n.attrs.get("sla") else (roles.role(conn, t["role"]) or {}).get("default_sla")
@@ -552,6 +552,16 @@ def _escalate(conn, process_id: int, token_id: int, now: datetime) -> int:
                                                  "due": t["due_at"].isoformat()})
     run.flush()
     return 1
+
+def _step_escalation(run: _Run, proc: dict, element: str) -> str | None:
+    """A step's escalateTo as its process is published now, like the roles it reads (#1369): a model that stops
+    naming one stops it for cases already running on an earlier version too (the shipped processes once sent their
+    IOC steps to the ops lead). The running version's, when the published one has no such step."""
+    try:
+        now = _definition(run.conn, _published(run.conn, proc["process_key"])["id"]).nodes.get(element)
+    except NotFound:
+        now = None
+    return (now or run.defn(proc).nodes[element]).attrs.get("escalateTo")
 
 @_op
 def migrate(conn, process_id: int, definition_id: int, by: str, mapping: dict[str, str] | None = None,

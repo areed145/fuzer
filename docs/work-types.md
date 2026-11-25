@@ -28,7 +28,7 @@ Starts the standard one-step `queue_item` workflow in the role's queue, on each 
 
 ### Engineer queue
 
-`engineer`: Process and facilities engineers: triage upsets, confirm fixes. A step is due in 1 day, then escalates to `ops_lead`.
+`engineer`: Process and facilities engineers: triage upsets, confirm fixes. A step is due in 1 day, then is marked escalated in this queue.
 
 | Type of work | What it is | Found by | Declared in | How it behaves |
 |---|---|---|---|---|
@@ -88,7 +88,7 @@ Starts the standard one-step `queue_item` workflow in the role's queue, on each 
 
 ### HSE specialist queue
 
-`hse_specialist`: HSE and environmental: flaring and emissions evidence, incidents. A step is due in 1 day, then escalates to `ops_lead`.
+`hse_specialist`: HSE and environmental: flaring and emissions evidence, incidents. A step is due in 1 day, then is marked escalated in this queue.
 
 | Type of work | What it is | Found by | Declared in | How it behaves |
 |---|---|---|---|---|
@@ -98,7 +98,7 @@ Starts the standard one-step `queue_item` workflow in the role's queue, on each 
 
 ### Maintenance planner queue
 
-`maintenance_planner`: Plans maintenance: raises and schedules SAP notifications. A step is due in 2 days, then escalates to `ops_lead`.
+`maintenance_planner`: Plans maintenance: raises and schedules SAP notifications. A step is due in 2 days, then is marked escalated in this queue.
 
 | Type of work | What it is | Found by | Declared in | How it behaves |
 |---|---|---|---|---|
@@ -107,7 +107,7 @@ Starts the standard one-step `queue_item` workflow in the role's queue, on each 
 
 ### Production engineer queue
 
-`production_engineer`: Production engineering: wells, gas lift, deferment. A step is due in 1 day, then escalates to `ops_lead`.
+`production_engineer`: Production engineering: wells, gas lift, deferment. A step is due in 1 day, then is marked escalated in this queue.
 
 | Type of work | What it is | Found by | Declared in | How it behaves |
 |---|---|---|---|---|

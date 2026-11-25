@@ -149,7 +149,8 @@ flowchart TB
   x(["The condition clears"]) -.-> f
 ```
 
-The step has the role's SLA from the moment it arrives and escalates along the role's chain if nobody takes it.
+The step has the role's SLA from the moment it arrives and is marked escalated in its queue if nobody takes it in
+time (it moves on only where a site has set the role's chain).
 A holder of the role sees the step on **Waiting on me** with **Take it** on its row. The IOC sees these on the List
 too, and can hand one to a person from its row (**Send to**) without waiting for the desk.
 Much of this work closes by itself: when the permit is closed, the part is covered or a later survey shows the

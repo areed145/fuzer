@@ -16,7 +16,7 @@
     <bpmn:startEvent id="breached" name="IOW breached past its time">
       <bpmn:outgoing>f_start</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:userTask id="review" name="Review IOW breach" fuzer:requiresHuman="true" fuzer:sla="PT4H" fuzer:escalateTo="ops_lead" fuzer:form="iow-review">
+    <bpmn:userTask id="review" name="Review IOW breach" fuzer:requiresHuman="true" fuzer:sla="PT4H" fuzer:form="iow-review">
       <bpmn:incoming>f_start</bpmn:incoming>
       <bpmn:outgoing>f_reviewed</bpmn:outgoing>
     </bpmn:userTask>

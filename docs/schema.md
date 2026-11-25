@@ -316,7 +316,7 @@ Overarching people (#497): specialists and monitoring staff whose work cuts acro
 
 ### `work_role`
 
-Roles are data (workflow/roles.py): person roles hold steps people do, agent roles steps agents do. A role's default SLA applies to steps that set none; when a step's SLA passes it moves to the step's escalateTo, else the role's escalate_to (chained up to three hops, each with that role's SLA). Assignment: queue (whoever claims it), round_robin or least_loaded among the role's members who aren't away.
+Roles are data (workflow/roles.py): person roles hold steps people do, agent roles steps agents do. A role's default SLA applies to steps that set none; when a step's SLA passes it moves to the step's escalateTo, else the role's escalate_to (chained up to three hops, each with that role's SLA); with neither it stays, marked escalated. No built-in role or shipped process names a target (#1369). Assignment: queue (whoever claims it), round_robin or least_loaded among the role's members who aren't away.
 
 | Column | Type | Note |
 |---|---|---|

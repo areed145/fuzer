@@ -381,25 +381,29 @@ class AuthenticatedRoute(APIRoute):
 
 
 def _may_work(conn, actor: str, role: str) -> bool:
-    """Whether someone may act on work in a role's queue: they hold the role, or the role its queue escalates to. The
-    IOC lead every queue escalates to can close a job that came back from the field whatever queue its step names."""
+    """Whether someone may act on work in a role's queue: they hold the role, the IOC lead role, or the role a site has
+    the queue escalate to. The IOC lead can close a job that came back from the field whatever queue its step names,
+    though no queue escalates to it by default (#1369)."""
     from ..workflow.definitions import roles_of
+    from ..workflow.roles import LEAD
 
     held = roles_of(conn, actor)
-    if role in held:
+    if role in held or LEAD in held:
         return True
     up = conn.execute("select escalate_to from work_role where name = %s", (role,)).fetchone()
     return bool(up and up["escalate_to"] and up["escalate_to"] in held)
 
 
 def _leads(conn, actor: str, role: str | None) -> bool:
-    """Whether someone may act on a case another person holds: it sits in a lead's queue (other queues escalate to
-    it) and they hold that role. Leads cover for each other across a shift, so the IOC lead who sent a job to the
-    field can close it out when it comes back to another lead. A job in the field stays with whoever is doing it."""
+    """Whether someone may act on a case another person holds: it sits in a lead's queue (the IOC lead's, or one a
+    site has other queues escalate to) and they hold that role. Leads cover for each other across a shift, so the IOC
+    lead who sent a job to the field can close it out when it comes back to another lead. A job in the field stays
+    with whoever is doing it."""
     from ..workflow.definitions import roles_of
+    from ..workflow.roles import LEAD
 
-    return bool(role) and role in roles_of(conn, actor) and bool(
-        conn.execute("select 1 from work_role where escalate_to = %s limit 1", (role,)).fetchone())
+    return bool(role) and role in roles_of(conn, actor) and (role == LEAD or bool(
+        conn.execute("select 1 from work_role where escalate_to = %s limit 1", (role,)).fetchone()))
 
 
 AREA_REFUSAL = ("This work is on plant outside your areas. You can still read it; ask an owner to add the area, "
