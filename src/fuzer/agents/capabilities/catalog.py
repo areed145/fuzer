@@ -409,6 +409,13 @@ SKILL_CATALOG = (
         "Correlations, clusters and period comparisons with assumptions, sample size and uncertainty.",
         "Correlation is not cause. Findings on synthetic values show how the generator works, not plant physics.",
         shared=True),
+    SkillDefinition(
+        "shared/options-and-tradeoffs", AGENTS, (),
+        "A case's options as Fuzer assembles them: deferred production priced by the pack, risk of waiting by "
+        "criticality or hazard, readiness (crew, permit, parts) and clashes.",
+        "One recommended option with the factor that decided it, or another with why, and what is not known.",
+        "Advises; the person deciding takes an option on the case. Never weighs barrels against risk on a scale of "
+        "its own.", shared=True),
 )
 
 # The two personas no operational agent owns outright, and how each is covered.

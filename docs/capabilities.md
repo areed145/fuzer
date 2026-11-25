@@ -84,6 +84,7 @@ Tools are read from each `SKILL.md`. A shared skill is loaded by every agent, ea
 | `asset-performance-reporting/operations-summary` | Asset Performance & Reporting | none | Asset Manager; Operations Reporter; Commercial / Production Accounting Specialist | Produce cited cross-domain operational summaries from the linked production and work records Fuzer actually has. | `accounting_reconciliation`, `bad_actors`, `compare_periods`, `deferment_pareto`, `get_daily_ops_report`, `kpi_scorecard`, `maintenance_compliance`, `opportunities`, `plot_accounting_reconciliation`, `plot_backlog`, `plot_bad_actors`, `plot_compliance`, `plot_kpi_scorecard`, `plot_loss_waterfall`, `plot_score_breakdown`, `production_constraints`, `production_summary`, `turnaround_scope`, `unit_cost`, `value_score`, `well_performance`, `work_order_backlog` | The cited daily report plus production, deferment, constraints, reliability and work summaries. | Dated cross-domain KPIs, trade-offs and opportunities with units, windows and unknowns. | Internal evidence only: not an approved decision, an external report or accounting reconciliation. |
 | `shared/charts` | Shared | every agent | all | When and how to put interactive charts in an answer - which plot tool fits which question, how to read and cite a chart's summary, and when (rarely) to look at the image. | `look_at_figure`, `plot_backlog`, `plot_bad_actors`, `plot_bar`, `plot_changes`, `plot_choke`, `plot_compliance`, `plot_correlation`, `plot_custom`, `plot_decline`, `plot_distribution`, `plot_gas_lift_allocation`, `plot_gas_lift_curve`, `plot_incident`, `plot_instrument_health`, `plot_measurements`, `plot_pump_curve`, `plot_reliability`, `plot_trend`, `plot_vibration`, `plot_wall_thickness`, `plot_water_diagnostic`, `plot_xy` | Whichever records each plot tool reads. | Interactive figures with their markers and a sentence on what each shows. | Says when a chart rests on synthetic data; an agent calls only the plot tools in its own list. |
 | `shared/analysis` | Shared | every agent | Data Scientist / Operations Research Analyst | Reusable analysis methods - comparing periods, detecting changes, correlation, clustering and kept studies - with the assumptions, data sufficiency and uncertainty to state with each result. | `cluster_entities`, `cluster_events`, `cluster_modes`, `compare_periods`, `correlate`, `correlation_matrix`, `detect_changes`, `get_study`, `plot_correlation`, `start_study`, `trace_flow` | PI process values, detected upsets and well tests; results depend on the time-series source. | Correlations, clusters and period comparisons with assumptions, sample size and uncertainty. | Correlation is not cause. Findings on synthetic values show how the generator works, not plant physics. |
+| `shared/options-and-tradeoffs` | Shared | every agent | all | How to weigh the options on a case - dispatch now, ride along with the next visit, shelve, escalate - on one scale every time, recommend one with the factor that decided it, and name what is not known instead of guessing. Load whenever there is a choice to make on a case. | `case_options` | A case's options as Fuzer assembles them: deferred production priced by the pack, risk of waiting by criticality or hazard, readiness (crew, permit, parts) and clashes. | One recommended option with the factor that decided it, or another with why, and what is not known. | Advises; the person deciding takes an option on the case. Never weighs barrels against risk on a scale of its own. |
 
 ## Specialist packs
 
@@ -212,16 +213,16 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 
 | Agent | Tools |
 |---|---|
-| Orchestrator | 27 |
-| Production & Surveillance | 81 |
-| Wells & Subsurface | 74 |
-| Field Operations & Facilities | 98 |
-| Maintenance & Integrity | 89 |
-| Work Management & Supply Chain | 43 |
-| HSE & Incident Management | 52 |
-| Asset Performance & Reporting | 51 |
+| Orchestrator | 28 |
+| Production & Surveillance | 82 |
+| Wells & Subsurface | 75 |
+| Field Operations & Facilities | 99 |
+| Maintenance & Integrity | 90 |
+| Work Management & Supply Chain | 44 |
+| HSE & Incident Management | 53 |
+| Asset Performance & Reporting | 52 |
 
-## Shared (133)
+## Shared (134)
 
 Used by every agent or by several specialists.
 
@@ -266,6 +267,7 @@ Used by every agent or by several specialists.
 | `list_metrics` | query |  | Every registered KPI: key, label, definition, formula, unit, standard, the grains it can be cut by and the records behind it. |
 | `get_metric` | query | key, grain?, at?, scope?, window? | One registered KPI: its value, with its definition and unit, and by a grain (one of the metric's grains: queue, type, area, class, facility, well, cause, ...) its rows and the cases or records behind each. |
 | `board` | query | area?, unit?, kind?, text?, since?, limit? | The work board (#99): outstanding work across SAP backlog, PMs and inspections, incidents and SRE upsets, workflow items, opportunities, reviews and projects, one card per piece of work, ranked by value (#100). |
+| `case_options` | query | case | The options on a case's field work, on one scale (P5.20, P4.8): dispatch now, ride along with the next visit, shelve, escalate; each with when it is done (`hours`, `by`), the production deferred until then (`deferred`: bbl, Mscf, $), the risk of waiting by criticality or a hazard (`risk`), readiness (`ready`, `blockers`: crew, permit, parts), `clashes` and what is not known (`unknown`). |
 | `get_daily_ops_report` | query | day?, version? | The daily operations report for a production day (YYYY-MM-DD; default the latest): headline, production and deferment, upsets and events, wells, maintenance and integrity, look-ahead, every line citing its records. |
 | `what_changed` | query | since, until?, limit? | What happened in the records between two times (plant time): new log events, notifications, work orders started and finished, downtime started and ended, incidents, equipment installed or removed, limits taking or ending effect, excursions and new well tests, with counts. |
 | `records_mismatch` | calc | since?, until? | Records that don't agree: downtime records with no operator log entry (or, for equipment reasons, no notification) about the same plant within the tolerances, and log entries that say something stopped with no downtime record. |

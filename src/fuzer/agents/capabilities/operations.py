@@ -33,6 +33,21 @@ def board(area: str | None = None, unit: str | None = None, kind: str | None = N
     return _plain(out)
 
 
+@capability("all", kind="query")
+def case_options(case: int) -> dict[str, Any]:
+    """The options on a case's field work, on one scale (P5.20, P4.8): dispatch now, ride along with the next visit,
+    shelve, escalate; each with when it is done (`hours`, `by`), the production deferred until then (`deferred`: bbl,
+    Mscf, $), the risk of waiting by criticality or a hazard (`risk`), readiness (`ready`, `blockers`: crew, permit,
+    parts), `clashes` and what is not known (`unknown`). One is `recommended`, with its `reason` and the factor that
+    decided it (`deciding`); `unknown` at the top names what is not on record and why. Read it with the
+    options-and-tradeoffs skill. `applies` false says why there are no options (`why_not`)."""
+    from ...ops import options
+    with db.connect() as conn:
+        out = options.for_case(conn, case)
+    out.pop("undetermined", None)  # the typed copy of `unknown`, kept when a choice is made
+    return _plain(out)
+
+
 @capability(kind="query")
 def next_work(agent: str, limit: int = 5) -> dict[str, Any]:
     """The workflow steps your agent role can take now, highest on the board first. Claim one with
