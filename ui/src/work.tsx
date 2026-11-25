@@ -114,7 +114,8 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "released": return { text: <>let go of <strong>{el}</strong></> };
     case "completed": return { text: <>completed <strong>{step}</strong></>, body: <DataView data={d.data} /> };
     case "agent_result": return { text: <>finished <strong>{step}</strong></>, body: <DataView data={d.data} /> };
-    case "handed_off": return { text: <>handed <strong>{el ?? "the case"}</strong> from {to(d.from)} to {to(d.to)}</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
+    case "handed_off": return { text: d.from === d.to ? <>sent <strong>{el ?? "the case"}</strong> again to {to(d.to)}</>
+      : <>handed <strong>{el ?? "the case"}</strong> from {to(d.from)} to {to(d.to)}</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
     case "escalated": return { text: escalation(e) };
     case "timer_fired": return { text: <>timer <strong>{el}</strong> fired</> };
     case "message": return { text: <>sent {d.name} {d.delivered ? "and the workflow moved on" : "(kept as evidence)"}</>, body: <DataView data={d.payload} /> };

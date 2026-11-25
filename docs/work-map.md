@@ -72,7 +72,7 @@ The same map as a table. Each row is one family of sources; each column is a sta
 
 | Work that starts as | Arrives on | Decided on | Done on | Closed on | Then |
 |---|---|---|---|---|---|
-| **An SAP notification** with no work order | List: To dispatch | Its row: Options, Send to, or More: Plan for a day or Shelve | My work: the field job, on a phone | List: Back from the field: Close, Send again or Plan for a day | The SAP update is drafted for the planner on My work |
+| **An SAP notification** with no work order | List: To dispatch | Its row: Options, Send to, or More: Plan for a day or Shelve | My work: the field job, on a phone | List: Back from the field: Close, or More: Send again or Plan for a day | The SAP update is drafted for the planner on My work |
 | **A process upset** found by the detectors | Waiting on me: Triage, in the engineer queue | The Triage step: real, false alarm, or send someone to look | Waiting on me: Field check, Approve, Raise notification, Confirm resolved | List: Closed, when the last step is done | A re-check six hours on; a notification drafted for SAP |
 | **An IOW breach** | Waiting on me: Review IOW breach, for the engineer | The review step | Waiting on me: Raise notification | List: Closed | Never shelved and never held back by planned work |
 | **A trip or a machine health finding** | Waiting on me: the engineer queue | The case: Take it, then work it or Send to the field | My work: the field job, or the desk | List: Closed | Held back while planned work covers the machine |
@@ -80,8 +80,8 @@ The same map as a table. Each row is one family of sources; each column is a sta
 | **Parts not ready** for a planned job | Waiting on me: the maintenance planner queue | The case | The desk: expedite, or move the job on Plan | By itself, when stock or an order in time covers every line | Ordering and expediting stay with supply chain |
 | **A permit lapsed** with plant still isolated | Waiting on me: the ops lead queue | The case: Take it, then work it or Send to the field | My work: the field job | By itself, when the permit is closed or back in date, or nothing on it is still isolated | |
 | **A bypass, proof test or temporary change overdue** | Waiting on me: the ops lead or engineer queue | The case | The desk | By itself, when the register shows it done | Active bypasses are on every handover |
-| **A round finding**: a reading out of limits or a failed check | Waiting on me: the ops lead queue; the List | The case: Take it, then work it or Send to the field | My work: the field job | List: Back from the field: Close, Send again or Plan for a day | |
-| **A field report** | Waiting on me: the ops lead queue; the List | The case | My work: the field job | List: Back from the field: Close, Send again or Plan for a day | |
+| **A round finding**: a reading out of limits or a failed check | Waiting on me: the ops lead queue; the List | The case: Take it, then work it or Send to the field | My work: the field job | List: Back from the field: Close, or More: Send again or Plan for a day | |
+| **A field report** | Waiting on me: the ops lead queue; the List | The case | My work: the field job | List: Back from the field: Close, or More: Send again or Plan for a day | |
 | **Alarm, flare, lab, well test and emissions findings** | Waiting on me: the engineer, production engineer or HSE queue | The case | The desk | List: Closed | Regulatory reports are reviewed under Reports > Regulatory |
 | **The agentic watch** proposing something no detector raised | Kept and scored only (live mode is off by default); in live mode, Waiting on me: the engineer queue | The case | The desk, or the field | List: Closed | After three confirmed proposals of one pattern, the watch drafts a rule for it |
 | **Another system's own type** (`POST /exceptions`, a source pack) | Wherever its type says: List: To dispatch, a queue, or a workflow | As above | As above | As above | Its update goes back the way its system is set up on Sources |
@@ -130,7 +130,7 @@ flowchart TB
 | Weighed | The row's **Options**: dispatch now, ride along with the next visit, shelve or escalate, each with what waiting defers and risks, one recommended | IOC operator |
 | Sent | The row's **Send to** (or the chosen option): who, what to do, and whether the job is ready | IOC operator |
 | Out | **My work** on the phone: the job card, **On site**, **Done**, **Could not do** | Field operator |
-| Back | **Work > List**, the **Back from the field** preset: **Close** or **Send again** | IOC operator |
+| Back | **Work > List**, the **Back from the field** preset: **Close**, or **More** for Send again | IOC operator |
 | Closed | The case's **Close out**, then the List's **Closed** | IOC operator |
 | Returned | **Waiting on me**: the drafted update, to approve | Planner |
 

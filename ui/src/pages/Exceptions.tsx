@@ -213,6 +213,15 @@ export function EventRow({ r, place, person, people, queues, onChange, take = nu
   const event = happened(r);
   const done = () => { setPanel(null); onChange(); };
   const back = !!r.item_id && backFromField(r);
+  const takeIt = <Button size="sm" variant={back ? "secondary" : "primary"} disabled={!!busy}
+    onClick={() => run("Taking it", () => api.claim(take!, person!), onChange)}>Take it</Button>;
+  // to dispatch or back from the field: the choices side by side with what each costs (P5.20)
+  const options = (place.stage === "dispatch" || place.stage === "back") && !shelved && <Button size="sm" variant="secondary"
+    aria-expanded={panel === "options"} onClick={() => setPanel(panel === "options" ? null : "options")}>Options</Button>;
+  const sendTo = <Button size="sm" variant="secondary" className="work-lead" aria-expanded={panel === "dispatch"}
+    onClick={() => setPanel(panel === "dispatch" ? null : "dispatch")}>{back ? "Send again" : "Send to"}</Button>;
+  // what More opens: Plan and Shelve, and on a row back from the field everything but Close
+  const moreOpen = panel === "more" || panel === "plan" || panel === "shelve" || (back && !!panel);
   return (
     <>
     <tr className={fieldSaid?.status === "could_not_do" ? "work-row attention" : "work-row"}>
@@ -247,25 +256,24 @@ export function EventRow({ r, place, person, people, queues, onChange, take = nu
       <td className="small nowrap" title={`Raised in Fuzer ${when(r.first_seen)} · last reported ${when(r.last_seen)}${event ? ` · happened ${day(event)}` : ""}`}>
         {age(Date.now() - new Date(r.first_seen).getTime())}</td>
       <td className="work-row-act">{canAct && <div className="row work-row-actions">
-        {/* back from the field (#1222): the IOC closes it, sends it again or plans it, in one tap from the row */}
-        {take != null && <Button size="sm" variant="primary" disabled={!!busy}
-          onClick={() => run("Taking it", () => api.claim(take, person!), onChange)}>Take it</Button>}
+        {/* back from the field (#1222, #1372): Close, and the rest behind More */}
+        {take != null && !back && takeIt}
         {back && <ButtonLink size="sm" variant="primary" href={href(`/cases/${r.item_id}`, { close: "1" })}>Close</ButtonLink>}
-        {/* to dispatch or back from the field: the choices side by side with what each costs (P5.20) */}
-        {(place.stage === "dispatch" || place.stage === "back") && !shelved && <Button size="sm" variant="secondary"
-          aria-expanded={panel === "options"} onClick={() => setPanel(panel === "options" ? null : "options")}>Options</Button>}
-        <Button size="sm" variant="secondary" className="work-lead" aria-expanded={panel === "dispatch"}
-          onClick={() => setPanel(panel === "dispatch" ? null : "dispatch")}>{back ? "Send again" : "Send to"}</Button>
+        {!back && options}
+        {!back && sendTo}
         {shelved ? <Button size="sm" variant="secondary" disabled={!!busy}
           onClick={() => run("Unshelving", () => api.unshelveException(r.id, person!), onChange)}>Back on the list</Button>
-          : <Button size="sm" variant="secondary" aria-expanded={panel === "more" || panel === "plan" || panel === "shelve"}
-            onClick={() => setPanel(panel && panel !== "dispatch" ? null : "more")}>More</Button>}
+          : <Button size="sm" variant="secondary" aria-expanded={moreOpen}
+            onClick={() => setPanel(moreOpen ? null : "more")}>More</Button>}
       </div>}</td>
     </tr>
     {canAct && panel && <tr className="work-row-panel-row"><td colSpan={ROW_COLUMNS} className="work-row-panel" data-label="">
         {panel === "options" && <EventOptions exceptionId={r.id} person={person!} onDone={onChange} />}
         {panel === "dispatch" && <DispatchControls r={r} person={person!} people={people} queues={queues} onDone={done} />}
         {panel === "more" && <Line wrap role="group" aria-label="More actions">
+          {back && take != null && takeIt}
+          {back && options}
+          {back && sendTo}
           <Button size="sm" variant="secondary" onClick={() => setPanel("plan")}>Plan for a day</Button>
           <Button size="sm" variant="secondary" onClick={() => setPanel("shelve")}>Shelve until a date</Button>
         </Line>}
