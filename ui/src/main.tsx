@@ -158,8 +158,8 @@ function App() {
       location.replace(href("/3d", Object.fromEntries([...query.entries()].filter(([k]) => k !== "view"))));
       return;
     }
-    // My jobs is part of My work now (#503).
-    if (section === "field") {
+    // My jobs is part of My work (#503), and the List's old Waiting on me is My work too (#1345): one page.
+    if (section === "field" || (section === "list" && query.get("waiting_on") === "me")) {
       location.replace(href("/inbox"));
       return;
     }
@@ -169,8 +169,7 @@ function App() {
       : path[1] === "processes" ? `/workflows${path[2] ? `/${path[2]}` : ""}`
       : path[1] === "forms" && path[2] ? `/workflows/forms/${path[2]}`
       : task ? `/inbox/task/${task}` : null;
-    // My work is a preset of the List: what waits on you.
-    if (!to) { location.replace(href("/list", { waiting_on: "me" })); return; }
+    if (!to) { location.replace(href("/inbox")); return; }
     location.replace(href(to, Object.fromEntries([...query.entries()].filter(([k]) => k !== "task" && k !== "tab"))));
   }, [section, path, query]);
 

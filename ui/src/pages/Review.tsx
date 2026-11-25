@@ -1,4 +1,4 @@
-import { documentHref, openDocument } from "../DocumentViewer";
+import { openDocument } from "../DocumentViewer";
 import { confirmDialog, Textarea, ErrorText, Line, Text, Checkbox, List, Notice, Field, Tabs } from "../ui";
 import { percent } from "../format";
 import "../styles/review.css";
@@ -529,8 +529,7 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
   return (
     <UICard className="review" title={<>{p.manufacturer} {p.model}</>} detail={<>#{id}</>}
       actions={<Text small muted>
-          {p.document ? <a href={documentHref(p.document)} onClick={(ev) => { ev.preventDefault(); openDocument(p.document!); }}>
-            {p.doc_number}</a> : p.doc_number} · read from the {r.read_from === "curve" ? "drawn curve" : r.read_from}
+          {p.doc_number} · read from the {r.read_from === "curve" ? "drawn curve" : r.read_from}
         </Text>}>
       <Text as="p" small>{p.title}{r.notes && ` · ${r.notes}`}</Text>
       <div className="mini-curves">
@@ -545,6 +544,7 @@ function CurveCard({ id, p, onDecide }: { id: number; p: CurvePayload; onDecide:
       )}
       {editing && <Textarea className="mono small" rows={14} value={text} onChange={(e) => setText(e.target.value)} />}
       <div className="actions">
+        {p.document && <Button onClick={() => openDocument(p.document!)}>Open {p.doc_number}</Button>}
         {editing ? (
           <Button variant="primary" disabled={busy} onClick={() => {
             try {

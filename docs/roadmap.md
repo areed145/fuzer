@@ -218,6 +218,15 @@ something, Fuzer records nothing, so its blind spots never reach the roadmap.
 | P4.8 A shared skill that weighs options the same way every time | `shared/options-and-tradeoffs`: deferred bbl and $, risk, readiness and clashes on one scale, one recommendation with its deciding factor, unknowns named | Options on Okan cases share the same fields and pass an eval; two specialists agree or say why not |
 | P6.6 A "couldn't determine" log | A typed record when a specialist, option or plan change can't settle something (no data, tool or skill, conflicting evidence, out of scope), "unknown" shown instead of a guess, a ranked view on How the work is running, and drafted issues for the top items | Records raised on a seeded missing source; the view ranks by frequency and value at stake; an item drafts an issue |
 
+## Fixes from the 25 Nov user tour (P5.25 #1343)
+
+A tour of the live site as IOC operator and field operator, on phone, iPad and desktop, finished every job but logged
+hesitation at each step. The direction is to remove, not add.
+
+| Epic | Build | Done when |
+|---|---|---|
+| P5.25 Take, dispatch and close without hesitation | Take it swaps the card in place and the field gets only the ask (a); the Work tab opens one My work (b); steward work escalates inside the steward team (c); one optional why to dispatch, no Options after the field reports (d); a returned case leads with the field's answer and Close out (e); report figures say unknown or no history instead of 0 (f); charts end at now (g); a handover readable on a phone (h); one count per measure (i) | A field job is taken, worked and finished on a 390 px phone with no reload; the Work tab opens My work for every role; Dispatch enables on touch with no hidden prerequisite; a returned case shows Close out in its first screen; no report shows 0 for missing data; no chart runs past now; handover Notes and Acknowledge are in the first phone screen; counts agree across pages |
+
 ## How the work is tracked
 
 | Thing | How |

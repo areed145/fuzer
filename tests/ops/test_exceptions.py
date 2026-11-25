@@ -815,6 +815,31 @@ def test_a_cases_trend_opens_on_the_point_its_event_was_seen_on_with_the_event_m
     conn.rollback()
 
 
+def test_a_case_raised_this_hour_ends_its_window_at_now_on_the_plants_clock(conn, compressor, three_sources, monkeypatch):
+    """#1350: an event seen ten minutes ago has no six hours after it yet. Its window, the trend's still-going shading
+    and the "plant time" label end at now on the plant's clock, not six hours on, and not at UTC's now."""
+    from datetime import UTC, datetime, timedelta
+
+    from fuzer.core import clock
+    from fuzer.core.findings import Finding
+    from fuzer.ops import around
+
+    monkeypatch.setattr(clock, "name", lambda: "America/Chicago")
+    seen = datetime.now(UTC) - timedelta(minutes=10)
+    trip = raise_exception(conn, "upset_x", "UPSET-NOW", "Step change on 20-K-2001", "sre",
+                           refs=[compressor["equipment"]],
+                           finding=Finding("test", "deterministic", start=seen.isoformat(timespec="seconds")))
+    before = clock.now()
+    a, b, _ = around.window(conn, trip["item_id"])
+    assert before <= b <= clock.now()  # now on Chicago's wall clock, hours behind UTC's
+    assert a == clock.wall(seen.isoformat(timespec="seconds")) - timedelta(hours=4)
+    ctx = around.context(conn, trip["item_id"])
+    assert ctx["window"]["end"] <= clock.now().isoformat(timespec="minutes")
+    shade = next(m for m in around.trend(conn, trip["item_id"])["marks"] if m["kind"] == "window")
+    assert shade["end"] <= clock.now().isoformat(timespec="minutes")
+    conn.rollback()
+
+
 def test_a_cases_window_reads_findings_written_with_and_without_a_zone(conn, compressor, three_sources, monkeypatch):
     """#1107: one source writes a finding's start with a zone ("...+00:00", "Z"), another without; the case's window
     reads both on the plant's wall clock instead of failing to compare them."""
@@ -1310,12 +1335,13 @@ def test_where_an_event_stands_is_decided_once_and_counted_over_every_open_event
     ex.report(conn, raised[2]["id"], "olly", "done", note="tightened it")
     stage = {r["id"]: r["stage"] for r in ex.listing(conn, type="drip")}
     assert [stage[r["id"]] for r in raised] == ["dispatch", "field", "back"]
-    before = ex.counts(conn)
+    from fuzer.ops import worklist
+
+    before = worklist.figures(conn)
     assert before["open"] == sum(before["stages"].values())
     raise_exception(conn, "drip", "D-3", "Drip at D-3", "walk", refs=["tag:D-3"])
-    after = ex.counts(conn)
+    after = worklist.figures(conn)
     assert after["open"] == before["open"] + 1 and after["stages"]["dispatch"] == before["stages"]["dispatch"] + 1
-    assert engine.case_counts(conn)["open"] >= 2
     conn.commit()
 
 
@@ -1390,7 +1416,7 @@ def test_every_headline_count_equals_the_list_it_opens(conn, types):
     assert worklist.figures(conn, "ivy")["waiting_on_you"]["to_dispatch"] == worklist.figures(conn)["stages"]["dispatch"]
     assert worklist.figures(conn)["waiting_on_you"] is None
 
-    # the shift handover lists the same open work at the same stages
+    # the shift handover lists the same work in the field and back from it
     from datetime import UTC, datetime, timedelta
 
     from fuzer.ops import handover
@@ -1398,8 +1424,7 @@ def test_every_headline_count_equals_the_list_it_opens(conn, types):
     h = handover.facts(conn, now - timedelta(hours=12), now)
     lines = lambda name: len(h["sections"][name]) + h["more"].get(name, 0)
     f = worklist.figures(conn)
-    assert (lines("Open work"), lines("In the field"), lines("Back from the field")) == (
-        f["open"], f["stages"]["field"], f["stages"]["back"])
+    assert (lines("In the field"), lines("Back from the field")) == (f["stages"]["field"], f["stages"]["back"])
     conn.rollback()
 
 

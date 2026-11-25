@@ -27,6 +27,9 @@ that names an unknown kind, link, grain, cut-off or window is refused with the r
         unless: {}                      # {field: [values]}: records with one of these are left out
         missing: null                   # why it is unknown when the register holds no record of the kind at all
                                         # ("no bypass register loaded"); by default "no <kind> records loaded"
+        empty: null                     # why a window with no record in it is unknown, not 0, where only records
+                                        # state the figure ("no downtime recorded in the window": a loss nobody
+                                        # recorded is still a loss)
       aggregate: sum                    # count | sum | mean | ratio (100 x sum(value) / sum(over)) | age_days
       stock: false                      # true: records open at the window's end, not those dated inside it
       grains: [facility, cause]         # kind grains (the record's subject's ancestor of that kind) and cuts
@@ -35,7 +38,8 @@ that names an unknown kind, link, grain, cut-off or window is refused with the r
 A record is in a scope when it, or anything it links to, is the scope entity or beneath it. A count or sum over a
 window with no records in it is 0 where the scope has records of the kind at all (whatever `where` and `unless` keep),
 and unknown where it has none: None, `unknown: True` and a note saying why (`missing` when the register holds none of
-the kind, so its source isn't loaded), never 0, as a site with no bypass register may still have safeguards out.
+the kind, so its source isn't loaded), never 0, as a site with no bypass register may still have safeguards out. A
+measure with `from.empty` is unknown, with that reason, for a window with no record in it too.
 
     builtin()         the platform's measures, checked
     checked(raw)      a pack's `measures:`, checked (pack.py calls it)
@@ -54,7 +58,7 @@ BUILTIN = Path(__file__).with_name("measures.yaml")
 AGGREGATES = ("count", "sum", "mean", "ratio", "age_days")
 FIELDS = {"label", "group", "unit", "better", "target", "definition", "formula", "records", "standard", "cutoff",
           "window", "from", "aggregate", "stock", "grains", "cuts", "period"}
-FROM = {"kind", "at", "end", "links", "value", "over", "where", "unless", "missing"}
+FROM = {"kind", "at", "end", "links", "value", "over", "where", "unless", "missing", "empty"}
 REFS = 200
 
 
@@ -117,8 +121,9 @@ def _check(key: str, m: dict) -> dict:
     for f in ("where", "unless"):
         if not isinstance(src.get(f) or {}, dict):
             bad(f"from.{f} is {{field: [values]}}")
-    if not isinstance(src.get("missing") or "", str):
-        bad("from.missing is the text that says why it is unknown")
+    for f in ("missing", "empty"):
+        if not isinstance(src.get(f) or "", str):
+            bad(f"from.{f} is the text that says why it is unknown")
     return m
 
 

@@ -655,13 +655,6 @@ def stage(r: dict, field_people: set[str], now: datetime | None = None) -> str:
     return "desk"
 
 
-def counts(conn) -> dict:
-    """How many open events stand at each stage, counted over every open event (not a listed page)."""
-    rows = listing(conn, state=OPEN, limit=1_000_000)
-    out = {k: 0 for k in STAGES if k != "closed"}
-    for r in rows:
-        out[r["stage"]] = out.get(r["stage"], 0) + 1
-    return {"open": len(rows), "stages": out}
 
 
 

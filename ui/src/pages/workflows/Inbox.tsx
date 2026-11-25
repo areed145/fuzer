@@ -2,8 +2,8 @@ import { Button, ButtonLink, Notice, PageHeader, Table, Card as UICard, Input, S
 import { when } from "../../format";
 /** My work (#503): everything waiting on you, most urgent first, for everyone from the ops lead to the field operator:
  * escalated to you, jobs the IOC sent you (with the field report buttons), steps assigned to you (and to anyone you're
- * covering for), what waits unclaimed in your roles' queues, and what you're planned onto. Inbox and My jobs were two
- * pages for "what is waiting on me"; `#/field` redirects here. */
+ * covering for), what waits unclaimed in your roles' queues, and what you're planned onto. One page for every role at
+ * every width (#1345): the Work tab opens it, and `#/field`, `#/work` and the List's old Waiting on me redirect here. */
 import { useEffect, useState } from "react";
 import { api, type FieldJob, type WorkInbox, type NotifyPreference, type WorkNotification, type WorkRow } from "../../api";
 import { Status, href, useAsync, useRouteState, useAction } from "../../lib";
@@ -15,7 +15,6 @@ import { ComingUp, FieldJobCard, NoteToIOC, Outbox, RoundsThisShift } from "../F
 import { fieldJobs } from "../../fieldOffline";
 import { cap, person as personName } from "../../wording";
 import { FieldModeOffer } from "../../theme";
-import { waitingToDispatch } from "../Exceptions";
 
 /** What My work holds, counted once for this page's badges and for Home (#556), so both show the same numbers.
  * A field job's card carries its case's step, so that case is not counted twice. */
@@ -31,16 +30,15 @@ export function myWorkCounts(d: WorkInbox, jobs: Pick<FieldJob, "item_id" | "que
   };
 }
 
-const stepsWanted = () => new URLSearchParams(location.hash.split("?")[1] ?? "").get("steps") === "1";
-
 export function InboxPage() {
   const [person] = usePerson();
   const inbox = useAsync(() => (person ? api.inbox(person) : Promise.resolve(null)), [person]);
   // Jobs dispatched to them (or waiting in their queues) and what they are planned onto: the field side of their work.
   // Kept on the phone, so the jobs still read without signal (P5.3c).
   const field = useAsync(() => (person ? fieldJobs(person) : Promise.resolve(null)), [person]);
-  // Exceptions nothing routes wait on Exceptions for the IOC to dispatch: say so here, where the ops lead looks.
-  const exceptions = useAsync(() => api.exceptions({ state: "open" }), []);
+  // The counts every page shows (the Work badge, Home): what waits on them, its overdue and what waits for dispatch,
+  // read from the server, never counted from these rows, so My work reads the same numbers as Home (#1352).
+  const figures = useAsync(() => (person ? api.workCounts(person) : Promise.resolve(null)), [person]);
   // The shift handover is reached from here, not the nav (#504): a banner until the incoming lead acknowledges it.
   const handovers = useAsync(() => api.handovers(), []);
   // What is new for them, read here so the page can wait for it (NewForYou draws it).
@@ -52,8 +50,9 @@ export function InboxPage() {
   const [show, setShow] = useRouteState("show");
   const [picked, setPicked] = useState<Set<number>>(new Set());
   useEffect(() => setPicked(new Set()), [person]);
-  // What the field just reported, said here because its card leaves the list once the IOC has it.
-  const [reported, setReported] = useState<string | null>(null);
+  // What the field just reported, said where its card was: the card leaves the list once the IOC has it (#1344).
+  const [reported, setReported] = useState<{ id: number; said: string; at: number; list: "sent" | "waiting" } | null>(null);
+  useEffect(() => { if (reported) document.getElementById("field-reported")?.scrollIntoView({ block: "nearest" }); }, [reported]);
   if (!person) return <section><PageHeader>My work</PageHeader><UICard title="Pick your name to see your work">
     <p>Choose your name under “You are” in the menu.</p>
     <ButtonLink href={href("/teams")}>View team workload</ButtonLink>
@@ -64,16 +63,7 @@ export function InboxPage() {
   // The handover banner, what is new, the counts and the jobs sent to them all sit above the lists: drawn as each
   // answered, every one pushed the lists down the page (#1069). The page waits for them, failures included.
   const settled = (a: { data?: unknown; error?: unknown }) => a.data !== undefined || !!a.error;
-  if (!offline && ![field, handovers, told, exceptions].every(settled)) return <Status loading />;
-  // My work is the List's Waiting on me now: one list, one count. Someone only in the field (an operator alone), or
-  // anyone with field jobs sent to them (not just waiting in the operator queue, which the List offers to take), keeps this page for their jobs, kept for no signal with the report buttons; a person with a
-  // desk role besides (the demo account holds every role) goes to the List. Anyone can still open their steps here to
-  // tick several at once (`?steps=1`).
-  if (!offline && inbox.data && inbox.data.roles.some((r) => r !== "operator")
-      && !(field.data?.jobs ?? []).some((j) => !j.queued) && !stepsWanted()) {
-    location.replace(href("/list", { waiting_on: "me" }));
-    return <Status loading />;
-  }
+  if (!offline && ![field, handovers, told, figures].every(settled)) return <Status loading />;
   const none = { total: 0, overdue: 0, due_soon: 0 };
   const d: WorkInbox = inbox.data ?? { person, roles: [], mine: [], queue: [], counts: { mine: none, queue: none } };
   const keep = (r: WorkRow) => (!type || r.type === type) &&
@@ -88,21 +78,33 @@ export function InboxPage() {
     && (fieldRole || !j.role || j.role === "operator"));
   // A job's card carries its case's step, its instruction and the report buttons, so the same case isn't listed twice.
   const onCard = new Set([...sent, ...waitingJobs].map((j) => j.item_id).filter((id): id is number => id != null));
-  const all = [...d.mine, ...d.queue].filter((r) => !onCard.has(r.item_id));
+  // Done or Could not do is said where the job's card was, in its place until OK.
+  const cards = (list: FieldJob[], name: "sent" | "waiting") => {
+    const said = reported?.list === name && <Notice key="reported" id="field-reported" role="status" className="row">
+      <span>{reported.said}</span><Button size="sm" onClick={() => setReported(null)}>OK</Button></Notice>;
+    const out = list.map((j, i) => said && reported?.id === j.id ? said
+      : <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload}
+        onReported={(text) => setReported({ id: j.id, said: text, at: i, list: name })} />);
+    if (said && !list.some((j) => j.id === reported?.id)) out.splice(Math.min(reported!.at, out.length), 0, said);
+    return out;
+  };
+  const all =[...d.mine, ...d.queue].filter((r) => !onCard.has(r.item_id));
   const mineIds = new Set(d.mine.map((r) => r.task_id ?? -r.item_id));
   const isMine = (r: WorkRow) => mineIds.has(r.task_id ?? -r.item_id);
   // Escalated first, then the most urgent: one list, as Home's Needs you lists it.
   const ranked = all.filter(keep).sort((a, b) => Number(!!b.escalated_at) - Number(!!a.escalated_at) || byUrgency(a, b));
-  const CHIPS: { key: string; label: string; rows: WorkRow[]; danger?: boolean }[] = [
-    { key: "", label: "All", rows: ranked },
+  const waiting = figures.data?.waiting_on_you;
+  // All, unfiltered, is Home's My work count; a filter's chips count what it keeps
+  const CHIPS: { key: string; label: string; rows: WorkRow[]; danger?: boolean; count?: number }[] = [
+    { key: "", label: "All", rows: ranked, count: !q && !type && waiting ? waiting.my_work : undefined },
     { key: "mine", label: "Assigned to you", rows: ranked.filter(isMine) },
     { key: "queue", label: "Unclaimed in your roles", rows: ranked.filter((r) => !isMine(r)) },
     { key: "escalated", label: "Escalated", rows: ranked.filter((r) => r.escalated_at), danger: true },
   ];
   const chip = CHIPS.find((c) => c.key === (show ?? "")) ?? CHIPS[0];
   const counts = myWorkCounts(d, jobs);
-  const undispatched = d.roles.includes("ops_lead")
-    ? (exceptions.data ?? []).filter(waitingToDispatch).length : 0;
+  const undispatched = waiting?.to_dispatch ?? 0;
+  const overdue = waiting ? waiting.overdue : counts.overdue;
   const types = [...new Set(all.map((r) => r.type))].sort();
   const pickedRows = all.filter((r) => r.task_id && picked.has(r.task_id));
   const lead = d.roles.includes("ops_lead");
@@ -122,8 +124,6 @@ export function InboxPage() {
       </Notice>}
       {offline && <Notice tone="warn">No signal: these are your jobs as kept on this phone{offline.since ? ` ${when(offline.since)}` : ""}.
         Reports wait here and send when the signal returns.</Notice>}
-      {reported && <Notice role="status" className="row"><span>{reported}</span>
-        <Button size="sm" onClick={() => setReported(null)}>OK</Button></Notice>}
       <FieldModeOffer />
       <Outbox onSent={() => { field.reload(); inbox.reload(); }} jobs={jobs.filter((j) => !j.queued)} />
       {/* What changed on your work since you last looked is Home's Needs you; a field operator, whose Home is this
@@ -131,12 +131,12 @@ export function InboxPage() {
       <nav className="chips work-views" aria-label="Show in my work">
         {CHIPS.map((c) => <Button key={c.key} className="chip"
           aria-pressed={c === chip} onClick={() => setShow(c.key)}>
-          {c.label} {c.danger && c.rows.length ? <UIBadge tone="danger">{c.rows.length}</UIBadge> : <Text muted>{c.rows.length}</Text>}</Button>)}
+          {c.label} {c.danger && c.rows.length ? <UIBadge tone="danger">{c.rows.length}</UIBadge> : <Text muted>{c.count ?? c.rows.length}</Text>}</Button>)}
         {undispatched > 0 && <a className="chip" href={href("/exceptions")}>To dispatch <UIBadge tone="danger">{undispatched}</UIBadge></a>}
       </nav>
       <Text as="p" small muted>Your roles: {d.roles.map((r) => r.replace(/_/g, " ")).join(", ") || "none"}
         {d.covering?.length ? `. Covering for ${d.covering.join(", ")}` : ""}
-        {counts.overdue > 0 ? `. ${counts.overdue} overdue` : ""}.</Text>
+        {overdue > 0 ? `. ${overdue} overdue` : ""}.</Text>
       <Line>
         <Input aria-label="Filter my work by case or step" placeholder="filter by case or step" value={q} onChange={(e) => setQ(e.target.value)} />
         <Select aria-label="Filter my work by case type" value={type} onChange={(e) => setType(e.target.value)}>
@@ -147,17 +147,17 @@ export function InboxPage() {
       {pickedRows.length > 0 && <Bulk rows={pickedRows} person={person} onDone={() => setPicked(new Set())} />}
       {!all.length && !jobs.length && <Empty>Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}.</Empty>}
       {!all.length && !jobs.length && <SampleTeam onAdded={inbox.reload} />}
-      {sent.length > 0 && <section className="field-jobs" aria-labelledby="sent-to-you">
+      {(sent.length > 0 || reported?.list === "sent") && <section className="field-jobs" aria-labelledby="sent-to-you">
         <Heading id="sent-to-you" detail={sent.length}>Your field jobs</Heading>
-        {sent.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} onReported={setReported} />)}
+        {cards(sent, "sent")}
       </section>}
       {!offline && fieldRole && <NoteToIOC person={person} />}
-      {!offline && fieldRole && <NewForYou person={person} told={told} />}
+      {!offline && fieldRole && <NewForYou person={person} told={told} onCard={onCard} />}
       <Group title={chip.key ? chip.label : "Waiting on you"} rows={chip.rows} person={person} picked={picked} toggle={toggle}
         hint={chip.key === "queue" ? "claim one to make it yours" : chip.key === "escalated" ? "past their SLA and moved to you or your role" : undefined} />
-      {waitingJobs.length > 0 && <section className="field-jobs" aria-labelledby="waiting-jobs">
+      {(waitingJobs.length > 0 || reported?.list === "waiting") && <section className="field-jobs" aria-labelledby="waiting-jobs">
         <Heading id="waiting-jobs" detail={waitingJobs.length}>{d.roles.includes("operator") ? "Field jobs" : "Jobs"} waiting in your queues</Heading>
-        {waitingJobs.map((j) => <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload} />)}
+        {cards(waitingJobs, "waiting")}
       </section>}
       {(d.roles.includes("operator") || offline) && <RoundsThisShift person={person} />}
       {coming.length > 0 && <ComingUp items={coming} person={person} onChange={field.reload} />}
@@ -168,13 +168,15 @@ export function InboxPage() {
 }
 
 /** What the person was told since they last looked (P5.2, #604): each line opens its case and counts as read. */
-function NewForYou({ person, told }: {
+function NewForYou({ person, told, onCard }: {
   person: string;
   told: { data?: Awaited<ReturnType<typeof api.notifications>> | null; reload: () => void };
+  /** Cases on a field card above: the card says when they are due, so no notice repeats it (#1344). */
+  onCard: Set<number>;
 }) {
   // One line per case and kind of news, the latest: three escalations of one case read as one.
   const seen = new Set<string>();
-  const unread = (told.data?.notifications ?? []).filter((n) => !n.read_at)
+  const unread = (told.data?.notifications ?? []).filter((n) => !n.read_at && !(n.item_id != null && onCard.has(n.item_id)))
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .filter((n) => { const k = `${n.item_id ?? n.id}:${n.kind}`; if (seen.has(k)) return false; seen.add(k); return true; });
   if (!unread.length) return null;

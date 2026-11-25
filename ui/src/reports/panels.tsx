@@ -55,9 +55,12 @@ function StatPanel(props: PanelProps) {
       <strong className={`report-stat-value${good === false ? " report-off-target" : ""}`}>{d.unknown ? "Unknown" : show(d.value, d.unit)}</strong>
       <Text as="div" small muted>
         {[d.target != null && `target ${d.better === "lower" ? "≤" : "≥"} ${show(d.target, d.unit)}`,
-          d.previous != null && `${show(d.previous, d.unit)} the period before`].filter(Boolean).join(" · ")}
+          d.previous_unknown ? "no history the period before"
+            : d.previous != null && `${show(d.previous, d.unit)} the period before`].filter(Boolean).join(" · ")}
       </Text>
       {d.history.length > 1 && <Sparkline points={d.history} target={d.target} label={d.title} />}
+      {/* where the figure comes from and the day it is for, from the measure's declaration */}
+      <Text as="div" small muted>{[d.source, d.as_of && whenDay(d.as_of)].filter(Boolean).join(" · ")}</Text>
     </>}
   </PanelFrame>;
 }
@@ -112,7 +115,9 @@ function CasesPanel(props: PanelProps) {
   const people = useAsync(() => api.workPeople(), []);
   const roles = useAsync(() => api.rolesCatalog(), []);
   const queues = (roles.data ?? []).filter((x) => x.kind === "person").map((x) => x.name);
-  return <PanelFrame title={props.panel.title ?? d?.title ?? ""} detail={d && d.total ? count(d.total) : undefined} result={d} loading={r}
+  // the count is for the report's scope, not the whole of Work: said with it so it isn't read as Work's number
+  return <PanelFrame title={props.panel.title ?? d?.title ?? ""} result={d} loading={r}
+    detail={d && d.total ? `${count(d.total)}${d.scope.id ? ` at ${d.scope.label}` : ""}` : undefined}
     className="report-cases">
     {d && (rows.length
       ? <div className="report-case-cards">{rows.map((row) => <BoardCard key={row.uid} r={row} person={person || null}

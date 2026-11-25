@@ -165,7 +165,7 @@ by side:
 
 | Option | What happens | When it is done |
 |---|---|---|
-| **Dispatch now** | Sent to a field operator, or the operator queue, with *why now* on the job | The operator queue's SLA |
+| **Dispatch now** | Sent to a field operator, or the operator queue, with what to check or do on the job | The operator queue's SLA |
 | **Ride along with the next visit** | Put on the plan with a job already booked on the same area or assets | That visit, within `options.window_days` (21) |
 | **Shelve** | Off the list until the area's next turnaround or shutdown | At most `exceptions.max_shelve_days` (30) |
 | **Escalate** | Sent to the engineer, or past the engineer to the ops lead | The engineer queue's SLA, then a dispatch |
@@ -174,7 +174,7 @@ Each option says the production it defers until then (in bbl and $, from the wel
 the risk of waiting, whether it is ready (crew, permit, spares, simultaneous operations, MOC) and its clashes on the
 plan. One is recommended by the same rule on every case: wait while waiting leaves no high risk and defers less than a
 separate trip costs (`options.trip_usd`); dispatch now when waiting costs more; escalate when it should go now and
-can't. Taking the recommended option is one tap; another needs a reason. The choice, the recommendation and the
+can't. Taking the recommended option is one tap; any choice takes one optional why. The choice, the recommendation and any
 reason go on the case's history, and **Work performance** shows how often the recommendation was taken, per type.
 
 ## 6. Dispatch, the field, and back

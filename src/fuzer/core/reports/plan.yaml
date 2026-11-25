@@ -3,7 +3,7 @@
 schema: 1
 key: plan
 title: Plan against actual
-version: 3
+version: 4
 for: [planner, operations manager]
 scope:
   kinds: [facility, area]
@@ -18,12 +18,12 @@ rows:
       - {id: act-hours, type: stat, measure: plan.actual_hours}
       - {id: est-cost, type: stat, measure: plan.estimate_cost}
       - {id: act-cost, type: stat, measure: plan.actual_cost}
-  - id: execution
+  - id: execution  # what every site has first, so a phone's first screen has figures; the plan's own share last
     panels:
-      - {id: unplanned, type: stat, measure: plan.unplanned_share}
-      - {id: compliance, type: stat, measure: work.schedule_compliance}
-      - {id: planned, type: stat, measure: work.planned_share}
       - {id: backlog, type: stat, measure: work.backlog}
+      - {id: planned, type: stat, measure: work.planned_share}
+      - {id: compliance, type: stat, measure: work.schedule_compliance}
+      - {id: unplanned, type: stat, measure: plan.unplanned_share}
   - id: commentary
     panels:
       - {id: summary, type: summary, size: 2}

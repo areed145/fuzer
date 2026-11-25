@@ -80,8 +80,7 @@ def test_a_handover_is_drafted_at_the_shift_change_and_acknowledged(monkeypatch)
                 s = h["facts"]["sections"]
                 assert list(s) == handover.SECTIONS
                 assert all(line["cites"] for lines in s.values() for line in lines)  # every line cites its source
-                open_work = " ".join(x["text"] for x in s["Open work"])
-                assert "with fred" in open_work
+                assert "Open work" not in s  # what changed this shift, not every open line (#1351)
                 [b] = [x for x in s["Back from the field"] if f"exception:{back['id']}" in x["cites"]]
                 assert "fred reported could not do (needs a lab sample first)" in b["text"]
                 dispatched = {c for x in s["Dispatched"] for c in x["cites"]}
@@ -136,7 +135,8 @@ def test_a_handover_is_drafted_at_the_shift_change_and_acknowledged(monkeypatch)
                 running = handover.draft(conn, "lead-out", mid, force=True, current=True)
                 assert running["shift_start"] <= mid < running["shift_end"] and running["item_id"] is None
                 assert handover.draft(conn, "lead-out", mid, force=True) is None, "an ended shift isn't redrafted"
-                handover.add_notes(conn, running["id"], "lead-out", "Compressor B on recycle overnight")
+                noted = handover.add_notes(conn, running["id"], "lead-out", "Compressor B on recycle overnight")
+                assert noted["status"] == "in progress"  # notes don't hand the shift over (#1351)
                 opened = handover.at_shift_change(conn, running["shift_end"] + timedelta(minutes=1))
                 assert opened["id"] == running["id"] and opened["item_id"] is not None
                 assert opened["notes"] == "Compressor B on recycle overnight"

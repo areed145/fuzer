@@ -1,14 +1,14 @@
 /** All the work, as a List or a Board (the simplification review, #1208): one set of rows from GET /cases, every event
- * and every case, filtered and sorted on any of its dimensions and kept in the URL. My work, To dispatch and Data
+ * and every case, filtered and sorted on any of its dimensions and kept in the URL. To dispatch and Data
  * questions are presets, sets of these filters; a role can save its own as a view. The Board is the same rows laid
  * out in columns by stage, kind, holder, team, source, facility, area or asset. */
 import "../styles/all-work.css";
 import "../styles/work-board.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type WorkListFilters, type WorkListResult, type WorkListRow, type ExceptionRow } from "../api";
-import { Badge, Button, ButtonLink, Card, Checkbox, Empty, ErrorText, Input, Line, Notice, PageHeader, Select, Table, Text, Heading } from "../ui";
+import { Badge, Button, ButtonLink, Card, Checkbox, Empty, ErrorText, Input, Line, PageHeader, Select, Table, Text, Heading } from "../ui";
 import { Status, href, useAction, useAsync, useDebounced, usePhone, errorMessage } from "../lib";
-import { money, when, whenDay } from "../format";
+import { money, whenDay } from "../format";
 import { holder as holderWords, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display } from "../entityRefs";
@@ -60,7 +60,6 @@ export function WorkListPage({ query, board: wantsBoard = false }: { query: URLS
   return (
     <section>
       <PageHeader className="all-work-header">{board ? "Board" : "All work"}</PageHeader>
-      {filters.waiting_on === "me" && mine?.roles.includes("ops_lead") && <HandoverBanner />}
       {filters.state !== "closed" && <NewWorkItem onCreated={list.reload} />}
       <Presets board={board} filters={filters} roles={mine?.roles ?? []} />
       <FilterBar board={board} filters={filters} facets={list.data?.facets} labels={list.data?.labels ?? {}} set={set} />
@@ -109,19 +108,6 @@ export function WorkWithin({ within }: { within: string }) {
   </>;
 }
 
-/** The shift handover waits for the incoming lead on their Waiting on me (it was on the old My work, #504): a banner until
- * someone acknowledges the latest one whose shift has ended. */
-function HandoverBanner() {
-  const handovers = useAsync(() => api.handovers(), []);
-  const h = handovers.data?.find((x) => new Date(x.shift_end).getTime() <= Date.now());
-  if (!h || h.state === "acknowledged") return null;
-  return <Notice tone="warn" className="row wrap">
-    <strong>Shift handover ready, {when(h.shift_end)}.</strong>
-    <span>{h.lines ?? 0} lines{h.notes_by ? `, notes from ${personName(h.notes_by)}` : ""}.</span>
-    <ButtonLink variant="primary" href={href("/handover", { id: String(h.id) })}>Read and acknowledge</ButtonLink>
-  </Notice>;
-}
-
 /** Presets and saved views: each only sets filters. */
 function Presets({ board, filters, roles }: { board: boolean; filters: Filters; roles: string[] }) {
   const [person] = usePerson();
@@ -160,13 +146,11 @@ function Presets({ board, filters, roles }: { board: boolean; filters: Filters; 
         {WORK_PRESETS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
         {views.length > 0 && <optgroup label="Saved for a role">
           {views.map((v) => <option key={v.id} value={v.id}>{v.name} ({v.role.replace(/_/g, " ")})</option>)}</optgroup>}
-        {/* The pages beside the list: a field operator's jobs with their report buttons (kept for no signal), and how
-            the work is running per team. */}
+        {/* The pages beside the list: what waits on you, and how the work is running per team. */}
         <optgroup label="Other pages">
-          {roles.includes("operator") && <option value="page:/inbox">Your field jobs</option>}
+          <option value="page:/inbox">My work</option>
           {roles.includes("ops_lead") && <option value="page:/handover">Shift handover</option>}
           {roles.includes("ops_lead") && <option value="page:/teams">Team workload</option>}
-          <option value="page:/inbox?steps=1">Your steps, to tick several at once</option>
           <option value="page:/performance">How the work is running</option>
         </optgroup>
       </Select>

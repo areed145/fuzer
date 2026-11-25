@@ -12,7 +12,7 @@ alarm"), so the chart is about the case, not every value of its unit.
 
 The event's window runs from the earliest start to the latest end of the findings on the case (a finding that gives
 only a day, an SAP notification's, counts when nothing gives a time), widened by `exceptions.around_before_hours`
-and `exceptions.around_after_hours`: a trip's vibration climbs before it, and the restart is logged after. "The
+and `exceptions.around_after_hours` (never past now): a trip's vibration climbs before it, and the restart is logged after. "The
 assets it is on" is read as the join reads them (`exceptions.anchors`), so what joins a case and what is shown
 around it agree, whatever the asset type. `units` are the units the case's subjects are read on (`values.unit_of`),
 so the case page can draw their trend over the same window (P5.13c).
@@ -60,7 +60,9 @@ def window(conn, item_id: int) -> tuple[datetime, datetime, list[str]] | None:
             b = a + timedelta(days=1)
     before = settings.get(conn, "exceptions.around_before_hours")
     after = settings.get(conn, "exceptions.around_after_hours")
-    return (a - timedelta(hours=before), b + timedelta(hours=after),
+    # widened after, but never past now on the plant's clock: an event this hour has no hours after it yet (#1350)
+    end = min(b + timedelta(hours=after), clock.now())
+    return (min(a - timedelta(hours=before), end), end,
             list(dict.fromkeys(s for r in rows for s in r["subjects"] or [])))
 
 

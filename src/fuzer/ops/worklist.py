@@ -7,6 +7,7 @@ set of these filters.
                              out, and the names of the facilities, areas and assets the facets count
     figures(conn, person)    the headline counts every page shows (open, overdue, each stage, what waits on the
                              person), counted over these same rows, so a number always equals the List it opens
+    dues(conn, ids)          each case's due time and whether it is overdue, the one definition every count uses
 
 An event (an exception) is one row with the case working it, if any. A case no event raised (a task, a handover, a
 close-out) is a row of its own. Every row says where it stands (`stage`: dispatch, planned, field, back, desk or
@@ -51,6 +52,15 @@ def _list(v) -> list[str]:
 
 def _iso(v):
     return v.isoformat() if isinstance(v, datetime) else v
+
+
+def dues(conn, ids: list[int]) -> dict[int, dict]:
+    """The one definition of when a case is due and whether that has passed (#1352): its earliest waiting person
+    step's due time, else its own; overdue once that is before now and the case is open. The List, the counts every
+    page shows and Home's map all read it."""
+    now = datetime.now(UTC)
+    return {i: {"due": c["due_at"], "overdue": bool(c["due_at"] and c["due_at"] < now and c["closed_at"] is None)}
+            for i, c in _cases(conn, ids, "all").items()}
 
 
 def _cases(conn, ids: list[int] | None, state: str) -> dict[int, dict]:
@@ -201,7 +211,8 @@ def figures(conn, person: str | None = None) -> dict:
     """The one count of how much work there is (#4 of the red team tour). Every figure is a filter of the List over the
     same open rows: `open` is the List with no filter, `overdue` its Overdue toggle, `stages` its Stage picker (and the
     Board's columns), `waiting_on_you` its Waiting on me preset. The badge, Home, My work, the handover and the List
-    all read these, so they can't disagree."""
+    all read these, so they can't disagree. A report's list of cases is these rows `within` its scope, and says the
+    scope beside its count."""
     everything, _ = _shared(conn, "open")
     stages = dict.fromkeys(OPEN_STAGES, 0)
     for r in everything:
@@ -211,9 +222,11 @@ def figures(conn, person: str | None = None) -> dict:
     if person:
         roles = set(work.roles_of(conn, person))
         mine = [r for r in everything if _waits_on(r, person, roles)]
-        # an ops lead's includes what waits to be dispatched; Needs you lists that part on its own
+        # an ops lead's includes what waits to be dispatched; Needs you and My work list that part on its own, and
+        # `my_work` is the rest, so Home's My work and the My work page read one number (#1352)
+        to_dispatch = sum(1 for r in mine if r["stage"] == "dispatch")
         out["waiting_on_you"] = {"total": len(mine), "overdue": sum(1 for r in mine if r["overdue"]),
-                                 "to_dispatch": sum(1 for r in mine if r["stage"] == "dispatch")}
+                                 "to_dispatch": to_dispatch, "my_work": len(mine) - to_dispatch}
     return out
 
 

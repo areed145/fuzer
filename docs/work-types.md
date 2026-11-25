@@ -52,7 +52,7 @@ Starts the standard one-step `queue_item` workflow in the role's queue, on each 
 
 ### Data steward queue
 
-`data_steward`: Master data steward: source problems and register gaps. A step is due in 1 day, then escalates to `ops_lead`.
+`data_steward`: Master data steward: source problems and register gaps. A step is due in 1 day, then is marked escalated in this queue.
 
 | Type of work | What it is | Found by | Declared in | How it behaves |
 |---|---|---|---|---|
@@ -75,7 +75,7 @@ Starts the standard one-step `queue_item` workflow in the role's queue, on each 
 
 ### Ops lead queue
 
-`ops_lead`: Operations lead: approves actions with an effect outside Fuzer, reviews daily reports. A step is due in 8 hours.
+`ops_lead`: Operations lead: approves actions with an effect outside Fuzer, reviews daily reports. A step is due in 8 hours, then is marked escalated in this queue.
 
 | Type of work | What it is | Found by | Declared in | How it behaves |
 |---|---|---|---|---|

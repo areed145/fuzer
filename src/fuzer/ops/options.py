@@ -30,7 +30,7 @@ option that is ready and does not leave a high risk waiting, where a separate tr
 more than it costs. Anything not known is named, not guessed.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from psycopg.types.json import Jsonb
 
@@ -287,7 +287,15 @@ def _applies(conn, row: dict) -> str | None:
         return f"it is {row['state']}"
     if row["stage"] not in OPEN_STAGES:
         return "the field has it" if row["stage"] == "field" else f"it is {row['stage']}"
+    if row["stage"] == "back" and _last_report(row) == "done":
+        return "the field reported it done: close it out"
     return None
+
+
+def _last_report(row: dict) -> str | None:
+    """The status of the field's last report on an event (done, could_not_do, on_site, note), or None."""
+    reports = (row.get("evidence") or {}).get("field") if isinstance(row.get("evidence"), dict) else None
+    return (reports[-1] or {}).get("status") if reports else None
 
 
 def for_case(conn, item_id: int) -> dict:
@@ -302,7 +310,8 @@ def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
     from . import readiness
 
     row = _event(conn, exception_id)
-    at = at or datetime.now(UTC)
+    # the database's clock, as shelve checks its expiry against: a shelf to the last day offered is not refused
+    at = at or conn.execute("select now() as t").fetchone()["t"]
     head = {"exception_id": row["id"], "item_id": row["item_id"], "type": row["type"], "stage": row["stage"],
             "decided": decisions(conn, row["id"])[:1] or None}
     why_not = _applies(conn, row)
@@ -469,9 +478,10 @@ ASK = "Go and have a look, report what you find"  # what a dispatch asks when th
 def choose(conn, exception_id: int, by: str, option: str, reason: str | None = None, *, to: str | None = None,
            ask: str | None = None, due=None, priority: float | None = None, override: str | None = None) -> dict:
     """Carry out one of an event's options and record it: dispatch it (to a person or the operator queue, with what to
-    do and why now), put it on the plan with the next visit, shelve it, or send it to the engineer. Taking another
-    option than the one recommended needs a reason. The choice, the recommendation and the reason are kept, on the
-    case's history too, and published as exception.option_chosen."""
+    do), put it on the plan with the next visit, shelve it, or send it to the engineer. Taking another
+    option than the one recommended, or sending one that is not ready, asks for nothing more: a why is optional (#1347),
+    and a dispatch that is not ready still names its blockers on the case. The choice, the recommendation and any reason
+    are kept, on the case's history too, and published as exception.option_chosen."""
     from . import exceptions, plan, readiness
 
     if option not in KEYS:
@@ -484,18 +494,15 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
         raise OptionsError(f"{o['label']} is not open: {o.get('unavailable')}")
     reason = (reason or "").strip()
     rec = offered["recommended"]
-    if option != rec and not reason:
-        raise OptionsError("say why you chose another option than the one recommended")
-    why = reason or offered["reason"]
+    # the recommendation's reason stands for a choice that follows it; another choice without one says none was given
+    why = reason or (offered["reason"] if option == rec else "none given")
     eid = offered["exception_id"]
     if option == "dispatch":
         ready = readiness.for_exception(conn, eid)
-        override = (override or "").strip()
-        if not ready["ready"] and not override:
-            raise OptionsError("Not ready to dispatch: " + "; ".join(ready["blockers"]) + ". Say why it should go anyway.")
-        # The field reads this first, in bold, on the job: what to do, and why only when the IOC wrote its own. The
-        # recommendation's reason (bbl and dollars against the shelf) is kept on the case, not sent as the instruction.
-        told = "; ".join(x for x in ((ask or "").strip() or ASK, f"Why now: {reason}" if reason else "") if x)
+        override = (override or "").strip() or why
+        # The field reads only what to check or do (#1344). Why it goes now, the IOC's or the recommendation's, is kept
+        # on the case's history below, not sent as the instruction.
+        told = (ask or "").strip() or ASK
         row = exceptions.dispatch(conn, eid, by, to or "role:operator", told,
                                   override=override if not ready["ready"] else None, blockers=ready["blockers"])
         if row["item_id"] and due:

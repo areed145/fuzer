@@ -53,7 +53,7 @@ export function PageHeader({ children, detail, actions, className = "", record =
 }
 
 /** A message the user needs to act on. Not for explanations or disclaimers. */
-export function Notice({ tone = "info", className = "", ...props }: HTMLAttributes<HTMLDivElement> & { tone?: "info" | "warn" | "danger" }) {
+export function Notice({ tone = "info", className = "", ...props }: HTMLAttributes<HTMLDivElement> & { tone?: "info" | "warn" | "danger"; ref?: Ref<HTMLDivElement> }) {
   return <div {...props} className={`notice ui-notice-${tone} ${className}`.trim()} />;
 }
 

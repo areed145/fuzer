@@ -556,7 +556,7 @@ create table if not exists shift_handover (
     shift_start       timestamptz not null,
     shift_end         timestamptz not null unique,     -- the shift change it hands over at
     facts             jsonb not null,                  -- sections: {name: [{text, cites}]}, more: {name: n}
-    state             text not null default 'draft',   -- draft | handed_over (notes added) | acknowledged
+    state             text not null default 'draft',   -- draft | acknowledged (handover.status says it in words)
     item_id           bigint,                          -- its case on the ops lead queue
     created_by        text not null,
     drafted_at        timestamptz not null default now(),
@@ -567,6 +567,8 @@ create table if not exists shift_handover (
     acknowledged_at   timestamptz,
     acknowledged_note text
 );
+-- notes no longer hand a shift over (#1351): only acknowledging does
+update shift_handover set state = 'draft' where state = 'handed_over';
 
 -- The approved write-back queue (P5.7, #634; ops/writeback.py): every change Fuzer proposes to a source system, and
 -- the only way one is written. drafted -> awaiting_approval -> approved -> sent -> confirmed, or failed (back to the

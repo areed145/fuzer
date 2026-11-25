@@ -1,6 +1,6 @@
-/** Shift handover (#467): what the incoming ops lead needs to know, drafted from live work at each shift change,
- * every line citing its case or exception. The outgoing lead adds notes; the incoming lead acknowledges it, which
- * is kept with who and when. Past handovers stay readable. */
+/** Shift handover (#467): what changed this shift, drafted from live work at each shift change, every line citing its
+ * case or exception. The outgoing lead adds notes; the incoming lead acknowledges it, which is kept with who and when.
+ * Notes and Acknowledge lead, so a phone opens on them (#1351). Past handovers stay readable. */
 import { useState } from "react";
 import { when } from "../format";
 import { api, type Handover } from "../api";
@@ -8,6 +8,7 @@ import { Badge, Button, Card, PageHeader, Table, Empty, Textarea, ErrorText, Lin
 import { Status, entityHref, href, useAsync, useAction } from "../lib";
 import { usePerson } from "../work";
 import { caseHref } from "./workflows/shared";
+import { workHref } from "../pageTabs";
 import { usePermission } from "../Auth";
 import { person as personName } from "../wording";
 
@@ -27,7 +28,7 @@ const citeLabel = (c: string) => {
 /** Lines shown per section until the reader asks for the rest. */
 const FIRST = 5;
 const FIRST_READ = ["Escalated or overdue", "Back from the field", "In the field", "Active bypasses", "Open permits",
-  "Records to check", "New exceptions", "Dispatched", "Rounds", "Open work"];
+  "Records to check", "New exceptions", "Closed", "Dispatched", "Rounds"];
 const slug = (name: string) => name.toLowerCase().replace(/[^a-z]+/g, "-");
 const rank = (name: string) => { const i = FIRST_READ.indexOf(name); return i < 0 ? FIRST_READ.length - 1 : i; };
 
@@ -59,7 +60,7 @@ export function HandoverPage({ query }: { query: URLSearchParams }) {
             <tbody>{list.data!.map((r) => (
               <tr key={r.id}><td><a href={href("/handover", { id: String(r.id) })}>{when(r.shift_start)} to {when(r.shift_end)}</a></td>
                 <td>{r.lines ?? 0}</td>
-                <td>{r.acknowledged_by ? `${personName(r.acknowledged_by)}, ${when(r.acknowledged_at!)}` : <Text muted>{r.state.replace("_", " ")}</Text>}</td></tr>
+                <td>{r.acknowledged_by ? `${personName(r.acknowledged_by)}, ${when(r.acknowledged_at!)}` : <Text muted>{r.status}</Text>}</td></tr>
             ))}</tbody>
           </Table>
         </Card>
@@ -72,12 +73,12 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
   const [notes, setNotes] = useState<string | null>(null);
   const a = useAction();
   const [shown, setShown] = useState<Set<string>>(new Set());
-  const acked = h.state === "acknowledged";
+  const acked = h.status === "acknowledged";
   // The outgoing lead's draft of the shift still running: it goes to the incoming lead at the shift change, so it
   // can't be acknowledged yet.
-  const running = new Date(h.shift_end).getTime() > Date.now();
-  // What needs the incoming lead first leads; the standing backlog (Open work) comes last, and sections with nothing
-  // fold into one line, so a handover reads in a minute on a phone instead of listing every open case.
+  const running = h.status === "in progress";
+  // What needs the incoming lead first leads and sections with nothing fold into one line; the standing backlog is
+  // All work's, so a handover reads in a minute on a phone.
   const sections = Object.entries(h.facts.sections)
     .sort(([a], [b]) => rank(a) - rank(b));
   // a section that can't be said (no bypass register loaded) is unknown, never "nothing in" it
@@ -92,13 +93,29 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
     <Card title={`Shift ${when(h.shift_start)} to ${when(h.shift_end)}`}>
       <Text as="p" small>
         <Badge tone={acked ? "ok" : "warn"}>{acked ? `acknowledged by ${personName(h.acknowledged_by)} ${when(h.acknowledged_at!)}`
-          : running ? `shift in progress: goes to the incoming lead ${when(h.shift_end)}` : h.state.replace("_", " ")}</Badge>
+          : running ? `shift in progress: goes to the incoming lead ${when(h.shift_end)}` : h.status}</Badge>
         {h.item_id && <> · <a href={caseHref(h.item_id)}>its case</a></>}
         <Text muted> · drafted {when(h.drafted_at)}</Text>
       </Text>
+      {/* Notes and Acknowledge lead (#1351): the banner opens the page here, and on a phone they were eight screens down. */}
+      {h.notes && (acked || !canAct) && <p>{h.notes} <Text small muted>({personName(h.notes_by)}, {when(h.notes_at!)})</Text></p>}
+      {!acked && canAct && (
+        <>
+          <Textarea rows={2} className="handover-notes" aria-label="Outgoing notes" placeholder="Outgoing notes: what the lines don't say"
+            value={notes ?? h.notes ?? ""} onChange={(e) => setNotes(e.target.value)} />
+          <Line wrap>
+            <Button variant="secondary" disabled={!!a.busy || !(notes ?? "").trim()} onClick={() =>
+              a.run("notes", () => api.handoverNotes(h.id, person, notes!), () => { setNotes(null); reload(); })}>Save notes</Button>
+            {!running && <Button variant="primary" disabled={!!a.busy} onClick={() =>
+              a.run("ack", () => api.acknowledgeHandover(h.id, person), reload)}>I have read it: acknowledge</Button>}
+            {h.notes && notes === null && <Text small muted>Notes by {personName(h.notes_by)}, {when(h.notes_at!)}</Text>}
+          </Line>
+        </>
+      )}
+      {h.acknowledged_note && <Text as="p" small>Incoming: {h.acknowledged_note}</Text>}
+      <ErrorText>{a.error}</ErrorText>
       {busy.length === 0 && <Empty className="small">Nothing to hand over.</Empty>}
-      {/* The headline (#11): what the incoming lead takes on first, in the order to read it, each a jump to its lines.
-          The standing backlog is counted last. */}
+      {/* The headline (#11): what the incoming lead takes on first, in the order to read it, each a jump to its lines. */}
       {busy.length > 0 && <p className="handover-first">
         <strong>First:</strong> {jumps(busy.slice(0, 3))}
         {busy.length > 3 && <Text muted>. Then {jumps(busy.slice(3))}</Text>}
@@ -128,22 +145,7 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
       {(quiet.length > 0 || Object.keys(unknown).length > 0) && <Text as="p" small muted>
         {[quiet.length > 0 && `Nothing in ${quiet.join(", ").toLowerCase()}.`,
           ...Object.entries(unknown).map(([name, why]) => `${name} unknown: ${why}.`)].filter(Boolean).join(" ")}</Text>}
-      <Heading level={3}>Outgoing notes</Heading>
-      {h.notes && notes === null && <p>{h.notes} <Text small muted>({personName(h.notes_by)}, {when(h.notes_at!)})</Text></p>}
-      {!acked && canAct && (
-        <>
-          <Textarea rows={3} className="handover-notes" aria-label="Outgoing notes" placeholder="What the lines don't say: plans, risks, asks"
-            value={notes ?? h.notes ?? ""} onChange={(e) => setNotes(e.target.value)} />
-          <Line>
-            <Button variant="secondary" disabled={!!a.busy || !(notes ?? "").trim()} onClick={() =>
-              a.run("notes", () => api.handoverNotes(h.id, person, notes!), () => { setNotes(null); reload(); })}>Save notes</Button>
-            {!running && <Button variant="primary" disabled={!!a.busy} onClick={() =>
-              a.run("ack", () => api.acknowledgeHandover(h.id, person), reload)}>I have read it: acknowledge</Button>}
-          </Line>
-        </>
-      )}
-      {h.acknowledged_note && <Text as="p" small>Incoming: {h.acknowledged_note}</Text>}
-      <ErrorText>{a.error}</ErrorText>
+      <Text as="p" small><a href={workHref("open")}>The rest of the open work is in All work</a></Text>
     </Card>
   );
 }

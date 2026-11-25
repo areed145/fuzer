@@ -393,9 +393,12 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
       { key: "value", label: "Cases opened", unit: "cases", align: "end" }], rows: [{ key: "x", cells: { label: "context gap", value: 5 }, href: "/list?kind=x" }], total: 1 } });
     if (id === "w") return route.fulfill({ json: { ...base, type: "cases", title: "Overdue", cases: [], total: 0, overdue: 0, labels: {}, href: "/list?overdue=true" } });
     if (id === "d") return route.fulfill({ json: { ...base, type: "stat", title: "Safeguards bypassed", measure: "safety.bypasses_active",
-      value: null, unknown: true, note: "no bypass register loaded", unit: "bypasses", target: 0, better: "lower", previous: null, history: [] } });
+      value: null, unknown: true, note: "no bypass register loaded", unit: "bypasses", target: 0, better: "lower", previous: null,
+      source: "bypass register", history: [] } });
+    if (id === "c") return route.fulfill({ json: { ...base, type: "stat", title: "Cases opened", measure: "work.arrivals", value: 12, unit: "cases",
+      target: null, better: "none", previous: null, previous_unknown: true, source: "cases", history: [] } });
     return route.fulfill({ json: { ...base, type: "stat", title: "Open cases", measure: "work.backlog", value: 12, unit: "cases", target: null,
-      better: "lower", previous: 10, history: [] } });
+      better: "lower", previous: 10, source: "cases", history: [] } });
   });
   const tops = async () => page.locator(".report-type-stat").evaluateAll((ns) => ns.map((n) => Math.round(n.getBoundingClientRect().top)));
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -406,6 +409,10 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
   const unknown = page.locator(".report-type-stat", { hasText: "Safeguards bypassed" });
   await unknown.getByText("no bypass register loaded").waitFor();
   assert.equal(await unknown.locator(".report-stat-value").innerText(), "Unknown");
+  // every figure says what it is read from and the day it is for; a window with no history is never 0
+  await unknown.getByText("bypass register · Nov 23").waitFor();
+  const fresh = page.locator(".report-type-stat", { hasText: "Cases opened" });
+  await fresh.getByText("no history the period before").waitFor();
   // rows reading a measure that is unknown here are one line, said once, instead of empty panels
   assert.equal(await page.getByText("No business plan loaded").count(), 1);
   assert.equal(await page.locator(".report-type-stat").count(), 4);
@@ -421,7 +428,7 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
   await page.setViewportSize({ width: 1440, height: 900 });
 });
 
-test("a report's AI note cites what it rests on and flags what the checks found; a note shows its live values and adds for the period", async () => {
+test("a report's AI note cites what it rests on and keeps what the checks found from readers; a note shows its live values and adds for the period", async () => {
   const win = { key: "7d", at: "2026-11-24", start: "2026-11-18", end: "2026-11-24", days: 7, label: "7 days to 24 Nov 2026",
     previous: { start: "2026-11-11", end: "2026-11-17" } };
   const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
@@ -449,8 +456,9 @@ test("a report's AI note cites what it rests on and flags what the checks found;
   await page.goto(`${url}/#/reports/work`);
   await page.getByText("Backlog up to 42 cases this week").waitFor();
   await page.getByRole("link", { name: "case 12" }).waitFor();
-  await page.getByText("12% not on the page").waitFor();
   await page.getByText("1,250 cases", { exact: true }).waitFor();
+  // what the checks found is for whoever can write the note again: a reader sees the note alone
+  assert.equal(await page.getByText("12% not on the page").count(), 0);
   await page.getByRole("textbox", { name: "Add a note" }).fill("Compressor back on Thursday.");
   await page.getByRole("button", { name: "Add note" }).click();
   await page.waitForFunction(() => true);
@@ -627,28 +635,6 @@ test("a case names the signed-in person who opened and started it, never their a
   assert.ok(!(await page.locator("main").innerText()).includes("user:9abd"), "no account id on the case");
 });
 
-test("a case shows what each agent did on it, its versions and cost, against the case's cap (P4.4)", async () => {
-  const ledger = { agent: "maintenance-integrity", agents: ["maintenance-integrity"], models: ["claude-test"],
-    skills: { "maintenance-integrity/rotating": "3f9c0a1b2c4d" }, cost_usd: 0.42, seconds: 9,
-    tools: [{ agent: "maintenance-integrity", tool: "calc", args: { check: "vibration", ref: "20-K-2200B" } }] };
-  await page.route("**/work/items/7", route => route.fulfill({ json: { id: 7, title: "Agent case", type: "upset", state: "open",
-    subjects: [], created_by: "agent:sre", created_at: "2026-11-09T09:00:00Z", processes: [],
-    agent_spend: { usd: 2.1, cap_usd: 2 },
-    events: [{ id: 1, kind: "agent_result", actor: "agent:maintenance-integrity", element: "diagnose", at: "2026-11-09T09:05:00Z",
-      data: { step: "Diagnose", data: { diagnose: { answer: "Bearing wear on the drive end.", ledger } } } }] } }));
-  await page.goto(`${url}/#/cases/7`);
-  const card = page.locator(".ui-card, .card").filter({ has: page.getByText("Agent work", { exact: true }) }).first();
-  await card.waitFor();
-  await card.getByText("$2.10 of $2.00 cap", { exact: false }).waitFor();
-  await card.getByText("cap reached", { exact: true }).waitFor();
-  await card.getByRole("cell", { name: "claude-test" }).waitFor();
-  await card.getByRole("cell", { name: "$0.42" }).waitFor();
-  await card.getByRole("button", { name: "What Diagnose did" }).click();
-  await card.getByText("Bearing wear on the drive end.", { exact: true }).waitFor();
-  await card.getByRole("cell", { name: "calc", exact: true }).waitFor();
-  await card.getByText("3f9c0a1b2c4d", { exact: false }).waitFor();
-});
-
 test("a case links to Ask about it and shows an answer attached from Ask in its history (P4.5)", async () => {
   await page.route("**/work/items/8", route => route.fulfill({ json: { id: 8, title: "Pump vibration rising", type: "machine_health",
     state: "open", subjects: [], created_by: "detector:machine_health", created_at: "2026-11-09T09:00:00Z", processes: [],
@@ -711,8 +697,8 @@ test("a case opens with the specialist's brief above the decision, and the perso
   await card.getByText("Proposed: Plan an anti-surge valve check", { exact: true }).waitFor();
   await card.getByText("72% confident", { exact: false }).waitFor();
   await card.getByText("no OEM map revision date", { exact: true }).waitFor();
-  await card.getByText("$0.62 of $0.50 budget", { exact: false }).waitFor();
-  await card.getByText("over budget", { exact: true }).waitFor();
+  // what the brief cost is AI usage's, not the case's (#1348)
+  assert.equal(await card.getByText("budget", { exact: false }).count(), 0);
   await card.getByRole("button", { name: "Evidence, analysis and similar cases" }).click();
   await card.getByRole("cell", { name: "anti-surge valve recalibrated" }).waitFor();
   await card.getByLabel("Note on the proposal").fill("checked the valve first");
@@ -817,7 +803,7 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
   });
 }
 
-test("another option than the recommended one needs a reason, which goes with the choice (P5.20)", async () => {
+test("another option than the recommended one takes an optional why, which goes with the choice (P5.20, #1347)", async () => {
   const chosen = [];
   await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "20-K-2300B tripped", type: "machine_trip",
     state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-22T12:00:00Z", events: [], processes: [],
@@ -833,13 +819,88 @@ test("another option than the recommended one needs a reason, which goes with th
   const card = page.getByLabel("Options");
   await card.getByRole("button", { name: "Add to the visit…" }).click();
   const go = card.getByRole("button", { name: "Add to the visit", exact: true });
-  assert.equal(await go.isDisabled(), true);
-  await card.getByLabel("Why not the recommended one (kept on the case)").fill("crew already on OKJ-01 that day");
+  assert.equal(await go.isDisabled(), false, "nothing holds the button back");
+  assert.equal(await go.getAttribute("title"), null, "no reason hidden in a hover tooltip");
+  await card.getByLabel("Why (optional, kept on the case)").fill("crew already on OKJ-01 that day");
   await go.click();
   await page.getByRole("status").filter({ hasText: "Added to the visit. The choice and why are on the case." }).waitFor();
   assert.deepEqual(chosen, [{ by: "riley", option: "window", reason: "crew already on OKJ-01 that day" }]);
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
+
+// P5.25d (#1347): a dispatch that is not ready and not recommended goes with one optional why box, its fields stay
+// inside the option's card, and "Dispatched to …" shows in view on every width.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["iPad landscape", { width: 1194, height: 834 }],
+  ["iPad portrait", { width: 834, height: 1194 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`dispatch now needs no hidden why, keeps its fields in its card and says where it went (#1347, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    const chosen = [];
+    const blocked = caseOptions({ recommended: "escalate", reason: "It can't go now and waiting leaves the risk high: an engineer decides the way round.",
+      options: caseOptions().options.map((o) => o.key === "dispatch"
+        ? { ...o, ready: false, blockers: ["Spares: Rod packing set: 0 in stock, 2 needed; nothing on order"] } : o) });
+    let options = blocked;
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "20-K-2300B tripped", type: "machine_trip",
+      state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-22T12:00:00Z", events: [], processes: [],
+      payload: { exception_id: 7 } } }));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "riley", roles: ["ops_lead"] },
+      { name: "kai", display_name: "Kai Moana", roles: ["operator"], holding: 1 }] }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: options }));
+    await page.route("**/exceptions/7/options/choose", async (route) => {
+      chosen.push(route.request().postDataJSON());
+      await new Promise((r) => setTimeout(r, 400));  // a slow server: the option says it is dispatching meanwhile
+      options = caseOptions({ applies: false, why_not: "the field has it", stage: "field", options: [] });
+      return route.fulfill({ json: { choice: { id: 3, chosen: "dispatch", recommended: "escalate", accepted: false }, event: { id: 7, item_id: 21, stage: "field", state: "open" } } });
+    });
+    await page.goto(`${url}/#/cases/21`);
+    await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    await page.reload();
+    const card = page.getByLabel("Options");
+    const option = card.locator(".case-option").filter({ hasText: "Dispatch now" });
+    await option.getByRole("button", { name: "Dispatch now…" }).click();
+    const form = option.locator(".case-option-form");
+    await form.getByLabel("Send to").selectOption("kai");
+    await form.getByLabel("What to check or do (they see this)").fill("Walk down PTW-30015 isolations before the valve is touched");
+    assert.equal(await form.locator("input, select").count(), 5, "who, what, when, priority and one why");
+    assert.equal(await form.getByText("Why", { exact: false }).count(), 1, "one why box");
+    const edge = await option.boundingBox();
+    for (const box of await form.locator("input, select, .ui-button").evaluateAll((els) => els.map((e) => {
+      const r = e.getBoundingClientRect(); return { left: r.left, right: r.right };
+    }))) assert.ok(box.left >= edge.x - 1 && box.right <= edge.x + edge.width + 1, `a field runs out of its card (${JSON.stringify(box)} in ${edge.x}+${edge.width})`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "no sideways scroll");
+    const go = form.getByRole("button", { name: "Dispatch now", exact: true });
+    assert.equal(await go.isDisabled(), false, "not ready, not recommended, no why: it still goes");
+    assert.equal(await go.getAttribute("title"), null);
+    await go.click();
+    await option.getByRole("status").filter({ hasText: "Dispatching…" }).waitFor();
+    const done = page.getByRole("status").filter({ hasText: "Dispatched to Kai Moana. The choice and why are on the case." });
+    await done.waitFor();
+    const box = await done.boundingBox();
+    assert.ok(box && box.y >= 0 && box.y + box.height <= viewport.height, `the confirmation is in view (${box?.y})`);
+    assert.deepEqual(chosen, [{ by: "riley", option: "dispatch", to: "kai", ask: "Walk down PTW-30015 isolations before the valve is touched" }]);
+    await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+  });
+}
+
+// P5.25d (#1347): once the field has reported it done, the case offers no dispatch, and no cost beside Close out.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`a case the field reported done shows no options and no second send (#1347, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "Small drip from the drain valve", type: "field_report",
+      state: "open", subjects: [], created_by: "sam", created_at: "2026-11-22T12:00:00Z", events: [], processes: [],
+      payload: { exception_id: 7 } } }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: caseOptions({ applies: false, stage: "back",
+      why_not: "the field reported it done: close it out", options: [] }) }));
+    await page.goto(`${url}/#/cases/21`);
+    await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    await page.reload();
+    await page.getByRole("heading", { name: "Small drip from the drain valve" }).waitFor();
+    await page.getByLabel("Next step").waitFor();
+    assert.equal(await page.getByLabel("Options").count(), 0);
+    assert.equal(await page.getByText("Dispatch now").count(), 0);
+    assert.equal(await page.getByText("Send to the field…").count(), 0);
+    await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+  });
+}
 
 test("an event to dispatch opens its options from its row on All work (P5.20)", async () => {
   const row = { id: 7, type: "machine_trip", key: "K-2300B", title: "20-K-2300B tripped", source: "sre", state: "open",
@@ -1112,6 +1173,35 @@ test("the Work badge says what it counts and the Cases filters are labelled (#39
   assert.equal(await page.getByRole("combobox", { name: "Kind of work", exact: true }).count(), 1);
   assert.equal(await page.getByRole("option", { name: "Anyone", exact: true }).count(), 1);
 });
+
+// P5.25b (#1345): one My work, and the Work tab lands on it, for every role on a phone and on a desk.
+for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]]) {
+  test(`the Work tab opens My work for every role (P5.25b, ${name})`, async () => {
+    await page.route("**/work/counts?*", route => route.fulfill({ json: { open: 3, overdue: 0,
+      stages: { dispatch: 0, planned: 0, field: 0, back: 0, desk: 3 }, waiting_on_you: { total: 7, overdue: 0, to_dispatch: 0 } } }));
+    await page.setViewportSize({ width, height });
+    for (const [who, roles] of [["fred", ["operator"]], ["ann", ["ops_lead", "operator"]], ["ana", ["engineer"]]]) {
+      await page.evaluate((p) => localStorage.setItem("fuzer.reviewer", p), who).catch(() => undefined);
+      await context.addInitScript((p) => localStorage.setItem("fuzer.reviewer", p), who);
+      await page.unroute("**/work/inbox?*");
+      await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: who, roles, mine: [], queue: [],
+        counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+      await page.goto(`${url}/#/reports`);
+      const work = width < 900
+        ? page.getByRole("navigation", { name: "Quick" }).getByRole("link", { name: /^Work, 7 items waiting on you/ })
+        : page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /^Work/ });
+      await work.click();
+      await page.waitForURL(/#\/inbox$/);
+      await page.getByRole("heading", { level: 1, name: "My work" }).waitFor();
+      assert.match(page.url(), /#\/inbox$/, `${who} stays on My work`);
+      // My work, List and Board are Work's tabs, My work the current one (a phone has no Board)
+      const tabs = page.getByRole("navigation", { name: "Work pages", exact: true });
+      await tabs.getByRole("link", { name: "My work" }).and(page.locator('[aria-current="page"]')).waitFor();
+      await tabs.getByRole("link", { name: "List" }).waitFor();
+    }
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
 
 test("Core consistency Sources uses keyboard links, UTC ingestion times and explicit unknown state", async () => {
   await page.route("**/sources/datasets/sap_equipment", route => route.fulfill({ status: 503, json: { detail: "Dataset unavailable" } }));
@@ -2342,7 +2432,7 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
   await page.goto(url);
   const nav = page.getByRole("navigation", { name: "Main", exact: true });
   await nav.getByRole("link", { name: "Explore", exact: true }).waitFor();
-  const expected = ["#/", "#/list", "#/plan", "#/browse", "#/ask", "#/reports", "#/sources", "#/jobs", "#/settings"];
+  const expected = ["#/", "#/inbox", "#/plan", "#/browse", "#/ask", "#/reports", "#/sources", "#/jobs", "#/settings"];
   const links = await nav.locator("a").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href")));
   assert.deepEqual(new Set(links), new Set(expected));
   assert.equal(links.length, new Set(links).size, "One navigation entry per existing surface");
@@ -2365,16 +2455,18 @@ test("main menu has no Demo entry and keeps existing primary destinations and sp
     await page.goto(`${url}/${route}`);
     await nav.locator('a[href="#/browse"][aria-current="page"]').waitFor();
   }
-  await page.goto(`${url}/#/work`);
-  await page.waitForURL(/#\/list\?waiting_on=me$/);
-  // My work and Master data are presets on the list now; their pages keep their links and light List.
-  await nav.locator('a[href="#/list"][aria-current="page"]').waitFor();
-  // List and Board are Work's two pages.
+  // Work opens on My work (#1345); the old links to it land there and light Work.
+  for (const [route, to] of [["#/work", /#\/inbox$/], ["#/list?waiting_on=me", /#\/inbox$/], ["#/field", /#\/inbox$/]]) {
+    await page.goto(`${url}/${route}`);
+    await page.waitForURL(to);
+    await nav.locator('a[href="#/inbox"][aria-current="page"]').waitFor();
+  }
+  // My work, List and Board are Work's pages.
   assert.deepEqual(await page.getByRole("navigation", { name: "Work pages", exact: true }).locator("a").evaluateAll((nodes) => nodes.map((n) => n.getAttribute("href"))),
-    ["#/list", "#/board"]);
+    ["#/inbox", "#/list", "#/board"]);
   for (const route of ["#/handover", "#/review", "#/masterdata"]) {
     await page.goto(`${url}/${route}`);
-    await nav.locator('a[href="#/list"][aria-current="page"]').waitFor();
+    await nav.locator('a[href="#/inbox"][aria-current="page"]').waitFor();
   }
   // The pages that left the menu still open, under the entry that owns them now (#554).
   await page.route("**/plan/schedules", (route) => route.fulfill({ json: [] }));
@@ -2423,7 +2515,7 @@ test("primary destination navigation keeps page headings and active context alig
     { label: "Tower", href: "#/", heading: "Tower" },
     { label: "Explore", href: "#/browse", heading: "Explore" },
     { label: "Reports", href: "#/reports", heading: "Reports", area: "Reports pages", current: "Reports" },
-    { label: "Work", href: "#/list", heading: "All work", area: "Work pages", current: "List" },
+    { label: "Work", href: "#/inbox", heading: "My work", area: "Work pages", current: "My work" },
     { label: "Plan", href: "#/plan", heading: "Plan", area: "Plan pages", current: "Plan" },
     { label: "Sources", href: "#/sources", heading: "Sources" },
     { label: "Jobs", href: "#/jobs", heading: "Jobs" },
@@ -3798,15 +3890,24 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   await page.goto(`${url}/#/field`);  // the old My jobs link lands on My work (#503)
   await page.waitForURL(/#\/inbox/);
   await page.getByRole("heading", { name: /Leak at P-101/ }).waitFor();
-  await page.getByRole("link", { name: "directions" }).first().waitFor();
-  await page.getByText("Drips per min").first().waitFor();
   await page.getByText("isolate and check the gland").waitFor();  // what the IOC asked for, on the job
+  const mine = page.locator(".field-job", { hasText: "Leak at P-101" });
+  // the card is its title, the ask and the next button; where and what was found wait under Details (#1344)
+  assert.equal(await mine.getByRole("link", { name: "directions" }).count(), 0);
+  await mine.getByRole("button", { name: "Details" }).click();
+  await mine.getByRole("link", { name: "directions" }).first().waitFor();
+  await mine.getByText("Drips per min").first().waitFor();
   const queued = page.locator(".field-job", { hasText: "Compressor trip" });
   assert.equal(await queued.getByRole("button", { name: "Done" }).count(), 0);  // not theirs until taken
   await queued.getByRole("button", { name: "Take it" }).click();
   await expectReports(taken, 1);
   assert.deepEqual([taken[0].by, taken[0].to], ["fred", "fred"]);
-  const mine = page.locator(".field-job", { hasText: "Leak at P-101" });
+  // the jobs read again still say it waits (as the live site did): the card is theirs in place all the same, so a
+  // second tap can't take it again (#1344)
+  await queued.getByRole("button", { name: "On site" }).waitFor();
+  assert.equal(await queued.getByRole("button", { name: "Take it" }).count(), 0);
+  await queued.getByRole("button", { name: "Could not do" }).waitFor();
+  assert.equal(taken.length, 1);
   await page.getByRole("heading", { name: "Coming up" }).waitFor();
   await page.getByText("bring the seal kit").waitFor();
   await page.getByText("for operator").waitFor();
@@ -3972,11 +4073,12 @@ test("the Board lays open work out by stage, splits it into lanes, and its cards
   await page.locator(".work-board").evaluate((el) => { el.scrollLeft = el.scrollWidth; });
   await page.locator(".work-board-frame.more-left:not(.more-right)").waitFor();
 
-  // A phone has no Board: the same link shows the List as cards, and Work has no Board tab there.
+  // A phone has no Board: the same link shows the List as cards, and Work's tabs are My work and List there.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator(".work-table").waitFor();
   assert.equal(await page.locator(".work-board").count(), 0);
-  assert.equal(await page.getByRole("navigation", { name: "Work pages" }).count(), 0);
+  await page.getByRole("navigation", { name: "Work pages" }).getByRole("link", { name: "My work" }).waitFor();
+  assert.deepEqual(await page.getByRole("navigation", { name: "Work pages" }).locator("a").allTextContents(), ["My work", "List"]);
   const phoneCard = page.locator("tr.work-row", { hasText: "Wellhead pressure high" });
   const buttons = await phoneCard.locator(".work-row-actions > *").evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
   assert.ok(buttons.length >= 2 && buttons.every((t) => Math.abs(t - buttons[0]) < 2), "a card's actions sit side by side in one row");
@@ -4083,7 +4185,89 @@ test("a field job taken from the queue is followed up to the operator's own jobs
   await page.waitForFunction(() => { const r = document.getElementById("field-job-8").getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight / 2; });
 });
 
-test("My work is the List's Waiting on me, and a row waiting in your queue is taken from it", async () => {
+// P5.25a (#1344): one tap, one change. Take it turns the card into the job's own in place even while the jobs read again
+// say it waits, a double tap takes it once, Done is said where the card was, and the card is the title, the ask and the
+// next button, with no notice repeating its own escalation.
+for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]]) {
+  test(`a field card takes once, swaps in place and says Done where it was (P5.25a, ${name})`, async () => {
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+    const finding = { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null,
+      end: null, confidence: null, items: [], checks: [], subjects: [], value_usd: null };
+    const base = { type: "upset", source: "scada", state: "open", priority: null, value_usd: null, subjects: [], unmatched: [],
+      raised_count: 1, first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z", evidence: {}, finding,
+      history: [], field: [], label: "Upset", role: "operator", assignee: null,
+      assets: [{ fuzer_id: "fz-k", label: "65-HCV-1002", kind: "tag", lat: null, lon: null, offshore: true, site: "Okan Jacket 05" }],
+      permit: { needed: true, blocked: false, permit: null } };
+    const above = { ...base, id: 20, key: "a", title: "Gauge check on the jacket", item_id: 40, queued: true,
+      sent: { by: "riley", at: "2026-11-08T07:05:00Z", reason: "Read the local gauge" } };
+    const job = { ...base, id: 21, key: "b", title: "Corroded flange bolting on 65-HCV-1002", item_id: 41, queued: true,
+      sent: { by: "riley", at: "2026-11-08T07:05:00Z", reason: "Go and have a look, report what you find" } };
+    let jobs = [above, job];
+    await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", coming_up: [], jobs } }));
+    const taken = [];
+    let answer;
+    await page.route("**/exceptions/21/dispatch", async (route) => {
+      taken.push(route.request().postDataJSON());
+      await new Promise((r) => { answer = r; });
+      return route.fulfill({ json: job });
+    });
+    const reports = [];
+    await page.route("**/exceptions/21/report", (route) => {
+      reports.push(route.request().postDataJSON());
+      jobs = [above];  // a job they reported done is the IOC's now: it leaves their list
+      return route.fulfill({ json: job });
+    });
+    await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
+      counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+    await page.route("**/work/notifications?*", (route) => route.fulfill({ json: { unread: 2, notifications: [
+      { id: 5, kind: "escalated", item_id: 41, token_id: null, text: "'Corroded flange bolting' was escalated to the ops lead queue.",
+        link: "#/cases/41", channel: "in_app", delivery: null, created_at: "2026-11-08T08:00:00Z", read_at: null },
+      { id: 6, kind: "assigned", item_id: 77, token_id: null, text: "You were given 'Swap the filter'.",
+        link: "#/cases/77", channel: "in_app", delivery: null, created_at: "2026-11-08T08:00:00Z", read_at: null }] } }));
+    await page.setViewportSize({ width, height });
+    await page.goto(`${url}/#/inbox`);
+    const card = page.locator(".field-job", { hasText: "Corroded flange bolting" });
+    await card.getByText("Go and have a look, report what you find").waitFor();
+    // the notice about its own escalation is not repeated above the card that says it; other news still shows
+    await page.getByText("You were given 'Swap the filter'.").waitFor();
+    assert.equal(await page.getByText("was escalated to the ops lead queue").count(), 0);
+    // title, ask and Take it: where and the permit wait under Details
+    assert.equal(await card.getByText("Okan Jacket 05").count(), 0);
+    assert.equal(await card.getByText("Permit to work").count(), 0);
+    const take = card.getByRole("button", { name: "Take it" });
+    await take.click();
+    await take.click({ force: true, timeout: 1000 }).catch(() => undefined);  // a second tap while the first is in flight
+    await expectReports(taken, 1);
+    assert.equal(await take.isDisabled(), true);
+    answer();
+    // the jobs read again still say it waits: the card is theirs in place regardless, On site first
+    await card.getByRole("button", { name: "On site" }).waitFor();
+    assert.equal(await card.getByRole("button", { name: "Take it" }).count(), 0);
+    assert.equal(taken.length, 1);
+    await card.getByRole("button", { name: "Reading or photo" }).click();
+    const fits = await card.evaluate((el) => {
+      const box = el.getBoundingClientRect(), file = el.querySelector('input[type="file"]').getBoundingClientRect();
+      return file.left >= box.left && file.right <= box.right;
+    });
+    assert.equal(fits, true, "the photo input stays inside its card");
+    await card.getByLabel("Note for the IOC").fill("Bolts replaced");
+    await card.getByRole("button", { name: "Done", exact: true }).click();
+    await expectReports(reports, 1);
+    assert.equal(reports[0].status, "done");
+    const said = page.getByRole("status").filter({ hasText: "Done sent for" });
+    await said.waitFor();
+    await card.waitFor({ state: "detached" });
+    // said where the card was: below the job above it, in view
+    const [prev, note] = await Promise.all([page.locator(".field-job", { hasText: "Gauge check" }).boundingBox(), said.boundingBox()]);
+    assert.ok(note.y > prev.y, "the confirmation sits where the card was, not at the top");
+    assert.ok(note.y >= 0 && note.y + note.height <= height, "the confirmation is in view");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await said.getByRole("button", { name: "OK" }).click();
+    await said.waitFor({ state: "detached" });
+  });
+}
+
+test("My work stays My work for a desk role, and a row waiting in your queue is taken from All work", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ivy"));
   let taken = false;
   const claims = [];
@@ -4102,15 +4286,17 @@ test("My work is the List's Waiting on me, and a row waiting in your queue is ta
       holder: "role:ops_lead", queue: "ops_lead", due_at: null, overdue: false, opened: exc.first_seen,
       updated: exc.last_seen, facility: "none", area: "none", asset: "none", take: null }] } }));
   await page.route("**/work/tasks/55/claim*", (route) => { claims.push(route.request().postDataJSON()); taken = true; return route.fulfill({ json: {} }); });
-  // a desk role with operator too (as the demo account holds): field jobs only waiting in the operator queue are taken
-  // from the List, so My work is still the List
+  // a desk role with operator too (as the demo account holds): My work is its own page all the same (#1345)
   await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "ivy", roles: ["ops_lead", "operator"], mine: [],
     queue: [], counts: { mine: { total: 0 }, queue: { total: 1 } } } }));
   await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "ivy", coming_up: [], jobs: [
-    { item_id: 30, exception_id: 30, title: "Compressor trip", role: "operator", queued: true, sent: null, history: [], field: [] }] } }));
+    { id: 30, item_id: 30, exception_id: 30, title: "Compressor trip", role: "operator", queued: true, sent: null, history: [], field: [],
+      assets: [], unmatched: [], first_seen: "2026-11-08T06:00:00Z", raised_count: 1 }] } }));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${url}/#/inbox`);
-  await page.waitForURL(/#\/list\?waiting_on=me$/);
+  await page.locator(".field-job", { hasText: "Compressor trip" }).waitFor();
+  assert.match(page.url(), /#\/inbox$/);
+  await page.goto(`${url}/#/list`);
   const row = page.locator("tr.work-row", { hasText: "Approve PM order 4711" });
   const valued = page.locator("tr", { hasText: "Reallocate lift gas on 30-FT-3002" });
   assert.match(await valued.locator("td").nth(3).innerText(), /\$5\.6M|\$5,611,950/);
@@ -4485,7 +4671,7 @@ test("My work opens in place: the banner, what is new and the counts don't push 
   const late = (json, ms) => (route) => setTimeout(() => route.fulfill({ json }).catch(() => {}), ms);
   await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
   await page.route("**/handovers", late([{ id: 7, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z",
-    state: "handed_over", notes_by: "bo", acknowledged_by: null, acknowledged_at: null, item_id: 40, lines: 6 }], 600));
+    state: "draft", status: "not acknowledged", notes_by: "bo", acknowledged_by: null, acknowledged_at: null, item_id: 40, lines: 6 }], 600));
   await page.route("**/work/notifications?*", late({ unread: 1, notifications: [{ id: 1, kind: "escalated", text: "Escalated to you",
     link: "#/cases/40", created_at: "2026-11-12T06:00:00Z", read_at: null }] }, 900));
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -4496,6 +4682,22 @@ test("My work opens in place: the banner, what is new and the counts don't push 
   await page.waitForTimeout(500);
   const cls = await page.evaluate(() => window.__cls);
   assert.ok(cls < 0.05, `My work moved as it loaded: CLS ${cls.toFixed(3)}`);
+});
+
+test("My work reads the same counts as the Work badge and Home, never its own count of the rows (#1352)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const inbox = { person: "ann", roles: ["ops_lead"], mine: [{ ...homeRow(1), bulk: [] }], queue: [{ ...homeRow(2), bulk: [] }],
+    counts: { mine: { total: 1, overdue: 0 }, queue: { total: 1, overdue: 1 } } };
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+  await page.route("**/work/counts?*", (route) => route.fulfill({ json: { open: 9, overdue: 4,
+    stages: { dispatch: 3, planned: 0, field: 0, back: 0, desk: 6 }, waiting_on_you: { total: 8, overdue: 2, to_dispatch: 3, my_work: 5 } } }));
+  await page.goto(`${url}/#/inbox?steps=1`);
+  const chips = page.getByRole("navigation", { name: "Show in my work" });
+  await chips.waitFor();
+  // All is Home's My work (waiting on you less what waits for dispatch); To dispatch and overdue are the server's too
+  await chips.getByRole("button", { name: "All 5" }).waitFor();
+  await chips.getByRole("link", { name: "To dispatch 3" }).waitFor();
+  await page.getByText(". 2 overdue", { exact: false }).waitFor();
 });
 
 test("My work is one list, escalated first, and its chips pick what it holds", async () => {
@@ -4530,19 +4732,20 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "ann", roles: ["ops_lead"] }] }));
   let acked = false;
   const row = () => ({ id: 7, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z",
-    state: acked ? "acknowledged" : "handed_over", notes_by: "bo", acknowledged_by: acked ? "ann" : null,
+    state: acked ? "acknowledged" : "draft", status: acked ? "acknowledged" : "not acknowledged", notes_by: "bo", acknowledged_by: acked ? "ann" : null,
     acknowledged_at: acked ? "2026-11-12T06:10:00Z" : null, item_id: 40, lines: 6 });
   await page.route("**/handovers", (route) => route.fulfill({ json: [row()] }));
   const lines = [
     { text: "Low alarm on OK-J08-03 (peak 10.78 barg) from 2025-12-30 21:20 (upset), with the ops lead queue", cites: ["case:113"] },
     { text: "PTW-30000 hot work on 10-E-3001, issued to 2026-11-16 18:00", cites: ["entity:fz-permit-65501ac23ccf"] },
   ];
-  await page.route("**/handovers/7", (route) => route.fulfill({ json: { ...row(), facts: { sections: { "Open work": lines } },
+  await page.route("**/handovers/7", (route) => route.fulfill({ json: { ...row(), facts: { sections: { "New exceptions": lines } },
     drafted_at: "2026-11-12T06:00:00Z", notes: "Watch K-201", notes_at: "2026-11-12T05:50:00Z", acknowledged_note: null } }));
-  // My work is the List's Waiting on me now: the banner waits for the incoming lead there
+  // My work is one page at every width (#1345): on an iPad too the banner waits for the incoming lead there
+  await page.setViewportSize({ width: 834, height: 1194 });
   await page.goto(`${url}/#/inbox`);
-  await page.waitForURL(/#\/list\?waiting_on=me$/);
   await page.getByText("Shift handover ready", { exact: false }).waitFor();
+  assert.match(page.url(), /#\/inbox$/);
   await page.getByRole("link", { name: "Read and acknowledge" }).click();
   await page.waitForURL(/#\/handover\?id=7$/);
   await page.getByRole("button", { name: "I have read it: acknowledge" }).waitFor();
@@ -4553,34 +4756,68 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   assert.equal(await page.getByRole("link", { name: "the permit", exact: true }).getAttribute("href"), "#/e/fz-permit-65501ac23ccf");
   assert.doesNotMatch(await page.locator("main").innerText(), /\[case:|\[entity:|fz-[a-z_]+-[0-9a-f]{6,}|role:|alarm:/);
   acked = true;
-  await page.goto(`${url}/#/list?waiting_on=me`);
-  await page.locator('select[aria-label="Preset"] option', { hasText: "Shift handover" }).waitFor({ state: "attached" });
+  await page.goto(`${url}/#/list?waiting_on=me`);  // the List's old Waiting on me is My work
+  await page.waitForURL(/#\/inbox$/);
+  await page.getByRole("link", { name: "Shift handover" }).waitFor();
   await page.getByText("Shift handover ready", { exact: false }).waitFor({ state: "detached" });
+  await page.setViewportSize({ width: 1280, height: 800 });
 });
 
 test("a handover reads in a minute on a phone: what needs the lead first, five lines a section, the rest on ask", async () => {
-  const row = { id: 8, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z", state: "handed_over",
-    acknowledged_by: null, acknowledged_at: null, item_id: 41, lines: 30 };
+  const row = { id: 8, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z", state: "draft",
+    status: "not acknowledged", acknowledged_by: null, acknowledged_at: null, item_id: 41, lines: 30 };
   await page.route("**/handovers", (route) => route.fulfill({ json: [row] }));
   const many = (word, n) => Array.from({ length: n }, (_, i) => ({ text: `${word} ${i + 1}`, cites: [`case:${i + 1}`] }));
   await page.route("**/handovers/8", (route) => route.fulfill({ json: { ...row, drafted_at: "2026-11-12T06:00:00Z",
-    notes: null, acknowledged_note: null, facts: { sections: { "Open work": many("Backlog case", 25), "In the field": [],
-      "Escalated or overdue": many("Escalated step", 2), "Active bypasses": [] }, more: { "Open work": 121 },
+    notes: null, acknowledged_note: null, facts: { sections: { "New exceptions": many("New case", 25), "In the field": [],
+      "Escalated or overdue": many("Escalated step", 2), "Active bypasses": [] }, more: { "New exceptions": 121 },
       unknown: { "Active bypasses": "no bypass register loaded" } } } }));
   await page.goto(`${url}/#/handover?id=8`);
   await page.getByText("Escalated step 1").waitFor();
   // the headline says what the incoming lead takes on first, in reading order (#11)
-  assert.equal(await page.locator(".handover-first").innerText(), "First: 2 escalated or overdue · 146 open work");
+  assert.equal(await page.locator(".handover-first").innerText(), "First: 2 escalated or overdue · 146 new exceptions");
   const headings = await page.locator("main h3").allInnerTexts();
-  assert.ok(headings[0].startsWith("Escalated or overdue") && headings[1].startsWith("Open work"), headings.join(" | "));
-  assert.equal(await page.locator("main li", { hasText: /^Backlog case/ }).count(), 5);
+  assert.ok(headings[0].startsWith("Escalated or overdue") && headings[1].startsWith("New exceptions"), headings.join(" | "));
+  assert.equal(await page.locator("main li", { hasText: /^New case/ }).count(), 5);
   assert.ok(await page.getByText("Nothing in in the field.").count());
   // no bypass register: the section is unknown and why, never "nothing in active bypasses"
   assert.ok(await page.getByText("Active bypasses unknown: no bypass register loaded.").count());
   assert.doesNotMatch(await page.locator("main").innerText(), /nothing in [^.]*active bypasses/i);
   await page.getByRole("button", { name: "Show all 146" }).click();
-  assert.equal(await page.locator("main li", { hasText: /^Backlog case/ }).count(), 25);
+  assert.equal(await page.locator("main li", { hasText: /^New case/ }).count(), 25);
   await page.getByText("and 121 more").waitFor();
+  // the standing backlog is not listed: one link to All work for the rest (#1351)
+  assert.equal(await page.getByRole("link", { name: "The rest of the open work is in All work" }).getAttribute("href"), "#/list");
+  // a past handover nobody acknowledged says so, never "draft" or "handed over"
+  await page.getByRole("cell", { name: "not acknowledged" }).waitFor();
+  assert.doesNotMatch(await page.locator("main").innerText(), /\bdraft\b(?! the)|handed over/i);
+});
+
+// #1351: the banner opens the handover at the top, so Notes and Acknowledge sit in the first screen, on a phone too, however
+// long the handover; they were at the bottom, eight phone screens down.
+test("a handover's notes and acknowledge are in the first screen on a phone and a desk (#1351)", async () => {
+  const row = { id: 9, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z", state: "draft",
+    status: "not acknowledged", acknowledged_by: null, acknowledged_at: null, item_id: 42, lines: 60, notes_by: "bo" };
+  await page.route("**/handovers", (route) => route.fulfill({ json: [row] }));
+  const many = (word, n) => Array.from({ length: n }, (_, i) => ({ text: `${word} ${i + 1} on a long line about a valve and its pump`,
+    cites: [`case:${i + 1}`] }));
+  await page.route("**/handovers/9", (route) => route.fulfill({ json: { ...row, drafted_at: "2026-11-12T06:00:00Z",
+    notes: "Compressor B on recycle overnight", notes_at: "2026-11-12T05:40:00Z", acknowledged_note: null,
+    facts: { sections: { "Escalated or overdue": many("Escalated step", 12), "Back from the field": many("Back", 8),
+      "In the field": many("On site", 15), "New exceptions": many("New", 17), Closed: many("Closed", 9) } } } }));
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${url}/#/handover?id=9`);
+    const notes = page.getByRole("textbox", { name: "Outgoing notes" });
+    const ack = page.getByRole("button", { name: "I have read it: acknowledge" });
+    await ack.waitFor();
+    assert.equal(await notes.inputValue(), "Compressor B on recycle overnight", "the saved notes are in the box, not said twice");
+    for (const [what, el] of [["Outgoing notes", notes], ["Save notes", page.getByRole("button", { name: "Save notes" })], ["Acknowledge", ack]]) {
+      const box = await el.boundingBox();
+      assert.ok(box && box.y >= 0 && box.y + box.height <= viewport.height, `${what} below the first ${viewport.width} px screen: ${JSON.stringify(box)}`);
+    }
+    assert.equal(await page.evaluate(() => window.scrollY), 0);
+  }
 });
 
 test("a dispatched operator sees what they were sent on My work and lands on the job from it (#604)", async () => {
@@ -5247,7 +5484,7 @@ for (const [type, found] of Object.entries(FINDINGS)) {
         assert.match(sentence, /^(A rule|An agent|Another system) found this/);
         assert.ok(sentence.includes(`A ${type} title`), sentence);
         if (await details.getAttribute("aria-expanded") !== "true") await details.click();
-      }
+      } else await page.locator(".field-job").getByRole("button", { name: "Details" }).click();  // the job's card (#1344)
       const box = page.locator(".finding dl").first();
       await box.waitFor();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${path} fits ${width}px`);
@@ -5285,6 +5522,7 @@ for (const [bundle, type, job] of LOOP_JOBS) {
     // the title in people's words, as the case shows it: "207 °F", not "207 degF"
     await card.getByRole("heading", { name: job.title.replace(/\bdegF\b/g, "°F").replace(/\bdegC\b/g, "°C") }).waitFor();
     await card.getByText(job.sent.reason).waitFor();  // what the IOC asked
+    await card.getByRole("button", { name: "Details" }).click();  // where it is, under Details (#1344)
     for (const a of job.assets) await card.getByText(a.label ?? a.name, { exact: false }).first().waitFor();
     assert.doesNotMatch(await card.innerText(), /\bfz-[\w-]+/, "no raw ids on the job");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "fits 390 px");
@@ -5407,6 +5645,7 @@ test("a reading and a photo taken on the phone reach the IOC's From the field bo
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${url}/#/inbox`);
   const card = page.locator(".field-job").first();
+  await card.getByRole("button", { name: "Reading or photo" }).click();
   await card.getByLabel("What was read").fill("Gland temperature");
   await card.getByLabel("Reading", { exact: true }).fill("72.5");
   await card.getByLabel("Unit").fill("°C");
@@ -5462,6 +5701,7 @@ test("a report made without signal waits on the phone and is sent once with its 
   await page.getByText("No signal: these are your jobs as kept on this phone", { exact: false }).waitFor();
   const card = page.locator(".field-job").first();
   await card.getByText("Look at the gland").waitFor();
+  await card.getByRole("button", { name: "Details" }).click();
   await card.getByText("P-101 export pump").waitFor();
   const before = Date.now();
   await card.getByLabel(/Note for the IOC/).fill("Gland weeping, 12 drips a minute");
@@ -5532,6 +5772,7 @@ test("P5.17a Ten reports with four photos each wait on the phone and are sent on
   }), "base64");
   const files = [1, 2, 3, 4].map((n) => ({ name: `gland-${n}.jpg`, mimeType: "image/jpeg", buffer: photo }));
   for (let n = 1; n <= 10; n++) {
+    await card.getByRole("button", { name: "Reading or photo" }).click();
     await card.locator('input[type="file"]').setInputFiles(files);
     await card.getByText("Photos (4)").waitFor();
     await card.getByLabel(/Note for the IOC/).fill(`Report ${n}`);
@@ -5701,6 +5942,7 @@ test("P5.17c A job's asset page, documents and drawing open without signal, and 
     `/entities/${id}/trend-spec?hours_before=48&hours_after=24`]) assert.ok(kept.some((k) => k.endsWith(path)), `kept ${path}`);
 
   reachable = false;
+  await page.locator(".field-job").getByRole("button", { name: "Details" }).click();
   await page.locator(".field-job").getByRole("link", { name: "P-101 export pump" }).click();
   await page.locator("h1", { hasText: "P-101 export pump" }).waitFor();
   await page.getByText("No signal: kept on this phone", { exact: false }).waitFor();
@@ -5979,7 +6221,10 @@ test("P5.17g Field mode: 56 px targets, 7:1 text, a job's actions in thumb reach
   }));
   assert.ok(gaps.length && gaps.every((g) => g >= 8), `8 px between targets: ${gaps}`);
 
-  // The job's Done is in the bottom third of the screen, above the bottom bar, with the job's top on screen.
+  // The job's Done is in the bottom third of the screen, above the bottom bar, with the job's top on screen, however
+  // long the card (its Details and a reading open).
+  await page.locator(".field-job").getByRole("button", { name: "Details" }).click();
+  await page.locator(".field-job").getByRole("button", { name: "Reading or photo" }).click();
   await page.locator(".field-job").evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + scrollY - 60));
   const done = await page.locator(".field-job").getByRole("button", { name: "Done", exact: true }).boundingBox();
   const bar = await page.locator(".bottombar").boundingBox();
@@ -6065,6 +6310,7 @@ test("P5.17h On throttled 3G, a report whose answer was cut off is sent again an
     g.fillStyle = "#357"; g.fillRect(0, 0, 400, 300); g.fillStyle = "#eee"; g.fillRect(50, 50, 120, 80);
     return c.toDataURL("image/jpeg", 0.8).split(",")[1];
   }), "base64");
+  await card.getByRole("button", { name: "Reading or photo" }).click();
   await card.locator('input[type="file"]').setInputFiles([{ name: "gland.jpg", mimeType: "image/jpeg", buffer: photo }]);
   await card.getByText("Photos (1)").waitFor();
   await card.getByLabel(/Note for the IOC/).fill("Gland weeping");
@@ -6994,7 +7240,7 @@ const BURN_NONE = { since: "", until: "", source: "", note: "", months: [], summ
   open_at_start: 0, open_at_end: null, trend: "steady" }, lag: { orders: 0, with_notification: 0, without_notification: 0,
   ordered_before_notified: 0, median_days: null, p90_days: null, max_days: null, longest: [] } };
 const ACCOUNTS_NONE = { reconciliation: { since: "", until: "", tolerance_pct: 1, months: [], summary: { agrees: 0,
-  differs: 0, preliminary: 0, incomplete: 0, no_accounting: 0, no_operational: 0 }, sources: { operational: "", accounting: "" },
+  differs: 0, preliminary: 0, incomplete: 0, no_accounting: 0, no_operational: 0, not_compared: 0 }, sources: { operational: "", accounting: "" },
   note: "" }, unit_cost: { since: "", until: "", currencies: [], months: [], window: {}, sources: { cost: "", volume: "" }, note: "" } };
 
 // The plant's own analyses moved from the retired Scorecard into the reports they belong to (`view` panels). Each test
@@ -7254,7 +7500,7 @@ test("Against the accounts cites both sources and periods, and keeps currencies 
     reconciliation: { since: "2024-12-31", until: "2025-12-31", tolerance_pct: 1, sources: {
       operational: "daily allocated production (EC DAY001 daily reports)", accounting: "production accounting" },
       note: "The accounted volume is the authority.",
-      summary: { agrees: 1, differs: 1, preliminary: 1, incomplete: 0, no_accounting: 0, no_operational: 0 },
+      summary: { agrees: 1, differs: 1, preliminary: 1, incomplete: 0, no_accounting: 0, no_operational: 0, not_compared: 0 },
       months: [
         { period: "2025-12", product: "oil", unit: "bbl", difference: 1300, difference_pct: 0.59, verdict: "preliminary",
           why: "accounting hasn't closed 2025-12 (preliminary); daily reports cover 30 of its 31 days",
@@ -7281,7 +7527,7 @@ test("Against the accounts cites both sources and periods, and keeps currencies 
       ] } } }));
   await openViews(page);
   const card = page.locator(".against-accounts");
-  await card.getByText("1 months agree within 1%, 1 differ, 1 preliminary", { exact: false }).waitFor();
+  await card.getByText("oil and gas by month: 1 agree within 1%, 1 differ, 1 preliminary, 0 can't be compared", { exact: false }).waitFor();
   const aug = card.locator('tr[data-month="2025-08 oil"]');
   await aug.locator(".ui-badge").getByText("differs").waitFor();
   await aug.getByText("2025-08-01 to 2025-08-31, 31 days").waitFor();
@@ -8367,13 +8613,14 @@ test("A field operator finds their jobs, with the report buttons, from the List"
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${url}/#/list`);
-  // A phone shows the List as cards with no Board tab; the field jobs page is in the preset picker.
-  assert.equal(await page.getByRole("navigation", { name: "Work pages" }).count(), 0);
-  await page.getByLabel("Preset").selectOption({ label: "Your field jobs" });
+  // A phone shows the List as cards with no Board tab; My work is a tab and in the preset picker.
+  await page.getByRole("navigation", { name: "Work pages" }).getByRole("link", { name: "My work" }).waitFor();
+  assert.deepEqual(await page.getByRole("navigation", { name: "Work pages" }).locator("a").allTextContents(), ["My work", "List"]);
+  await page.getByLabel("Preset").selectOption({ label: "My work" });
   await page.waitForFunction(() => location.hash === "#/inbox");
   await page.goto(`${url}/#/masterdata`);
-  // Master data is a preset now, not a menu entry: its page still opens from a link, under List.
-  await page.locator('#sidebar nav[aria-label="Main"] a[href="#/list"][aria-current="page"]').waitFor({ state: "attached" });
+  // Master data is a preset now, not a menu entry: its page still opens from a link, and lights Work.
+  await page.locator('#sidebar nav[aria-label="Main"] a[href="#/inbox"][aria-current="page"]').waitFor({ state: "attached" });
 });
 
 test("P5.14b On a phone, Home, Work, Explore and Reports are one tap away at the bottom", async () => {
@@ -8395,14 +8642,15 @@ test("P5.14b On a phone, Home, Work, Explore and Reports are one tap away at the
   assert.ok(Math.round(barBox.y + barBox.height) >= 824 && barBox.y + barBox.height <= 844, "the bar sits on the bottom edge");
   assert.equal(await bar.locator('a[aria-current="page"]').innerText(), "Explore");
 
-  // Work says how much is waiting on you and opens all the work.
+  // Work says how much is waiting on you and opens My work (#1345).
   const list = bar.getByRole("link", { name: "Work, 2 items waiting on you", exact: true });
   await list.click();
-  await page.waitForURL(/#\/list$/);
-  await bar.locator('a[aria-current="page"]', { hasText: "Work" }).waitFor();
-  // On My work's page the Work slot stays lit, so the bar always shows where you are (#1131): Work owns it.
-  await page.evaluate(() => { location.hash = "#/inbox"; });
+  await page.waitForURL(/#\/inbox$/);
   await page.getByRole("heading", { name: "My work", exact: true }).waitFor();
+  await bar.locator('a[aria-current="page"]', { hasText: "Work" }).waitFor();
+  // On All work the Work slot stays lit, so the bar always shows where you are (#1131): Work owns it.
+  await page.evaluate(() => { location.hash = "#/list"; });
+  await page.getByRole("heading", { name: "All work", exact: true }).waitFor();
   assert.equal(await bar.locator("a.on").evaluate((a) => a.lastElementChild.textContent.trim()), "Work");
 
   // Menu opens the drawer with everything else, and the page's foot clears the bar.
@@ -9770,3 +10018,99 @@ test("Evals shows each skill and kind of output with its latest checks and grade
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepEqual(errors, []);
 });
+
+// P5.25e (#1348): a case back from the field leads with the field's answer and Close out, carries no AI cost or
+// agent/model table, offers one way to finish, and its close-out claims only what it filled.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`a case back from the field leads with the field's answer and one Close out (#1348, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const step = { id: 61, process_id: 9, element: "work", name: "Work the case", kind: "user", state: "waiting", flow: null,
+      role: "ops_lead", assignee: null, requires_human: false, due_at: null, escalated_at: null, attempts: 0, error: null,
+      created_at: "2026-11-25T11:45:00Z", finished_at: null, finished_by: null };
+    const ledger = { agent: "maintenance-integrity", agents: ["maintenance-integrity"], models: ["claude-opus-5-5"], cost_usd: 0.53, tools: [] };
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, type: "machine_health", state: "open",
+      title: "20-K-2100C needs action: running near surge, surged outright", subjects: [], created_by: "agent:rotating_screen",
+      created_at: "2026-11-25T06:09:00Z", payload: { exception_id: 7 }, agent_spend: { usd: 0.53, cap_usd: 2 },
+      processes: [{ id: 9, process_key: "queue_item", version: 1, definition_id: 3, parent_token: null, state: "running", outcome: null,
+        data: {}, started_by: "agent:rotating_screen", started_at: "2026-11-25T06:09:00Z", path: [], open: [step] }],
+      brief: { expected: true, due: "2026-11-26T06:00:00Z", verdict: null, entry: { pack: "maintenance-integrity/compression",
+        ledger: { cost_usd: 0.53 }, budget_usd: 0.5, over_budget: true, late: true,
+        brief: { what_happened: "Stage 1 ran near its surge line.", proposal: { disposition: "Check the anti-surge valve", confidence: 0.75 } } } },
+      events: [{ id: 3, kind: "agent_result", actor: "agent:maintenance-integrity", element: "brief", at: "2026-11-25T14:13:00Z",
+        data: { step: "brief", data: { brief: { answer: "Briefed.", ledger } } } }] } }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: caseOptions({ applies: false, stage: "back",
+      why_not: "the field reported it done: close it out", options: [] }) }));
+    await page.route("**/work/tasks/61", (route) => route.fulfill({ json: { ...demoTask,
+      task: { ...demoTask.task, task_id: 61, element: "work", name: "Work the case", role: "ops_lead", requires_human: false,
+        process_id: 9, item_id: 21, process_key: "queue_item" },
+      item: { id: 21, title: "20-K-2100C needs action", type: "machine_health", state: "open", subjects: [], created_by: "agent:rotating_screen" },
+      data: { field_ask: "Go and have a look, report what you find", field_result: "done" },
+      evidence: { ...demoTask.evidence, comments: [{ id: 5, kind: "commented", actor: "alex", element: null, at: "2026-11-25T11:45:00Z",
+        data: { text: "Field: Done: Checked on site: no leak or damage found and the reading agrees locally." } }] } } }));
+    await page.route("**/work/items/21/closeout", (route) => route.fulfill({ json: { item_id: 21, record: null, repeats: [],
+      vocabulary: { dispositions: { real: "A real problem", false_alarm: "False alarm", duplicate: "Duplicate" },
+        outcomes: { fixed: "Fixed" }, failure_modes: { VIB: "Vibration" }, mechanisms: {}, causes: { "1": "Design" }, activities: { "3": "Inspect" } },
+      // the case's words named an action but no disposition: nothing the form shows is filled
+      suggestion: { from: "words", activity: "3" } } }));
+    await page.goto(`${url}/#/cases/21`);
+    const box = page.locator(".from-field");
+    await box.getByText("Done: Checked on site: no leak or damage found", { exact: false }).waitFor();
+    const close = page.getByRole("button", { name: "Close out", exact: true });
+    await close.waitFor();
+    for (const [what, el] of [["From the field", box.getByRole("heading", { name: "From the field" })], ["Close out", close]]) {
+      const b = await el.boundingBox();
+      assert.ok(b && b.y + b.height <= viewport.height, `${what} is in the first screen (${b?.y} + ${b?.height} > ${viewport.height})`);
+    }
+    // no options to dispatch it again, and no second way to finish beside Close out
+    assert.equal(await page.getByLabel("Options").count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Complete", exact: true }).count(), 0);
+    await page.getByRole("heading", { name: "Specialist brief" }).waitFor();
+    const text = await page.locator("main").innerText();
+    for (const gone of ["budget", "over budget", "Agent work", "claude-opus", "$0.53", "cap"])
+      assert.ok(!text.includes(gone), `no AI cost or agent/model detail on the case: ${gone}`);
+    await close.click();
+    const form = page.locator(".closeout-form");
+    await form.getByLabel("What it was").waitFor();
+    assert.equal(await form.getByLabel("What it was").inputValue(), "");
+    assert.equal(await form.getByText("Filled in from", { exact: false }).count(), 0, "no claim of filling what is empty");
+    assert.deepEqual(await page.locator("main .ui-button-primary").allTextContents(), ["Close the case"], "one way to finish");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}
+
+// P5.25e (#1348): an answered steward question names the person who answered, no raw id chip and no trend.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`an answered question shows who answered by name, with no raw id or trend (#1348, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    const question = finding("external", "Two systems hold what may be one entity", [
+      { label: "Answer", value: "#/masterdata?tab=questions&kind=match&item=5", kind: "page", text: "Answer it on Master data" }]);
+    const source = { id: 7, type: "unmatched_record", key: "match:5", title: "Same item? JDE 500008 and maximo MX-00006", source: "stewardship",
+      state: "closed", first_seen: "2026-11-23T17:01:00Z", last_seen: "2026-11-23T17:01:00Z", joined_to: null, subjects: [],
+      label: "Unmatched record", finding: question };
+    await page.route("**/work/items/30", (route) => route.fulfill({ json: { id: 30, type: "unmatched_record", state: "done",
+      outcome: "answered by user:demo", closed_at: "2026-11-25T14:51:00Z", title: "Same item? JDE 500008 and maximo MX-00006 at 20-V-2001",
+      subjects: ["fz-equipment-51b4c553a6dc"], created_by: "stewardship", created_at: "2026-11-23T17:01:00Z", processes: [], sources: [source],
+      events: [{ id: 8, kind: "state_changed", actor: "user:demo", element: null, at: "2026-11-25T14:51:00Z",
+        data: { state: "done", reason: "answered by user:demo" } }] } }));
+    const around = [];
+    await page.route("**/work/items/30/around", (route) => { around.push(1); return route.fulfill({ json: {
+      window: { start: "2026-11-23T17:00", end: "2026-11-25T03:00" },
+      units: [{ id: "fz-vessel-1", label: "20-V-2001" }, { id: "fz-equipment-51b4c553a6dc", label: null }], alarms: [], log: [], basis: "" } }); });
+    await page.route("**/work/items/30/closeout", (route) => route.fulfill({ json: { item_id: 30, repeats: [], suggestion: { from: "words" },
+      record: { item_id: 30, disposition: "data_problem", note: "answered by user:demo", by: "user:demo", at: "2026-11-25T14:51:00Z" },
+      vocabulary: { dispositions: { data_problem: "Data problem" }, outcomes: {}, failure_modes: {}, mechanisms: {}, causes: {}, activities: {} } } }));
+    await page.route("**/entities/names**", (route) => route.fulfill({ json: {
+      "fz-equipment-51b4c553a6dc": { label: "20-V-2001", description: "GGCP inlet separator" } } }));
+    await page.goto(`${url}/#/cases/30`);
+    await page.locator(".closeout-done").getByText("answered by Demo account", { exact: false }).waitFor();
+    await page.getByRole("heading", { name: "History" }).waitFor();
+    const text = await page.locator("main").innerText();
+    assert.ok(!text.includes("user:demo"), "the person by name, never their account id");
+    assert.ok(!text.includes("fz-equipment-"), "no raw id chip");
+    assert.equal(await page.getByRole("tablist", { name: "Trend of" }).count(), 0, "a question about records shows no trend");
+    assert.equal(await page.locator(".trend-view").count(), 0);
+    assert.deepEqual(errors, []);
+  });
+}

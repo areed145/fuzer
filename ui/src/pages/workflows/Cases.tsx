@@ -20,7 +20,6 @@ import { CaseFindings } from "../../Finding";
 import { CaseAround } from "./Around";
 import { Related } from "../../Related";
 import { CaseSafeguards } from "./Safeguards";
-import { AgentWork } from "../../AgentWork";
 import { CaseBrief } from "../../CaseBrief";
 import { CaseGates } from "../Gates";
 import { CaseWritebacks } from "../Writeback";
@@ -96,8 +95,10 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
   // works in the field, the evidence and history fold under Full case.
   const roles = (people.data ?? []).find((p) => p.name === person)?.roles ?? [];
   const fieldOnly = !demo && roles.length > 0 && roles.every((r) => r === "operator");
-  // A steward's question is answered here, on its case (#1131): its finding names the question on Master data.
-  const asks = closed ? null : questionOf(it.sources);
+  // A steward's question is answered here, on its case (#1131): its finding names the question on Master data. Once
+  // answered it is still a question about records, with no event to trend.
+  const question = questionOf(it.sources);
+  const asks = closed ? null : question;
   // A case run by a standard one-step workflow (queue item, task) closes from here, whatever step it waits on: the IOC
   // closes a job back from the field without opening the step (#1222).
   const closesHere = it.type !== "recheck" && (closed ? it.state === "done"
@@ -117,12 +118,11 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
     {!evidenceReady ? <Status loading /> : <>
       <CaseSafeguards id={it.id} data={safeguards.data} />
       {!asks && <CaseFindings sources={it.sources} />}
-      {/* a question about the records has no event to trend */}
-      {!asks && <CaseAround id={it.id} data={around.data} focus={it.title} />}
+      {/* a question about the records has no event to trend, answered or not */}
+      {!question && <CaseAround id={it.id} data={around.data} focus={it.title} />}
       <Related about={{ case: it.id }} />
       <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
       <CaseGates id={it.id} />
-      <AgentWork it={it} />
       {it.processes.map((p) => CLOSES_WITH_CASE.has(p.process_key)
         // A standard one-step workflow (queue item, task) is already named under Waiting on: its diagram stays a tap away.
         ? <Disclosure key={p.id} className="card" label={<>How this case is routed</>}>
@@ -165,7 +165,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
       {/* the choices side by side, with what each costs (P5.20): the IOC's decision on field work comes first */}
       {!backFromField && optionsCard}
       <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload}
-        optionsShown={!!options.data?.applies} closeout={inStep ? closeout : null}
+        optionsShown={!!options.data?.applies || backFromField} closeout={inStep ? closeout : null}
         exceptionId={typeof raised.exception_id === "number" ? raised.exception_id : null}
         proposal={typeof raised.opportunity === "string"}
         asked={typeof raised.summary === "string" ? raised.summary : null}
@@ -218,7 +218,7 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
   it: WorkItem; person: string; demo: boolean; fieldOnly: boolean; answered?: boolean; reload: () => void;
   /** Close out or Finish, shown under the step it ends. */
   closeout?: ReactNode;
-  /** The Options card above dispatches it (P5.20), so the step leaves out its own Send to the field. */
+  /** The Options card dispatches it (P5.20), or the field has reported, so the step leaves out its own Send to the field. */
   optionsShown?: boolean;
   /** The case shows its proposal with the decision below, so the step leaves it out. */
   proposal?: boolean;
@@ -251,12 +251,12 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, excep
       {asked && <div className="md case-asked"><Markdown text={asked} /></div>}
       {evidence.length > 0 && <Text as="p" small muted>Evidence <EntityLinks ids={evidence} /></Text>}
       <CaseChecklist it={it} person={person} readOnly={demo} reload={reload} />
-      {/* the step is worked here (#1222): no separate step page. A task's one step ends with its case, so it is
-          finished below, not completed here as well */}
+      {/* the step is worked here (#1222): no separate step page. Where Close out is offered it ends the step with the
+          case, so the step offers no Complete of its own: one way to finish (#1348) */}
       {/* Take it and Close out side by side: the step's form or the close-out form, once open, takes the full width */}
       <div className="case-next-do">
         {next && !answered && <StepActions key={next.id} id={next.id} demo={demo} send={false} onChanged={reload} caseShowsProposal={proposal}
-          complete={!standsForCase(it, next)} />}
+          complete={!closeout && !standsForCase(it, next)} />}
         {closeout && <div className="case-next-close">{closeout}</div>}
       </div>
       {fieldOnly && <div className="row wrap case-next-actions"><ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink></div>}

@@ -337,20 +337,6 @@ def my_work(conn, person: str, roles: list[str] | None = None, limit: int = 200,
     return {"person": person, "roles": roles, "covering": covering, "mine": mine, "queue": queue,
             "counts": totals}
 
-def case_counts(conn, now: datetime | None = None) -> dict:
-    """The one definition of open and overdue work. A case is open until it is closed. It is overdue when the earliest
-    due time among its waiting person steps, else the case's own due time, has passed."""
-    now = now or utcnow()
-    r = conn.execute(
-        """
-        select count(*) as open,
-               count(*) filter (where coalesce((select min(t.due_at) from work_token t where t.item_id = i.id
-                                                and t.state = 'waiting' and t.kind in ('user', 'fix')), i.due) < %(now)s)
-                   as overdue
-        from work_item i where i.closed_at is null
-        """, {"now": now}).fetchone()
-    return {"open": r["open"], "overdue": r["overdue"]}
-
 
 def _bulk_labels(conn, rows: list[dict]) -> None:
     """Each person step's bulk actions (labels from its form), so the inbox knows which rows can be ticked."""

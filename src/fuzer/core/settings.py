@@ -191,7 +191,8 @@ register(
             "event's assets from this many hours before its earliest finding (a trip's vibration climbs before it)",
             "Work", min=0, max=72),
     Setting("exceptions.around_after_hours", "int", 6, "A case shows the alarms and operator log entries about its "
-            "event's assets until this many hours after its latest finding (the checks and restart are logged after)",
+            "event's assets until this many hours after its latest finding, or now if sooner (the checks and restart "
+            "are logged after)",
             "Work", min=0, max=72),
     Setting("exceptions.suppress_planned_work", "bool", True, "A machine's trip, health or upset detection about an "
             "asset with planned work or a shutdown scheduled or in progress on it is counted under that window instead "

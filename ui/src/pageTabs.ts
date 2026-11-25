@@ -28,10 +28,9 @@ export const workHref = (list: WorkList, query?: Record<string, string | undefin
   list === "ranked" ? href("/ranked", { view: query?.view })  // the backlog ranked by value, under Plan
     : href(list === "board" ? "/board" : "/list", { ...VIEW_FILTERS[list] ?? {}, ...listFilters(query) });
 
-/** Presets: sets of filters people found worth a name. `me` stands for the person looking. Add one only once it has
- * proved its worth; anyone can save their own filters for a role as a saved view. */
+/** Presets: sets of filters people found worth a name (what waits on you is My work, its own page). Add one only once
+ * it has proved its worth; anyone can save their own filters for a role as a saved view. */
 export const WORK_PRESETS: { key: string; label: string; filters: Record<string, string> }[] = [
-  { key: "mine", label: "Waiting on me", filters: { waiting_on: "me" } },
   { key: "dispatch", label: "To dispatch", filters: { stage: "dispatch" } },
   { key: "back", label: "Back from the field", filters: { stage: "back" } },
   { key: "overdue", label: "Overdue", filters: { overdue: "true" } },

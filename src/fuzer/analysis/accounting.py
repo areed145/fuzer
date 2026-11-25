@@ -60,20 +60,22 @@ def reconcile(conn, since: str | None = None, until: str | None = None, days: in
     booked = ops._rows(conn, "accounting_volume", where, params)
     reports = sorted(ops._rows(conn, "production_day", "f->>'report_date' >= %(s)s and f->>'report_date' < %(u)s",
                                {"s": since, "u": until}), key=lambda r: r["f"]["report_date"])
-    rows, seen = [], set()
-    for b in sorted(booked, key=lambda r: (r["f"].get("period", ""), r["f"].get("product", ""))):
+    rows, covered = [], defaultdict(set)
+    for b in sorted(booked, key=lambda r: (str(r["f"].get("period_start")), r["f"].get("product", ""))):
         f = b["f"]
         product = f.get("product")
         if product not in PRODUCTS:
             continue
         field, unit = PRODUCTS[product]
         start, end = str(f.get("period_start"))[:10], str(f.get("period_end"))[:10]
-        seen.add((f.get("period"), product))
         inside = [r for r in reports if start <= r["f"]["report_date"][:10] <= end and _num(r["f"].get(field)) is not None]
+        covered[product] |= {r["id"] for r in reports if start <= r["f"]["report_date"][:10] <= end}
+        # named by the dates it covers, which a rolled demonstration moves, not the period label written beside them
+        period = start[:7] if start[:4].isdigit() else f.get("period")
         op = sum(_num(r["f"][field]) for r in inside)
         acct = _num(f.get("volume"))
         expected = _days(start, end)
-        row = {"period": f.get("period"), "product": product, "unit": f.get("unit") or unit,
+        row = {"period": period, "product": product, "unit": f.get("unit") or unit,
                "accounting": {"value": acct, "status": f.get("status") or "unknown", "since": start, "through": end,
                               "comment": f.get("comment") or None, "record": b["id"], "source": ACCOUNTING},
                "operational": {"value": round(op) if inside else None, "days": len(inside), "days_expected": expected,
@@ -89,7 +91,7 @@ def reconcile(conn, since: str | None = None, until: str | None = None, days: in
             verdict, why = "no_operational", "the accounted volume is blank"
         elif row["accounting"]["status"] != "final":
             short = (f"; daily reports cover {len(inside)} of its {expected} days" if len(inside) < expected else "")
-            verdict, why = "preliminary", (f"accounting hasn't closed {f.get('period')} "
+            verdict, why = "preliminary", (f"accounting hasn't closed {period} "
                                            f"({row['accounting']['status']}){short}")
         elif len(inside) < expected:
             verdict, why = "incomplete", (f"daily reports cover {len(inside)} of the {expected} days from {start} to "
@@ -103,11 +105,13 @@ def reconcile(conn, since: str | None = None, until: str | None = None, days: in
     by_month: dict[str, list[dict]] = defaultdict(list)
     for r in reports:
         by_month[r["f"]["report_date"][:7]].append(r)
-    for month, rs in sorted(by_month.items()):
+    for month in sorted(by_month):
         if f"{month}-01" < since:  # the window opens mid-month: that month belongs to the window before
             continue
         for product, (field, unit) in PRODUCTS.items():
-            if (month, product) in seen or not any(_num(r["f"].get(field)) is not None for r in rs):
+            # only the days no accounting period covers: a day compared above is never listed again as unaccounted
+            rs = [r for r in by_month[month] if r["id"] not in covered[product]]
+            if not any(_num(r["f"].get(field)) is not None for r in rs):
                 continue
             rows.append({"period": month, "product": product, "unit": unit, "accounting": None,
                          "operational": {"value": round(sum(_num(r["f"].get(field)) or 0 for r in rs)), "days": len(rs),
@@ -122,8 +126,10 @@ def reconcile(conn, since: str | None = None, until: str | None = None, days: in
         count[r["verdict"]] += 1
     return {"since": since, "until": until, "tolerance_pct": TOLERANCE_PCT,
             "sources": {"operational": OPERATIONAL, "accounting": ACCOUNTING}, "months": rows,
-            "summary": {v: count[v] for v in ("agrees", "differs", "preliminary", "incomplete", "no_accounting",
-                                              "no_operational")},
+            "summary": {**{v: count[v] for v in ("agrees", "differs", "preliminary", "incomplete", "no_accounting",
+                                                 "no_operational")},
+                        # what can't be compared, said once, so a page never claims agreement for those months
+                        "not_compared": count["incomplete"] + count["no_accounting"] + count["no_operational"]},
             "note": "The accounted volume is the authority; a difference is shown for production accounting to "
                     "resolve and nothing is restated. Operational figures are the daily allocated reports."}
 

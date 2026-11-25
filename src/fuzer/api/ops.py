@@ -775,7 +775,7 @@ class OptionChoice(BaseModel):
     option: Literal["dispatch", "window", "shelve", "escalate"]
     reason: str | None = None     # required when it is not the recommended option
     to: str | None = None         # dispatch: a person or role:<role>; the operator queue when left out
-    ask: str | None = None        # dispatch: what to check or do (the field sees it, with why now)
+    ask: str | None = None        # dispatch: what to check or do (all the field sees)
     due: datetime | None = None   # dispatch: when it is wanted back
     priority: float | None = None
     override: str | None = None   # dispatch: why it goes though not ready (P5.5)

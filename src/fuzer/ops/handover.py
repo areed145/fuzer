@@ -3,7 +3,6 @@ drafted from live work, every line citing its case or exception the way the dail
 
 The sections, over the shift that just ended:
 
-    Open work               open cases by priority (most urgent first)
     In the field            jobs in progress (on site, not yet done) and with whom, and handovers waiting to be
                             accepted (P5.11d)
     Open permits            permits to work not closed or expired, and isolations not yet in place (P5.11d)
@@ -12,14 +11,19 @@ The sections, over the shift that just ended:
     Back from the field     exceptions the field reported done or could not do, waiting on the IOC to decide
     Escalated or overdue    steps escalated during the shift, and steps past their due time now
     Dispatched              what the outgoing shift sent to the field, and to whom
-    New exceptions          exceptions raised during the shift
+    New exceptions          exceptions raised during the shift, less source problems that already cleared
+    Closed                  cases closed during the shift
     Records to check        downtime with no log entry or notification, and logged stops with no downtime record
                             (#344): questions for the shift, open until a matching record turns up or it is closed
 
+What changed this shift, not every open line (#1351): the standing backlog is All work's, where the page links. A time
+carries its date whenever it is not the day of the shift change.
+
 Shift changes are the `handover.shift_times` setting (local times in the project's timezone, "06:00,18:00"). The
 work tick drafts a handover once per shift change (`at_shift_change`); it starts the `shift_handover` process, one
-step on the ops lead queue with its SLA (#509). The outgoing lead adds notes; the incoming lead acknowledges it, which is kept on the case history
-(who and when) and closes the case. Past handovers stay readable.
+step on the ops lead queue with its SLA (#509). The outgoing lead adds notes, which changes nothing else; the incoming lead
+acknowledges it, which is kept on the case history (who and when) and closes the case. Past handovers stay readable,
+each with its `status`: in progress, acknowledged, or not acknowledged.
 """
 
 from datetime import UTC, datetime, time, timedelta
@@ -30,10 +34,10 @@ from psycopg.types.json import Jsonb
 from ..core import settings, wording, work
 from ..core.exceptions import ExceptionError
 
-SECTIONS = ["Open work", "In the field", "Open permits", "Active bypasses", "Rounds", "Back from the field", "Escalated or overdue", "Dispatched",
-            "New exceptions", "Records to check"]
+SECTIONS = ["In the field", "Open permits", "Active bypasses", "Rounds", "Back from the field", "Escalated or overdue", "Dispatched",
+            "New exceptions", "Closed", "Records to check"]
 RECORDS = "records_gap"  # its own section, so not repeated under Open work and New exceptions
-ROUTINE = "routine_due"  # planned work coming due, not news: on Plan and under Open work, never under New exceptions
+ROUTINE = "routine_due"  # planned work coming due, not news: on Plan and All work, never under New exceptions
 CASE_TYPE = "shift_handover"
 ROLE = "ops_lead"
 LIMIT = 25  # lines per section; the rest is counted
@@ -78,6 +82,17 @@ def current_shift(conn, now: datetime) -> tuple[datetime, datetime]:
     return past[-1].astimezone(UTC), ahead[0].astimezone(UTC)
 
 
+def _at(t: datetime | str | None, day) -> str:
+    """A time as the handover writes it: "08:10" on `day` (the shift change's), "24 Nov 08:10" on any other."""
+    if not t:
+        return "?"
+    try:
+        local = (datetime.fromisoformat(t) if isinstance(t, str) else t).astimezone(_tz())
+    except ValueError:
+        return t[11:16]
+    return f"{local:%H:%M}" if local.date() == day else f"{local:%-d %b %H:%M}"
+
+
 def _line(text: str, *cites: str) -> dict:
     return {"text": wording.say(text), "cites": [c for c in cites if c]}
 
@@ -95,8 +110,10 @@ def readable(facts: dict) -> dict:
 
 
 def facts(conn, start: datetime, end: datetime) -> dict:
-    """The sections over [start, end), from live work. Each line is {text, cites}; `more` counts the rest; `unknown`
-    names a section that can't be said and why (no bypass register loaded), which is not a section with nothing."""
+    """The sections over [start, end), what changed in it, from live work. Each line is {text, cites}; `more` counts
+    the rest; `unknown` names a section that can't be said and why (no bypass register loaded), which is not a section
+    with nothing."""
+    from ..sources import alerts
     from . import safeguards
 
     sections: dict[str, list[dict]] = {s: [] for s in SECTIONS}
@@ -109,20 +126,20 @@ def facts(conn, start: datetime, end: datetime) -> dict:
             more[name] = len(rows) - LIMIT
 
     holder = lambda r: r.get("assignee") or (f"the {wording.queue(r['role'])}" if r.get("role") else "nobody yet")
-    # Open work, In the field and Back from the field are the List's own rows (ops.worklist), so the handover's counts
-    # are the List's and the Board's (red team #4): the same open work, the same stages.
+    # In the field and Back from the field are the List's own rows (ops.worklist), so the handover's counts are the
+    # List's and the Board's (red team #4): the same open work, the same stages. The rest of the open work is not
+    # listed (#1351): it was 359 lines a shift, the same each time; All work has it.
     from . import worklist
 
     live = [r for r in worklist._all(conn, "open") if r["kind"] not in (CASE_TYPE, RECORDS)]
     cite = lambda r: (f"exception:{r['exception_id']}" if r.get("exception_id") else "", f"case:{r['item_id']}" if r.get("item_id") else "")
     last = lambda r: ((r.get("evidence") or {}).get("field") or [None])[-1] if isinstance(r.get("evidence"), dict) else None
-    due = lambda r: f", due {datetime.fromisoformat(r['due_at']).astimezone(_tz()):%d %b %H:%M}" if r.get("due_at") else ""
-    keep("Open work", sorted(live, key=lambda r: (-(r.get("priority") or 0), r.get("due_at") or "~", r.get("opened") or "")),
-         lambda r: _line(f"{r['title']} ({r['kind_label'].lower()}), with {holder(r)}{due(r)}", *cite(r)))
+    day = end.astimezone(_tz()).date()
+    at = lambda t: _at(t, day)
 
     def in_field(r) -> dict:
         said, handed = last(r), (r.get("evidence") or {}).get("handover")
-        text = (f"{r['title']}: {said['by']} on site since {_local(said.get('at'))}" if said and said.get("status") == "on_site"
+        text = (f"{r['title']}: {said['by']} on site since {at(said.get('at'))}" if said and said.get("status") == "on_site"
                 else f"{r['title']}: with {holder(r)}")
         if handed and not handed.get("accepted_at"):
             text += f"; handed over to {handed['to']}, waiting to be accepted" + (
@@ -154,24 +171,35 @@ def facts(conn, start: datetime, end: datetime) -> dict:
         order by coalesce(t.escalated_at, t.due_at)
         """, {"s": start, "e": end}).fetchall(),
         lambda r: _line(f"{r['step']} on {r['title']}, with {holder(r)}: "
-                        + (f"escalated {r['escalated_at']:%H:%M}" if r["escalated_at"] else
-                           f"overdue since {r['due_at']:%d %b %H:%M}"), f"case:{r['item_id']}"))
+                        + (f"escalated {at(r['escalated_at'])}" if r["escalated_at"] else
+                           f"overdue since {at(r['due_at'])}"), f"case:{r['item_id']}"))
     keep("Dispatched", conn.execute(
         """
         select o.created_at, o.payload, o.ref from event_outbox o
         where o.topic = 'exception.dispatched' and o.created_at >= %(s)s and o.created_at < %(e)s order by o.id
         """, {"s": start, "e": end}).fetchall(),
         lambda r: _line(f"{wording.say(r['payload'].get('title'))} sent to {_to(r['payload'].get('to'))}"
-                        f" at {r['created_at']:%H:%M}" + (f" ({r['payload']['reason']})" if r["payload"].get("reason") else ""),
+                        f" at {at(r['created_at'])}" + (f" ({r['payload']['reason']})" if r["payload"].get("reason") else ""),
                         r["ref"], f"case:{r['payload']['item_id']}" if r["payload"].get("item_id") else ""))
     keep("New exceptions", conn.execute(
         """
         select id, title, type, source, item_id, state from exception_record
         where first_seen >= %(s)s and first_seen < %(e)s and joined_to is null and type <> all(%(r)s)
+          and not (type = %(src)s and state = 'cleared')  -- a load that failed and then loaded is not the next shift's
         order by value_usd desc nulls last, id
-        """, {"s": start, "e": end, "r": [RECORDS, ROUTINE]}).fetchall(),
+        """, {"s": start, "e": end, "r": [RECORDS, ROUTINE], "src": alerts.TYPE}).fetchall(),
         lambda r: _line(f"{r['title']} ({r['type'].replace('_', ' ')} from {r['source']}, {r['state']})",
                         f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
+    keep("Closed", conn.execute(
+        """
+        select w.id, w.title, w.state, w.closed_at from work_item w
+        where w.closed_at >= %(s)s and w.closed_at < %(e)s and w.state in ('done', 'cancelled') and w.type <> %(h)s
+          and not exists (select 1 from exception_record x where x.item_id = w.id and x.type = %(src)s
+                          and x.state = 'cleared')
+        order by w.closed_at desc, w.id
+        """, {"s": start, "e": end, "h": CASE_TYPE, "src": alerts.TYPE}).fetchall(),
+        lambda r: _line(f"{r['title']}: {'done' if r['state'] == 'done' else 'cancelled'} {at(r['closed_at'])}",
+                        f"case:{r['id']}"))
     keep("Records to check", conn.execute(
         """
         select id, title, item_id, evidence->>'at' as at from exception_record
@@ -179,15 +207,6 @@ def facts(conn, start: datetime, end: datetime) -> dict:
         """, (RECORDS,)).fetchall(),
         lambda r: _line(r["title"], f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
     return {"sections": sections, "more": more, "unknown": unknown}
-
-
-def _local(at: str | None) -> str:
-    if not at:
-        return "?"
-    try:
-        return datetime.fromisoformat(at).astimezone(_tz()).strftime("%H:%M")
-    except ValueError:
-        return at[11:16]
 
 
 def _bypasses(conn, end: datetime) -> list[dict]:
@@ -295,12 +314,21 @@ def at_shift_change(conn, now: datetime | None = None) -> dict | None:
     return draft(conn, "handover", now)
 
 
+def status(row, now: datetime | None = None) -> str:
+    """Where a handover stands, in the words the page shows (#1351): `in progress` while its shift runs, then
+    `acknowledged` or `not acknowledged`. A past one nobody read is not a draft; notes don't move it."""
+    if row["state"] == "acknowledged":
+        return "acknowledged"
+    return "in progress" if row["shift_end"] > (now or datetime.now(UTC)) else "not acknowledged"
+
+
 def _ordered(row) -> dict:
-    """jsonb keeps keys in its own order: the sections back in the handover's."""
+    """jsonb keeps keys in its own order: the sections back in the handover's (one no longer drafted, such as Open
+    work in a handover drafted before #1351, stays readable after them)."""
     row = dict(row)
     sec = (row.get("facts") or {}).get("sections") or {}
-    row["facts"] = readable({**row["facts"], "sections": {k: sec.get(k, []) for k in SECTIONS}})
-    return row
+    row["facts"] = readable({**row["facts"], "sections": {**{k: sec.get(k, []) for k in SECTIONS}, **sec}})
+    return {**row, "status": status(row)}
 
 
 def get(conn, handover_id: int) -> dict:
@@ -311,19 +339,20 @@ def get(conn, handover_id: int) -> dict:
 
 
 def listing(conn, limit: int = 60) -> list[dict]:
-    return [dict(r) for r in conn.execute(
+    return [{**r, "status": status(r)} for r in conn.execute(
         "select id, shift_start, shift_end, state, notes_by, acknowledged_by, acknowledged_at, item_id, "
         "(select sum(jsonb_array_length(v)) from jsonb_each(facts->'sections') s(k, v)) as lines "
         "from shift_handover order by shift_end desc limit %s", (limit,))]
 
 
 def add_notes(conn, handover_id: int, by: str, notes: str) -> dict:
-    """The outgoing lead's notes (what the lines don't say). Kept on the case history too."""
+    """The outgoing lead's notes (what the lines don't say). Kept on the case history too. Saving them changes nothing
+    else: a running shift stays in progress, and only acknowledging hands it over (#1351)."""
     h = get(conn, handover_id)
     if h["state"] == "acknowledged":
         raise ExceptionError("this handover was acknowledged; add a comment on its case instead")
-    row = _ordered(conn.execute("update shift_handover set notes = %s, notes_by = %s, notes_at = now(), "
-                            "state = 'handed_over' where id = %s returning *", (notes.strip(), by, handover_id)).fetchone())
+    row = _ordered(conn.execute("update shift_handover set notes = %s, notes_by = %s, notes_at = now() "
+                                "where id = %s returning *", (notes.strip(), by, handover_id)).fetchone())
     if h["item_id"]:
         work.comment(conn, h["item_id"], by, f"Outgoing notes: {notes.strip()}")
     return row

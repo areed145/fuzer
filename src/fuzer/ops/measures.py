@@ -167,6 +167,8 @@ def compute(m: dict, conn, pack, q) -> dict:
         rows = [r for r in every if r["at"] and r["at"] <= t and (r["end"] is None or r["end"] > t)]
     else:
         rows = [r for r in every if q.span.holds(r["at"])]
+    if not rows and src.get("empty"):  # only the records state it: none in the window is unknown, not 0
+        return {"note": src["empty"], "unknown": True}
     out = {"value": _aggregate(m, rows, q), "refs": [r["id"] for r in rows][:REFS], "as_of": q.span.at.isoformat()}
     if out["value"] is None and not rows:  # a mean or an age of nothing: there is none to average
         out["note"] = "none open at the window's end" if m.get("stock") else "none in the window"
@@ -194,7 +196,8 @@ def _metric(key: str, m: dict, source: str) -> Metric:
                   m.get("standard"), m.get("period") or ("open at the window's end" if m.get("stock") else
                                                          f"the window ({m.get('window', '30d')} by default)"),
                   m.get("better", "higher"), m.get("group", "Other"), False, m.get("target"), True, True,
-                  bool(m.get("stock")), m.get("cutoff", "day"), m.get("window", "30d"), source)
+                  bool(m.get("stock")), m.get("cutoff", "day"), m.get("window", "30d"), source,
+                  m.get("aggregate", "count") in ("count", "sum") and not m.get("stock"))
 
 
 @metrics.provider

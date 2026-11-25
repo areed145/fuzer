@@ -115,6 +115,7 @@ class Metric:
     cutoff: str = "day"
     default_window: str | None = None
     source: str = "platform"  # platform | bundle
+    daily: bool = False  # it adds up over days (a count or sum of what happened): its trend draws each day's own part
 
     @property
     def queried(self) -> bool:
@@ -127,7 +128,7 @@ class Metric:
                 "period": self.period, "better": self.better, "records": self.records, "dated": self.dated,
                 "target": self.target, "scoped": self.scoped, "windowed": self.windowed, "stock": self.stock,
                 "cutoff": self.cutoff if self.windowed else None, "default_window": self.default_window,
-                "source": self.source}
+                "source": self.source, "daily": self.daily}
 
 
 def _check(key, grains, cutoff, default_window, windowed):
@@ -152,13 +153,15 @@ def declare(m: Metric, into: dict | None = None) -> Metric:
 def metric(key: str, label: str, *, definition: str, formula: str, unit: str, records: str, grains=(),
            standard: str | None = None, period: str = "now", better: str = "higher", group: str = "Other",
            dated: bool = False, target: float | None = None, scoped: bool = False, windowed: bool = False,
-           stock: bool = False, cutoff: str = "day", default_window: str | None = None):
-    """Declare a metric; the decorated function computes it."""
+           stock: bool = False, cutoff: str = "day", default_window: str | None = None, daily: bool = False):
+    """Declare a metric; the decorated function computes it. `daily`: it adds up over days (a count of what
+    happened), so its trend draws each day's own part; any other (a share, a median, a stock) draws the window ending
+    each day, whose last point is the window's value."""
     _check(key, grains, cutoff, default_window, windowed)
 
     def wrap(fn: Callable) -> Callable:
         declare(Metric(key, label, definition, formula, unit, records, fn, tuple(grains), standard, period, better,
-                       group, dated, target, scoped, windowed, stock, cutoff, default_window))
+                       group, dated, target, scoped, windowed, stock, cutoff, default_window, "platform", daily))
         return fn
     return wrap
 
@@ -274,7 +277,7 @@ def _legacy(conn, pack, m: Metric, window, at, grain, history) -> dict:
             v = (m.compute(conn, pack, None, at=day) or {}).get("value") if weeks else out.get("value")
             if v is not None:
                 past.append({"at": day.isoformat(), "value": v})
-    return {**out, "history": past, "scope": None, "window": None, "previous": None}
+    return {**out, "history": past, "scope": None, "window": None, "previous": None, "previous_unknown": False}
 
 
 def _queried(conn, pack, m: Metric, scope, window, at, grain, history) -> dict:
@@ -284,8 +287,11 @@ def _queried(conn, pack, m: Metric, scope, window, at, grain, history) -> dict:
     q.span = span
     out = m.compute(conn, pack, q) or {}
     previous = past = None
+    previous_unknown = False
     if span is not None:
-        previous = (m.compute(conn, pack, q.at(windows.before(span))) or {}).get("value")
+        before = m.compute(conn, pack, q.at(windows.before(span))) or {}
+        # no history (no case yet, no record that day) is unknown, not 0: nothing to compare against
+        previous, previous_unknown = before.get("value"), bool(before.get("unknown"))
         if history:
             past = []
             for s in windows.steps(span, HISTORY_WEEKS):
@@ -294,7 +300,7 @@ def _queried(conn, pack, m: Metric, scope, window, at, grain, history) -> dict:
                     past.append({"at": s.at.isoformat(), "value": v})
     elif history:
         past = out.get("history") or []
-    return {**out, "history": past or [], "previous": previous,
+    return {**out, "history": past or [], "previous": previous, "previous_unknown": previous_unknown,
             "scope": q.scope.id if q.scope else None, "window": window or m.default_window if span else None,
             "as_of": out.get("as_of") or (span.at.isoformat() if span else None),
             "span": {"start": span.start.isoformat(timespec="minutes"), "end": span.end.isoformat(timespec="minutes"),
@@ -305,7 +311,8 @@ def value(conn, pack, key: str, scope: str | None = None, window: str | None = N
           history: bool = False) -> dict:
     """One metric for a scope and a window: its declaration, its headline value and, with a grain, its rows. With
     `history`, its values over its last HISTORY_WEEKS periods (windows of the same length, for a windowed one),
-    oldest first; `previous` is its value over the window before.
+    oldest first; `previous` is its value over the window before, and `previous_unknown` says that window has no value
+    because what it is read from wasn't there yet (no case history): never compare against it as if it were 0.
 
     `scope` (an entity id, None for the whole register) and `window` (a name in core/windows, None for the metric's own
     period) are the report contract (docs/reports.md). The result says what it was computed for in `scope` and
@@ -319,13 +326,19 @@ def value(conn, pack, key: str, scope: str | None = None, window: str | None = N
     return {**m.describe(), "value": out.get("value"), "unknown": bool(out.get("unknown")),
             "rows": out.get("rows") or [], "refs": out.get("refs") or [],
             "as_of": out.get("as_of"), "note": out.get("note"), "grain": grain, "history": out["history"],
-            "scope": out["scope"], "window": out["window"], "previous": out["previous"], "span": out.get("span")}
+            "scope": out["scope"], "window": out["window"], "previous": out["previous"],
+            "previous_unknown": out["previous_unknown"], "span": out.get("span")}
 
 
 def series(conn, pack, key: str, scope: str | None = None, window: str | None = None, at=None) -> dict:
-    """A metric's value for each day of the window (at least TREND_MIN_DAYS, so a one-day window still has a line),
-    oldest first: {"points": [{at, value}], "scope", "window", "span"}. A metric that isn't windowed gives its
-    history instead (its own periods), and says so with `window: None`."""
+    """A metric for each day of the window (at least TREND_MIN_DAYS, so a one-day window still has a line), oldest
+    first: {"points": [{at, value}], "scope", "window", "span"}. A metric that adds up over days (`daily`: oil
+    produced, cases opened) gives each day's own part; any other gives the metric over the window of the same name
+    ending that day (the quarter to it, the 7 days to it), so its last point is the value a report's stat shows beside
+    the trend, never a one-day reading of a share. A metric that isn't windowed gives its history instead (its own
+    periods), and says so with `window: None`."""
+    from . import clock
+
     m = _get(pack, key, None)
     if not m.windowed:
         v = value(conn, pack, key, scope, None, None, history=True)
@@ -335,8 +348,9 @@ def series(conn, pack, key: str, scope: str | None = None, window: str | None = 
     span = _span(conn, m, window, at)
     drawn = span if span.days >= TREND_MIN_DAYS else windows.span(f"{TREND_MIN_DAYS}d", span.at, span.end)
     points = []
+    now = clock.now()
     for d in windows.daily(drawn):
-        v = (m.compute(conn, pack, q.at(d)) or {}).get("value")
+        v = (m.compute(conn, pack, q.at(d if m.daily else windows.span(span.key, d.at, now))) or {}).get("value")
         if v is not None:
             points.append({"at": d.at.isoformat(), "value": v})
     return {"points": points, "scope": q.scope.id if q.scope else None, "window": window or m.default_window,

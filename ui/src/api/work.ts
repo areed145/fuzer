@@ -559,7 +559,8 @@ export interface WorkFigures {
   open: number;
   overdue: number;
   stages: Record<Exclude<EventStage, "closed">, number>;
-  waiting_on_you: { total: number; overdue: number; to_dispatch: number } | null;
+  /** `my_work`: what waits on you less what waits for dispatch, the count Home's My work and the My work page show. */
+  waiting_on_you: { total: number; overdue: number; to_dispatch: number; my_work: number } | null;
 }
 
 export interface WorkInbox {
@@ -739,14 +740,16 @@ export interface BoardFilter {
 /** An exception as the IOC sees it (fuzer.core.exceptions): one open condition from any source, matched to assets. */
 /** A shift handover (#467). */
 export interface Handover {
-  id: number; shift_start: string; shift_end: string; state: "draft" | "handed_over" | "acknowledged";
+  id: number; shift_start: string; shift_end: string; state: "draft" | "acknowledged"; status: HandoverStatus;
   /** `unknown`: sections that can't be said, and why ("no bypass register loaded"): not sections with nothing. */
   facts: { sections: Record<string, { text: string; cites: string[] }[]>; more?: Record<string, number>; unknown?: Record<string, string> };
   item_id: number | null; drafted_at: string; notes: string | null; notes_by: string | null; notes_at: string | null;
   acknowledged_by: string | null; acknowledged_at: string | null; acknowledged_note: string | null;
 }
+/** Where a handover stands, in the page's words (fuzer.ops.handover.status). */
+export type HandoverStatus = "in progress" | "acknowledged" | "not acknowledged";
 export interface HandoverRow {
-  id: number; shift_start: string; shift_end: string; state: string; notes_by: string | null;
+  id: number; shift_start: string; shift_end: string; state: string; status: HandoverStatus; notes_by: string | null;
   acknowledged_by: string | null; acknowledged_at: string | null; item_id: number | null; lines: number | null;
 }
 

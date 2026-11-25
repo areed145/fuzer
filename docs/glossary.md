@@ -9,7 +9,7 @@ the two pages under **Work** in the menu. It is filtered and sorted on any dimen
 overdue, the facility, area and asset it is at (from what it is about and what that sits in), the entity it is about
 or anything in an entity (an entity page's Work here), the place on the map, words in the title. Each event's **stage** (To dispatch, With
 a desk, On the plan, With the field, Back from the field, Closed) is decided once, on the server. A **preset** is a
-named set of these filters (Waiting on me, To dispatch, Data questions); presets are added once they prove useful,
+named set of these filters (To dispatch, Data questions; what waits on you is My work, its own page); presets are added once they prove useful,
 and a role can save its own. See [where work goes](work-map.md).
 
 **AI note.** What a report's panels show for one scope, window and day, in a headline and a few points, written by

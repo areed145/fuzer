@@ -38,7 +38,7 @@
 /* One hand: on a phone, a job's report buttons and a round's take buttons stay at the bottom of the screen, above
    the bottom bar, while their card is in view; each is a full-width row. */
 @media (max-width: 900px) {
-  :root.field-mode .field-job .field-actions:last-of-type {
+  :root.field-mode .field-job .field-report {
     position: sticky; bottom: calc(64px + env(safe-area-inset-bottom)); z-index: 2;
     padding: 8px 0; background: var(--panel); border-top: 2px solid var(--line);
   }

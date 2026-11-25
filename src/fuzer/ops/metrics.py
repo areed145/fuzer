@@ -131,7 +131,7 @@ REPEAT_DAYS = 30
 
 
 @metric("downtime.repeat_stops", "Repeat stops", group="Downtime", unit="events", better="lower", scoped=True,
-        windowed=True, cutoff="production_day", default_window="30d", period="the window (30 days by default)",
+        windowed=True, daily=True, cutoff="production_day", default_window="30d", period="the window (30 days by default)",
         definition=f"Stops that started in the window on a well or unit that had already stopped in the "
                    f"{REPEAT_DAYS} days before: the same thing failing again, not just a busy month. Facility-wide "
                    "stops are left out.",
@@ -223,6 +223,18 @@ def _cases(conn, q) -> list[dict]:
     return [c for c in q.cache["cases"] if q.within(c["subjects"])]
 
 
+def _no_history(conn, q) -> dict | None:
+    """Unknown, not 0, for a window that ends before the first case was opened: the register has no case history
+    then, so "0 open the quarter before" would be a number nobody measured."""
+    if "first_case" not in q.cache:
+        row = conn.execute("select min(created_at) as at from work_item").fetchone()
+        q.cache["first_case"] = parse_time(row["at"]) if row and row["at"] else None
+    first = q.cache["first_case"]
+    if first is None or q.span.end > first:
+        return None
+    return {"note": f"no history: the first case was opened {first:%-d %b %Y}", "unknown": True}
+
+
 def _by_grain(q, cases: list[dict], measure) -> list[dict]:
     """The measure over each queue's (or type's) cases."""
     if not q.grain:
@@ -243,11 +255,13 @@ def _case_measure(key: str, label: str, definition: str, formula: str, better: s
     """Declare a work measure; the decorated function takes (cases in scope, q) and gives (value, case ids)."""
     def wrap(fn):
         @metric(key, label, definition=definition, formula=formula, unit=unit, better=better, target=target,
-                stock=stock, period="open at the window's end" if stock else "the window (7 days by default)", **WORK)
+                stock=stock, daily=unit == "cases" and not stock, period="open at the window's end" if stock else "the window (7 days by default)", **WORK)
         def compute(conn, pack, q) -> dict:
             def measure(cs):
                 v, ids = fn(cs, q)
                 return v, [f"case:{i}" for i in ids][:IDS]
+            if none := _no_history(conn, q):
+                return none
             cases = _cases(conn, q)
             v, refs = measure(cases)
             return {"value": v, "refs": refs, "rows": _by_grain(q, cases, measure),
@@ -349,6 +363,8 @@ def _on_site(reports: list[dict]) -> tuple | None:
                    "the cases closed in the window that the field reported on.",
         formula="median(hours from the field's first 'on site' to its 'done') over cases closed in the window", **WORK)
 def time_on_site(conn, pack, q) -> dict:
+    if none := _no_history(conn, q):
+        return none
     field, cases = _field(conn, q), _cases(conn, q)
 
     def measure(cs):
@@ -367,6 +383,8 @@ def time_on_site(conn, pack, q) -> dict:
         formula="cases closed in the window with no 'could not do' and no repeat / cases closed in the window x 100",
         **WORK)
 def first_time_fix(conn, pack, q) -> dict:
+    if none := _no_history(conn, q):
+        return none
     field, cases = _field(conn, q), _cases(conn, q)
     repeated = {e["item_id"] for e in q.cache["events"] if e["what"] == "repeats"}
 
@@ -392,6 +410,8 @@ def _reopened(cases, q):
                    "against a business plan line before it closed. The rest was reactive.",
         formula="cases closed in the window with a plan bar or a plan line / cases closed in the window x 100", **WORK)
 def planned_share(conn, pack, q) -> dict:
+    if none := _no_history(conn, q):
+        return none
     if "planned" not in q.cache:
         q.cache["planned"] = {r["item_id"] for r in conn.execute(
             "select item_id from plan_item where item_id is not null union select item_id from work_plan_match")}
@@ -661,6 +681,8 @@ def unplanned_share(conn, pack, q) -> dict:
 
     if not business_plan.loaded(conn):  # with no plan every case would be unplanned: unknown instead
         return {"note": business_plan.MISSING, "unknown": True}
+    if none := _no_history(conn, q):
+        return none
     if "contained" not in q.cache:
         q.cache["contained"] = {r["item_id"] for r in conn.execute(
             "select item_id from plan_item where item_id is not null and container_id is not null "

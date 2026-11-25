@@ -95,8 +95,11 @@ def unit_of(conn, fuzer_id: str) -> tuple[dict | None, str]:
 
 
 def _read(conn, src, pack, points, unit, centre, upsets, hours_before, hours_after, step_minutes) -> dict:
-    """Each point's values in the window around `centre`, with its summary and limits."""
-    start, end = centre - timedelta(hours=hours_before), centre + timedelta(hours=hours_after)
+    """Each point's values in the window around `centre`, with its summary and limits. The window ends at now at the
+    latest, on the plant's clock, whatever was asked (#1350)."""
+    now = clock.now()
+    centre = min(centre, now)
+    start, end = centre - timedelta(hours=hours_before), min(centre + timedelta(hours=hours_after), now)
     step_minutes = step_minutes or auto_step(hours_before + hours_after)
     near = [u for u in upsets if start - timedelta(hours=12) <= u <= end + timedelta(hours=6)]
     series, errors = [], []

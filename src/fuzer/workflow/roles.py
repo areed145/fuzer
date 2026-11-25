@@ -19,7 +19,8 @@ BUILTIN = {
     "ops_lead": ("person", "Operations lead: approves actions with an effect outside Fuzer, reviews daily reports",
                  "PT8H", None),
     "production_engineer": ("person", "Production engineering: wells, gas lift, deferment", "P1D", "ops_lead"),
-    "data_steward": ("person", "Master data steward: source problems and register gaps", "P1D", "ops_lead"),
+    # an overdue steward question stays with the stewards, marked escalated (#1346): the ops lead can't answer it
+    "data_steward": ("person", "Master data steward: source problems and register gaps", "P1D", None),
     "maintenance_planner": ("person", "Plans maintenance: raises and schedules SAP notifications", "P2D", "ops_lead"),
     "operator": ("person", "Control room and field operators", "PT4H", "ops_lead"),
     "hse_specialist": ("person", "HSE and environmental: flaring and emissions evidence, incidents", "P1D", "ops_lead"),

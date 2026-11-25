@@ -24,10 +24,12 @@ export function CaseAround({ id, data, focus }: { id: number; data?: CaseAroundD
   if (!d?.window) return null;
   const units = d.units ?? []; // an older server names none: the alarms and log still show
   const shown = unit ?? units[0]?.id;
+  // a unit offered by name only: one with none would be a raw id on the chip (#1348)
+  const named = units.filter((u) => u.label);
   return (
     <>
-      {units.length > 1 && (
-        <Tabs label="Trend of" items={units.map((u) => ({ key: u.id, label: u.label ?? u.id, current: u.id === shown, onSelect: () => setUnit(u.id) }))} />
+      {named.length > 1 && (
+        <Tabs label="Trend of" items={named.map((u) => ({ key: u.id, label: u.label, current: u.id === shown, onSelect: () => setUnit(u.id) }))} />
       )}
       {shown && <TrendView key={shown} id={shown} start={d.window.start} end={d.window.end} focus={focus} caseId={id} />}
       {shown && (

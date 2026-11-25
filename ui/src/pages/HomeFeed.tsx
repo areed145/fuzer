@@ -193,10 +193,10 @@ export function NeedsYou({ inbox, figures, jobsHealth, ready, exceptions, stewar
     if (open) onToggle();
   };
 
-  // The counts are the List's (red team #4): what waits on you is its Waiting on me, less what waits to be dispatched,
-  // which To dispatch lists; the two add up to the Work badge.
+  // The counts are the List's (red team #4): My work is its Waiting on me less what waits to be dispatched, which To
+  // dispatch lists; the two make the Work badge. The server says each (#1352), so My work's page reads the same.
   const waiting = figures?.waiting_on_you;
-  const hereTotal = waiting ? waiting.total - waiting.to_dispatch : 0;
+  const hereTotal = waiting ? waiting.my_work : 0;
   const elsewhere = items.filter((i) => i.group === "work" && i.project).length;
   const sections = GROUPS.map((g) => {
     const rows = items.filter((i) => i.group === g.key);
@@ -204,7 +204,7 @@ export function NeedsYou({ inbox, figures, jobsHealth, ready, exceptions, stewar
       : g.key === "dispatch" && figures && exceptions ? figures.stages.dispatch : rows.length };
   }).filter((g) => g.rows.length > 0 || g.total > 0);
   const more: Record<Group, string> = {
-    work: href("/list", waiting?.to_dispatch ? { waiting_on: "me", stage: "desk,planned,field,back" } : { waiting_on: "me" }),
+    work: href("/inbox"),
     dispatch: workHref("dispatch"), data: href("/sources") };
   const feedRow = (i: FeedItem) => (
     <li key={i.key} className={`feed-item${i.late ? " late" : ""}${fresh(i.key) ? " fresh" : ""}`} {...point(i.subjects, i.title)}>
