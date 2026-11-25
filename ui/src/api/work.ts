@@ -1370,7 +1370,13 @@ export const workApi = {
   /** One open question, as a list of one (none once it is answered). */
   review: (kind: ReviewKind, item: number) => request<ReviewItem[]>("GET", "/review", { kind, item }),
   /** `case` is the case a message question's answer opened (P5.26a). */
-  decide: (id: number, d: Decision) => request<{ decided: number; case?: number | null }>("POST", `/review/${id}`, undefined, d),
+  /** A message's answer says the case it opened and what that case is about (#1382). */
+  decide: (id: number, d: Decision) => request<{ decided: number; case?: number | null;
+    about?: { fuzer_id: string; label: string }[] }>("POST", `/review/${id}`, undefined, d),
+  /** Change the entities a message case is about: a wrong match, redone on the case (#1382). */
+  changeMessageEntities: (exceptionId: number, by: string, fuzerIds: string[]) =>
+    request<{ case: number | null; about: { fuzer_id: string; label: string }[] }>(
+      "POST", `/exceptions/${exceptionId}/message/entities`, undefined, { by, fuzer_ids: fuzerIds }),
   reviewGroups: (kind: ReviewKind) => request<ReviewGroup[]>("GET", "/review/groups", { kind }),
   decideGroup: (body: { key: string; decision: Decision["decision"]; source?: string; value?: unknown; standing: boolean; by: string }) =>
     request<{ decided: number[]; skipped: { id: number; why: string }[] }>("POST", "/review/groups", undefined, body),

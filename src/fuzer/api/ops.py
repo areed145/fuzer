@@ -925,6 +925,26 @@ def message_note(m: MessageNote, conn=Depends(get_conn)):
     return plain(out)
 
 
+class MessageEntities(BaseModel):
+    by: str
+    fuzer_ids: list[str]
+
+
+@router.post("/exceptions/{exception_id}/message/entities")
+def message_entities(exception_id: int, m: MessageEntities, conn=Depends(get_conn)):
+    """Change the entities a message case is about (#1382): a wrong match, by the reader or a steward, redone on the
+    case. Returns the case and what it is about now."""
+    from ..ops import messages
+    _loaded_types()
+    try:
+        out = messages.change_entities(conn, exception_id, m.fuzer_ids, m.by)
+    except messages.MessageError as e:
+        conn.rollback()
+        raise HTTPException(404 if str(e).startswith("no message case") else 400, str(e)) from e
+    conn.commit()
+    return out
+
+
 @router.get("/exceptions/{exception_id}/photos/{photo_id}")
 def exception_photo(exception_id: int, photo_id: int, conn=Depends(get_conn)):
     """A photo the field attached to a report."""

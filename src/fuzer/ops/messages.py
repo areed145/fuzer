@@ -15,7 +15,9 @@ Teams posts and a field operator's note from the phone. Each is read once, into 
     read_new(conn, pack)                 every loaded message not read yet (after each register build)
     receive(conn, pack, by, text)        a note posted from the phone, read the same way
     sync_answers(conn)                   steward answers to message questions: a case, or handled
-    case_for(conn, review_item_id)       the case a steward's answer opened, for the line that confirms it
+    answer_of(conn, review_item_id)      the case a steward's answer opened and what it is about, for the line that
+                                         confirms it
+    change_entities(conn, id, ids, by)   a message case matched to the wrong entity: what it is about, changed (#1382)
     read(text, pack, register, subject)  the reading itself, without a database (what the eval scores)
     reader(conn, pack)                   the pack and register a reading takes
 
@@ -308,12 +310,13 @@ def sync_answers(conn, by: str = SOURCE) -> dict:
             where m.outcome = 'steward' and q.status = 'decided'
             """).fetchall():
         d = r["decision"] or {}
-        chosen = d.get("value") if d.get("decision") == "choose" else None
+        value = d.get("value") if d.get("decision") == "choose" else None
+        chosen = [value] if isinstance(value, str) else list(value or [])  # one entity, or several (#1382)
         if chosen:
-            reading = Reading("case", refs=[chosen], why=f"chosen by {r['decided_by']}")
+            reading = Reading("case", refs=chosen, why=f"chosen by {r['decided_by']}")
             ex = _raise_case(conn, dict(r), reading, r["decided_by"] or by)
             conn.execute("update message set outcome = 'case', refs = %s, why = %s, exception_id = %s where id = %s",
-                         ([chosen], reading.why, ex["id"], r["id"]))
+                         (chosen, reading.why, ex["id"], r["id"]))
             out["case"] += 1
         else:
             conn.execute("update message set outcome = 'handled', why = %s where id = %s",
@@ -322,8 +325,47 @@ def sync_answers(conn, by: str = SOURCE) -> dict:
     return out
 
 
-def case_for(conn, review_item_id: int) -> int | None:
-    """The case a steward's answer to a message question opened, once `sync_answers` has run; None for no work."""
-    row = conn.execute("select e.item_id from message m join exception_record e on e.id = m.exception_id "
+def answer_of(conn, review_item_id: int) -> dict:
+    """What a steward's answer to a message question did, once `sync_answers` has run: the case it opened (None for
+    no work) and the entities that case is about, each with its label, so the line that confirms it links both."""
+    row = conn.execute("select e.item_id, e.subjects from message m join exception_record e on e.id = m.exception_id "
                        "where m.review_item_id = %s", (review_item_id,)).fetchone()
-    return row["item_id"] if row else None
+    return {"case": row["item_id"] if row else None, "about": _named(conn, list(row["subjects"] or []) if row else [])}
+
+
+def _named(conn, ids: list[str]) -> list[dict]:
+    labels = {r["fuzer_id"]: r["label"] for r in conn.execute(
+        "select fuzer_id, label from entity_label where fuzer_id = any(%s)", (ids,))}
+    return [{"fuzer_id": i, "label": labels.get(i) or i} for i in ids]
+
+
+def change_entities(conn, exception_id: int, ids: list[str], by: str) -> dict:
+    """A message case matched to the wrong entity, by the reader or a steward (#1382): it is about `ids` now. The
+    case keeps its history and whoever has it; the message, the event and the case all say the new entities, and the
+    case's history says what it was about before. Returns the case and what it is about."""
+    from ..core import events, work
+
+    row = conn.execute("select e.id, e.item_id, e.state, e.subjects, m.id as message from exception_record e "
+                       "join message m on m.exception_id = e.id where e.id = %s for update of e", (exception_id,)).fetchone()
+    if row is None:
+        raise MessageError(f"no message case for exception {exception_id}")
+    if row["state"] != "open":
+        raise MessageError(f"the case is {row['state']}: what it is about can't change now")
+    from ..graph.hierarchy import work_entities
+
+    try:
+        ids = work_entities(conn, ids)
+    except ValueError as e:
+        raise MessageError(str(e)) from e
+    before = _named(conn, list(row["subjects"] or []))
+    after = _named(conn, ids)
+    conn.execute("update exception_record set subjects = %s, unmatched = '{}', updated_at = now() where id = %s",
+                 (ids, exception_id))
+    conn.execute("update message set refs = %s, why = %s where id = %s", (ids, f"changed by {by}", row["message"]))
+    if row["item_id"]:
+        conn.execute("update work_item set subjects = %s, updated_at = now() where id = %s", (ids, row["item_id"]))
+        say = lambda xs: ", ".join(x["label"] for x in xs) or "nothing"
+        work.comment(conn, row["item_id"], by, f"Changed what it is about from {say(before)} to {say(after)}")
+    events.publish(conn, "exception.updated", f"exception:{exception_id}",
+                   {"id": exception_id, "item_id": row["item_id"], "subjects": ids, "by": by})
+    return {"case": row["item_id"], "about": after}

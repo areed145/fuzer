@@ -50,12 +50,21 @@ _PARENT = """left join lateral (
                 order by x.rel, x.dst limit 1) p on true"""
 
 
-def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 50) -> list[dict]:
+def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 50, total: bool = False):
     """Exact key matches first (any tag / well style), then labels that start with the text, shortest first (so part
     of a tag finds the tag before the incidents named after it), then anything whose label, source key or searchable
     field contains the text, places and drawings before equipment and instrument tags (KIND_ORDER). Each part stops
-    early, so common words stay fast on large registers."""
+    early, so common words stay fast on large registers. A trailing separator is part of a tag still being typed
+    ("20-P-" finds what "20-P" does, #1382). With `total`, {hits, total}: how many match, so a picker that shows the
+    first few says "12 of N"; each part then probes up to TOTAL_PROBE rows, the most N says."""
+    if total:
+        hits = search(conn, pack, q, kind, TOTAL_PROBE)
+        return {"hits": hits[:limit], "total": len(hits)}
+    q = q.strip()
+    q = q.rstrip("-_./: ") or q
     kinds = [k for k in (kind or "").split(",") if k] or None
+    if kinds == ["work"]:  # what work can be about (a message case's entity, #1382): the one list, held there
+        kinds = list(WORK_KINDS)
     params = {"kinds": kinds, "limit": limit, "order": KIND_ORDER, "last": LAST_KINDS, "rels": list(CONTAINMENT)}
     if not q:
         return conn.execute(
@@ -105,6 +114,9 @@ def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 
         """,
         params,
     ).fetchall()
+
+
+TOTAL_PROBE = 500  # the most a search counts for "12 of N"
 
 
 def resolve_ref(conn, pack: Pack, ref: str) -> str | None:

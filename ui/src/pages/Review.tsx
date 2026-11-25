@@ -44,8 +44,13 @@ const QUESTION_KINDS: [ReviewKind, string][] = [
 export const questionsHref = (kind?: string, item?: number) =>
   href("/masterdata", { tab: "questions", kind, item: item === undefined ? undefined : String(item) });
 
-/** What a recorded answer did, in one line; a message's answer links the case it opened (P5.26a). */
-function saved(item: ReviewItem, d: Omit<Decision, "by">, opened?: number | null): ReactNode {
+type Answered = { case?: number | null; about?: { fuzer_id: string; label: string }[] };
+
+/** What a recorded answer did, in one line; a message's answer links the case it opened and the entities it is about
+ * (P5.26a, #1382). */
+function saved(item: ReviewItem, d: Omit<Decision, "by">, out: Answered = {}): ReactNode {
+  const opened = out.case;
+  const about = (out.about ?? []).map((a, i) => <span key={a.fuzer_id}>{i ? ", " : ""}<a href={entityHref(a.fuzer_id)}>{a.label}</a></span>);
   return (
       item.kind === "match"
         ? `Saved #${item.id}. Fuzer is updating the records in the background.`
@@ -79,7 +84,7 @@ function saved(item: ReviewItem, d: Omit<Decision, "by">, opened?: number | null
             ? d.decision === "reject"
               ? "Saved. The message is kept with no case."
               : opened != null
-                ? <>Saved. The message is <a href={caseHref(opened)}>case {opened}</a>, routed like any other.</>
+                ? <>Saved. The message is <a href={caseHref(opened)}>case {opened}</a>{about.length ? <> about {about}</> : null}, routed like any other.</>
                 : "Saved. The message is a case about the entity you chose, routed like any other."
           : `Saved #${item.id}. The chosen value is live.`
   );
@@ -105,7 +110,7 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
   const decide = async (item: ReviewItem, d: Omit<Decision, "by">) => {
     const out = await api.decide(item.id, { ...d, by: name || "anonymous" });
     setDone((s) => new Set(s).add(item.id));
-    setToast(saved(item, d, out.case));
+    setToast(saved(item, d, out));
     notifyChanged();
   };
 
@@ -203,7 +208,7 @@ function QuestionCard({ item, onDecide }: { item: ReviewItem; onDecide: OnDecide
 
 /** A case's question, answered on the case (#1131): the same card and the same decision as Master data's Questions
  * tab, with the drawing it is about. Nothing shows once it is answered. */
-export function CaseQuestion({ id, kind, onDone }: { id: number; kind: ReviewKind; onDone: () => void }) {
+export function CaseQuestion({ id, kind, onDone }: { id: number; kind: ReviewKind; onDone: (said: ReactNode) => void }) {
   const q = useAsync(() => api.review(kind, id), [kind, id]);
   const [name] = usePerson();
   const [done, setDone] = useState<ReactNode>();
@@ -214,7 +219,8 @@ export function CaseQuestion({ id, kind, onDone }: { id: number; kind: ReviewKin
   return <div className="case-question">
     <QuestionCard item={item} onDecide={async (d) => {
       const out = await api.decide(item.id, { ...d, by: name || "anonymous" });
-      setDone(saved(item, d, out.case)); notifyChanged(); onDone();
+      const said = saved(item, d, out);
+      setDone(said); notifyChanged(); onDone(said);
     }} />
     {sheet?.document && <DrawingViewer id={sheet.document} highlight={[sheet.fuzer_id]} title={sheet.sheet} compact />}
   </div>;
@@ -681,7 +687,7 @@ function MessageCard({ id, p, onDecide }: { id: number; p: MessagePayload; onDec
         <Button disabled={busy} onClick={() => run({ decision: "choose", value: c.fuzer_id })}>About {hitLine(c)}</Button>
       </li>)}</List>}
       <MatchRef value={p.candidates[0]?.label ?? ""} label="Another entity" canRemember={false} busy={busy} kinds={p.kinds}
-        onPick={(fid) => run({ decision: "choose", value: fid })} />
+        multiple onPick={(fid, _, all) => run({ decision: "choose", value: all.length > 1 ? all : fid })} />
       <Line wrap>
         <Button variant="secondary" disabled={busy} onClick={() => run({ decision: "reject" })}>No work needed</Button>
       </Line>

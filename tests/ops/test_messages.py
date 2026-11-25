@@ -172,7 +172,8 @@ def test_a_steward_question_carries_the_message_and_its_answer_makes_the_case(re
     assert m["outcome"] == "case" and m["refs"] == [chosen] and m["why"] == "chosen by ana"
     ex = conn.execute("select * from exception_record where id = %s", (m["exception_id"],)).fetchone()
     assert ex["type"] == "message_report" and ex["subjects"] == [chosen] and ex["item_id"] and ex["joined_to"] is None
-    assert messages.case_for(conn, q["id"]) == ex["item_id"]  # the steward's confirmation links it
+    answer = messages.answer_of(conn, q["id"])  # the steward's confirmation links the case and the tag (#1382)
+    assert answer["case"] == ex["item_id"] and answer["about"] == [{"fuzer_id": chosen, "label": "30-PT-2001"}]
     assert conn.execute("select state from exception_record where type = 'message_to_match' and key = "
                         "'message:MSG-0007'").fetchone()["state"] == "cleared"  # the steward's case closed
     assert conn.execute("select outcome from message where id = 'MSG-0017'").fetchone()["outcome"] == "handled"
@@ -203,7 +204,7 @@ def test_a_message_is_matched_only_to_what_work_can_be_about(read):
     conn.rollback()
     with TestClient(api.app) as client:
         r = client.post(f"/review/{qid}", json={"decision": "choose", "value": record["fuzer_id"], "by": "ana"})
-        assert r.status_code == 400 and "a message's case is about a" in r.text
+        assert r.status_code == 400 and "work is about a" in r.text
     assert conn.execute("select status from review_item where id = %s", (qid,)).fetchone()["status"] == "open"
 
 
@@ -239,3 +240,61 @@ def test_the_reader_eval_scores_what_docs_eval_results_records(read, okan_db):
     assert res["to_steward"] == res["noise_handled"] == 1.0
     [last] = [r for r in runs.load() if r["kind"] == "messages" and r["bundle"] == "okan"][-1:]
     assert {k: last[k] for k in runs.MESSAGES} == {k: res[k] for k in runs.MESSAGES}
+
+
+def test_a_wrong_match_is_changed_on_the_message_case(read):
+    """#1382 (tour C6): a message matched to the wrong entity couldn't be redone; "Correct it" changed only the
+    close-out reason. Change the entities on the case: the event, the case and the message say the new ones, the
+    history says the old, and a record or an unknown case is refused."""
+    conn, _ = read
+    from fuzer import api
+
+    with TestClient(api.app) as client:
+        note = client.post("/messages", json={"by": "femi", "text": "20-K-2100C seal oil pot level low"}).json()
+        right = [_id(conn, "tag:20-K-2100B"), _id(conn, "tag:20-K-2100A")]
+        r = client.post(f"/exceptions/{note['exception_id']}/message/entities", json={"by": "ana", "fuzer_ids": right})
+        assert r.status_code == 200, r.text
+        assert r.json() == {"case": note["item_id"], "about": [{"fuzer_id": right[0], "label": "20-K-2100B"},
+                                                               {"fuzer_id": right[1], "label": "20-K-2100A"}]}
+        record = conn.execute("select fuzer_id from entity where kind = 'work_order' limit 1").fetchone()
+        if record:
+            bad = client.post(f"/exceptions/{note['exception_id']}/message/entities",
+                              json={"by": "ana", "fuzer_ids": [record["fuzer_id"]]})
+            assert bad.status_code == 400 and "work is about a" in bad.text
+        assert client.post("/exceptions/999999/message/entities",
+                           json={"by": "ana", "fuzer_ids": right}).status_code == 404
+    ex = conn.execute("select subjects from exception_record where id = %s", (note["exception_id"],)).fetchone()
+    assert ex["subjects"] == right
+    case = conn.execute("select subjects from work_item where id = %s", (note["item_id"],)).fetchone()
+    assert case["subjects"] == right
+    said = [r["t"] for r in conn.execute("select data->>'text' as t from work_event where item_id = %s and kind = "
+                                         "'commented'", (note["item_id"],))]
+    assert "Changed what it is about from 20-K-2100C to 20-K-2100B, 20-K-2100A" in said, said
+    m = conn.execute("select refs, why from message where exception_id = %s", (note["exception_id"],)).fetchone()
+    assert (m["refs"], m["why"]) == (right, "changed by ana")
+    conn.rollback()
+
+
+def test_a_steward_can_say_a_message_is_about_several_entities(read):
+    """#1382 (tour C9): "It applies to all three gas turbine drivers" could be matched to only one."""
+    conn, _ = read
+    qid = conn.execute("select id from review_item where kind = 'message' and status = 'open' "
+                       "order by id limit 1").fetchone()["id"]
+    three = [_id(conn, f"tag:20-GT-2000{x}") for x in "ABC"]
+    review.decide(conn, qid, "choose", three, "ana")
+    messages.sync_answers(conn)
+    answer = messages.answer_of(conn, qid)
+    assert answer["case"] and [a["label"] for a in answer["about"]] == ["20-GT-2000A", "20-GT-2000B", "20-GT-2000C"]
+    conn.rollback()
+
+
+def test_the_picker_search_counts_what_it_does_not_show_and_takes_a_trailing_hyphen(read):
+    """#1382 (tour C9): "20-P-" found nothing while "20-P" worked, and the picker stopped at 12 with no "more"."""
+    conn, _ = read
+    from fuzer.graph import queries
+
+    pack = load_pack("okan")
+    typed = queries.search(conn, pack, "20-P-", "tag,equipment", 12, total=True)
+    bare = queries.search(conn, pack, "20-P", "tag,equipment", 12, total=True)
+    assert typed == bare and len(bare["hits"]) == 12 and bare["total"] > 12
+    assert queries.search(conn, pack, "-", None, 5)  # nothing but a separator is still a search

@@ -9,7 +9,7 @@ import { cap, say, workKind } from "../../wording";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { api, type CaseSource, type MessageSaid, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
 import { CaseQuestion } from "../Review";
-import { Status, href, useAsync, useAction } from "../../lib";
+import { Status, href, notifyChanged, useAsync, useAction } from "../../lib";
 import { Actor, DataView, Due, ENGINE_FIELDS, EntityLinks, describe, holder, usePerson } from "../../work";
 import { AgentIdle, AssignPicker, GENERIC_STEP, PriorityBadge, SendToField, StepBadges, caseHref, priorityLevel, processHref } from "./shared";
 import { CaseChecklist } from "./Checklist";
@@ -28,6 +28,7 @@ import { usePermission } from "../../Auth";
 import { WatchButton } from "../../Watch";
 import { CaseCloseoutCard, RecheckCard } from "../Disposition";
 import { CaseOptionsCard } from "./Options";
+import { MatchRef } from "../masterdata/MatchRef";
 
 const BpmnView = lazy(() => import("../../BpmnView"));
 
@@ -78,6 +79,9 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
   const [person] = usePerson();
   const people = useAsync(() => api.workPeople(), []);
   const canAsk = usePermission("ai");  // the assistant runs a paid model: no link for an account that can't ask
+  // A question answered here closes its case: its confirmation, with the case and entities it links, stays through
+  // the reload that follows (#1382).
+  const [answered, setAnswered] = useState<ReactNode>(null);
   const it = item.data;
   // The options decide where Waiting on sits and the roster whether the evidence folds (a field operator): the page
   // waits for both, failures included, so case 1136 no longer moved under the reader as they answered (P5.26h).
@@ -166,10 +170,13 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
           {it.parent && <Text as="p" small>Part of <a href={caseHref(it.parent.id)}>{say(it.parent.title)}</a></Text>}
         </div>
       </div>
-      {message && <CaseMessage m={message} matched={matchedBy(it.sources)} />}
+      {message && <CaseMessage m={message} matched={matchedBy(it.sources)} person={person}
+        exceptionId={!closed && !demo && typeof raised.exception_id === "number" ? raised.exception_id : null}
+        onChanged={item.reload} />}
       {/* The decision first (#1071): who has it, what it waits on, how late, and the one next action, above the
           evidence it is decided on. */}
-      {asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={item.reload} />}
+      {answered ? <Notice role="status">{answered}</Notice>
+        : asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={(said) => { setAnswered(said); item.reload(); }} />}
       {/* the choices side by side, with what each costs (P5.20): the IOC's decision on field work comes first */}
       {!backFromField && optionsCard}
       <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload}
@@ -206,11 +213,23 @@ const matchedBy = (sources?: CaseSource[]): string | null => {
 
 /** The message a case was opened from, first on the case (P5.26a): "Radio call · GGCP CRO · Nov 23, 6:52 AM", then
  * everything it said. The title above it is a short summary. */
-function CaseMessage({ m, matched }: { m: MessageSaid; matched: string | null }) {
+function CaseMessage({ m, matched, person, exceptionId, onChanged }: {
+  m: MessageSaid; matched: string | null; person: string;
+  /** The open message case's event, where its entities can be changed (a wrong match, #1382); null when they can't. */
+  exceptionId: number | null; onChanged: () => void;
+}) {
+  const operate = usePermission("operate");
+  const a = useAction();
+  const [changes, setChanges] = useState(0);  // a change made closes the picker: it opens fresh for the next
   return <UICard className="case-message" title={`${m.channel_label} · ${m.sender} · ${when(m.received_at)}`}>
     {m.subject && <Text as="p" small>{m.subject}</Text>}
     <p>{say(m.text)}</p>
     {matched && <Text as="p" small muted>Matched by {matched}</Text>}
+    {exceptionId != null && operate && person && <MatchRef key={changes} value="" label="Change the entity"
+      canRemember={false} kinds={["work"]} multiple busy={!!a.busy} onPick={(_, __, all) => a.run("Changing the entity…",
+        () => api.changeMessageEntities(exceptionId, person, all),
+        () => { setChanges((n) => n + 1); notifyChanged(); onChanged(); })} />}
+    <ActionStatus busy={a.busy} error={a.error} />
   </UICard>;
 }
 

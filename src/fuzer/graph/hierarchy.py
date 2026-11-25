@@ -4,6 +4,7 @@
     up(conn, fid)            what it sits in, nearest first: [{id, kind, label}], up to the top
     subtree(conn, fid)       everything beneath it, each with its parent and depth: {id: {parent, depth, kind, label}}
     beneath(conn, fid, n)    the first `n` levels beneath it as a tree, each node with how many sit beneath it
+    work_entities(conn, ids) the entities work may be about, checked: live, and of a WORK_KINDS kind
 
 A schedule's activities and a document's sections are part_of too, but they are not places or things in the plant,
 so they are left out of the asset tree (OFF_TREE). An entity has one place in it: where the register gives it two
@@ -18,6 +19,24 @@ WORK_KINDS = ("well", "pipeline", "pipeline_segment", "tag", "equipment")
 OFF_TREE = ("activity", "document_section", "timeseries")
 MAX_DEPTH = 8
 PER_LEVEL = 200  # children listed under one node; the rest are counted
+
+
+def work_entities(conn, ids) -> list[str]:
+    """The entities a person matched work to (a message's case, P2.8), checked: one Fuzer ID or several (#1382), each
+    in the register, live, and a kind work is about (a log entry or a work order is a record, P5.26f). Raises
+    ValueError saying which is wrong."""
+    ids = list(dict.fromkeys([ids] if isinstance(ids, str) else list(ids or [])))
+    if not ids or not all(isinstance(i, str) for i in ids):
+        raise ValueError("choose the entity it is about")
+    kinds = {r["fuzer_id"]: r["kind"] for r in conn.execute(
+        "select fuzer_id, kind from entity where fuzer_id = any(%s) and retired_at is null and merged_into is null",
+        (ids,))}
+    if missing := [i for i in ids if i not in kinds]:
+        raise ValueError(f"no entity {missing[0]} in the register")
+    if wrong := [i for i in ids if kinds[i] not in WORK_KINDS]:
+        raise ValueError(f"work is about a {', '.join(WORK_KINDS[:-1])} or {WORK_KINDS[-1]}, "
+                         f"not a {kinds[wrong[0]].replace('_', ' ')}")
+    return ids
 
 
 def up(conn, fid: str) -> list[dict]:

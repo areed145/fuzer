@@ -10861,6 +10861,102 @@ test("P5.26a the steward's answer to a message links the case it opened, with no
 
 // P5.26f (#1368): the steward reaches Master data from Work's tabs, sees every kind of question, and matches a message
 // only to what work can be about: tags, equipment, wells and lines, each with its description and place.
+// P5.27d (#1382): the picker selects by tap, comes picked with one result, takes several and says "12 of N"; the
+// answer on the case keeps its confirmation with the case and the entities; a message case's entity can be changed.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`the steward picks several entities by tap and the answer links the case and them (#1382, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "ana", roles: ["data_steward"] }] }));
+    const item = { id: 29802, kind: "message", subject: "MSG-0021", status: "open", label: null, payload: {
+      message: { id: "MSG-0021", channel: "mailbox", channel_label: "IOC mailbox", sender: "Field Service", subject: "Service bulletin",
+        text: "Service bulletin attached for the fuel nozzles. It applies to all three gas turbine drivers.", received_at: "2026-11-24T12:15" },
+      why: "names no tag, well or alias in the register", question: "Which entity is this about?", candidates: [],
+      kinds: ["well", "pipeline", "pipeline_segment", "tag", "equipment"] } };
+    let closed = false;
+    await page.route("**/review?*", (route) => route.fulfill({ json: closed ? [] : [item] }));
+    const gt = (x) => ({ fuzer_id: `fz-tag-gt${x}`, kind: "tag", label: `20-GT-2000${x}`, description: "Gas turbine driver", parent_label: "GGCP" });
+    const searched = [];
+    await page.route("**/entities?*", (route) => {
+      const q = new URL(route.request().url()).searchParams;
+      searched.push(q);
+      const one = q.get("q") === "20-GT-2000A";
+      return route.fulfill({ json: one ? { total: 1, hits: [gt("A")] }
+        : { total: 40, hits: ["A", "B", "C", ...Array.from({ length: 9 }, (_, i) => `D${i}`)].map(gt) } });
+    });
+    const decided = [];
+    await page.route("**/review/29802", (route) => { decided.push(route.request().postDataJSON()); closed = true;
+      return route.fulfill({ json: { decided: 29802, case: 1163, about: ["A", "B", "C"].map((x) => ({ fuzer_id: `fz-tag-gt${x}`, label: `20-GT-2000${x}` })) } }); });
+    const caseItem = () => ({ id: 1150, title: "Which entity is this about? IOC mailbox from Field Service", type: "message_to_match",
+      state: closed ? "done" : "open", closed_at: closed ? "2026-11-25T22:10:00Z" : null, subjects: [], created_by: "stewardship",
+      created_at: "2026-11-25T16:30:00Z", events: [], processes: [], payload: {},
+      sources: [{ id: 9, type: "message_to_match", key: "message:MSG-0021", title: "Which entity is this about?",
+        source: "stewardship", state: closed ? "cleared" : "open", first_seen: "2026-11-25T16:30:00Z",
+        last_seen: "2026-11-25T16:30:00Z", joined_to: null, subjects: [], label: "Message to match",
+        finding: finding("external", "Which entity is this about?", [{ label: "Answer", kind: "page",
+          value: "#/masterdata?tab=questions&kind=message&item=29802", text: "Answer it on Master data" }]) }] });
+    await page.route("**/work/items/1150", (route) => route.fulfill({ json: caseItem() }));
+    await page.route("**/work/items/1150/closeout", (route) => route.fulfill({ json: { item_id: 1150, repeats: [],
+      suggestion: { from: "words" }, record: closed ? { item_id: 1150, disposition: "data_problem", note: "answered by ana",
+        by: "ana", at: "2026-11-25T22:10:00Z" } : null,
+      vocabulary: { dispositions: { data_problem: "Data problem" }, outcomes: {}, failure_modes: {}, mechanisms: {}, causes: {}, activities: {} } } }));
+    await page.goto(`${url}/#/cases/1150`);
+    await page.getByRole("button", { name: "Another entity…" }).click();
+    await page.getByLabel("Search the register").fill("20-GT-2000A");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    // one result comes picked: nothing left to choose
+    const a = page.getByRole("checkbox", { name: /^20-GT-2000A/ });
+    await a.waitFor();
+    assert.equal(await a.isChecked(), true);
+    await page.getByLabel("Search the register").fill("20-GT-");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await page.getByText("12 of 40", { exact: true }).waitFor();
+    await page.getByRole("checkbox", { name: /^20-GT-2000A/ }).check();
+    await page.getByRole("checkbox", { name: /^20-GT-2000B/ }).check();
+    await page.getByRole("checkbox", { name: /^20-GT-2000C/ }).check();
+    await page.getByRole("button", { name: "Use these 3" }).click();
+    await page.getByRole("button", { name: "Confirm decision" }).click();
+    // the case closes with the answer; its confirmation stays, linking the case and the three tags
+    const saved = page.getByRole("status").filter({ hasText: "Saved." });
+    await saved.getByRole("link", { name: "case 1163" }).waitFor();
+    for (const x of ["A", "B", "C"]) await saved.getByRole("link", { name: `20-GT-2000${x}` }).waitFor();
+    assert.deepEqual(decided[0], { decision: "choose", value: ["fz-tag-gtA", "fz-tag-gtB", "fz-tag-gtC"], by: "ana" });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+
+  test(`a message case matched to the wrong entity is changed on the case (#1382, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "ana", roles: ["data_steward"] }] }));
+    let about = ["fz-tag-v2002-10"];
+    await page.route("**/work/items/1156", (route) => route.fulfill({ json: { id: 1156, title: "V-2002 level glass cracked",
+      type: "message_report", state: "open", subjects: about, created_by: "messages", created_at: "2026-11-25T16:30:00Z",
+      events: [], processes: [], payload: { exception_id: 77, message: { id: "MSG-0019", channel: "phone", channel_label: "Field note",
+        sender: "Ada Nwosu", subject: null, text: "V-2002 level glass cracked, isolated it.", received_at: "2026-11-25T10:00" } } } }));
+    await page.route("**/work/items/1156/options", (route) => route.fulfill({ json: { applies: false, why_not: "x", exception_id: 77, options: [] } }));
+    const searched = [];
+    await page.route("**/entities?*", (route) => { searched.push(new URL(route.request().url()).searchParams);
+      return route.fulfill({ json: { total: 1, hits: [{ fuzer_id: "fz-tag-v2002-40", kind: "tag", label: "40-V-2002",
+        description: "ST2 production separator", parent_label: "ST2" }] } }); });
+    const changed = [];
+    await page.route("**/exceptions/77/message/entities", (route) => { changed.push(route.request().postDataJSON());
+      about = ["fz-tag-v2002-40"];
+      return route.fulfill({ json: { case: 1156, about: [{ fuzer_id: "fz-tag-v2002-40", label: "40-V-2002" }] } }); });
+    await page.goto(`${url}/#/cases/1156`);
+    const card = page.locator(".case-message");
+    await card.getByRole("button", { name: "Change the entity…" }).click();
+    await card.getByLabel("Search the register").fill("40-V-2002");
+    await card.getByRole("button", { name: "Search", exact: true }).click();
+    await card.getByRole("checkbox", { name: /^40-V-2002/ }).waitFor();
+    assert.equal(searched.at(-1).get("kind"), "work");  // what work can be about, the server's one list
+    await card.getByRole("button", { name: "Use it" }).click();
+    await page.waitForFunction(() => document.querySelector(".case-message .match-ref") === null);
+    assert.deepEqual(changed, [{ by: "ana", fuzer_ids: ["fz-tag-v2002-40"] }]);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
+
 for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
   test(`P5.26f the steward reaches Master data from Work and matches a message to an asset (${size})`, async () => {
     await page.setViewportSize(viewport);
@@ -10878,13 +10974,13 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     const searched = [];
     await page.route("**/entities?*", (route) => {
       searched.push(new URL(route.request().url()).searchParams);
-      return route.fulfill({ json: [
+      return route.fulfill({ json: { total: 2, hits: [
         { fuzer_id: "fz-tag-10p1001b", kind: "tag", label: "10-P-1001B", description: "Oil Export Pump B", parent: "fz-area-pp", parent_label: "PP" },
-        { fuzer_id: "fz-equipment-sul600", kind: "equipment", label: "SUL-600 4471", description: "Sulzer export pump", parent: null, parent_label: null }] });
+        { fuzer_id: "fz-equipment-sul600", kind: "equipment", label: "SUL-600 4471", description: "Sulzer export pump", parent: null, parent_label: null }] } });
     });
     const decided = [];
     await page.route("**/review/29804", (route) => { decided.push(route.request().postDataJSON()); answered = true;
-      return route.fulfill({ json: { decided: 29804, case: 1157 } }); });
+      return route.fulfill({ json: { decided: 29804, case: 1157, about: [{ fuzer_id: "fz-tag-10p1001b", label: "10-P-1001B" }] } }); });
 
     // Master data is one of Work's pages, beside My work and List
     await page.goto(`${url}/#/inbox`);
@@ -10910,16 +11006,17 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     await page.getByRole("button", { name: "Another entity…" }).click();
     await page.getByLabel("Search the register").fill("oil export pump B");
     await page.getByRole("button", { name: "Search", exact: true }).click();
-    const pick = page.getByLabel("Entity", { exact: true });
-    await pick.locator("option", { hasText: "10-P-1001B · Tag · Oil Export Pump B · PP" }).waitFor({ state: "attached" });
+    // a row is tapped, not picked from a dropdown (#1382)
+    const pick = page.getByRole("checkbox", { name: "10-P-1001B · Tag · Oil Export Pump B · PP" });
+    await pick.waitFor();
     assert.equal(searched.at(-1).get("kind"), kinds.join(","));
-    const height = (await pick.boundingBox()).height;
-    assert.ok(height >= 34, `the picker is a normal-size control (${height})`);
-    assert.equal(await page.locator('.match-ref input[type="radio"]').count(), 0);
-    await pick.selectOption("fz-tag-10p1001b");
+    assert.equal(await page.locator(".match-ref select").count(), 0);
+    await pick.check();
     await page.getByRole("button", { name: "Use it" }).click();
     await page.getByRole("button", { name: "Confirm decision" }).click();
-    await page.getByRole("status").filter({ hasText: "Saved." }).getByRole("link", { name: "case 1157" }).waitFor();
+    const saved = page.getByRole("status").filter({ hasText: "Saved." });
+    await saved.getByRole("link", { name: "case 1157" }).waitFor();
+    await saved.getByRole("link", { name: "10-P-1001B" }).waitFor();  // and the entity it is about
     assert.deepEqual(decided[0], { decision: "choose", value: "fz-tag-10p1001b", by: "ana" });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.deepEqual(errors, []);
