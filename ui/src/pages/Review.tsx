@@ -3,7 +3,7 @@ import { confirmDialog, Textarea, ErrorText, Line, Text, Checkbox, List, Notice,
 import { percent } from "../format";
 import "../styles/review.css";
 import "../styles/trends.css";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   type HeldLoadPayload,
   type PidConnectionPayload,
@@ -31,6 +31,7 @@ import { FindingEvidence } from "../Finding";
 import { say } from "../wording";
 import { DrawingViewer } from "../DrawingViewer";
 import { MatchRef } from "./masterdata/MatchRef";
+import { caseHref } from "./workflows/shared";
 
 /** Where a kind of question is listed: its tab on Master data (P2.3, #505). */
 /** The kinds of question, in the order their tabs show. */
@@ -43,8 +44,8 @@ const QUESTION_KINDS: [ReviewKind, string][] = [
 export const questionsHref = (kind?: string, item?: number) =>
   href("/masterdata", { tab: "questions", kind, item: item === undefined ? undefined : String(item) });
 
-/** What a recorded answer did, in one line. */
-function saved(item: ReviewItem, d: Omit<Decision, "by">): string {
+/** What a recorded answer did, in one line; a message's answer links the case it opened (P5.26a). */
+function saved(item: ReviewItem, d: Omit<Decision, "by">, opened?: number | null): ReactNode {
   return (
       item.kind === "match"
         ? `Saved #${item.id}. Fuzer is updating the records in the background.`
@@ -76,8 +77,10 @@ function saved(item: ReviewItem, d: Omit<Decision, "by">): string {
             ? `Saved #${item.id}. ${item.payload.point ?? "The point"} is ${roleLabel(item.payload, d)} from now on, and stays so after rebuilds.`
           : item.kind === "message"
             ? d.decision === "reject"
-              ? `Saved #${item.id}. The message is kept with no case.`
-              : `Saved #${item.id}. The message is a case about the entity you chose, routed like any other.`
+              ? "Saved. The message is kept with no case."
+              : opened != null
+                ? <>Saved. The message is <a href={caseHref(opened)}>case {opened}</a>, routed like any other.</>
+                : "Saved. The message is a case about the entity you chose, routed like any other."
           : `Saved #${item.id}. The chosen value is live.`
   );
 }
@@ -92,14 +95,14 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
   const items = useAsync(() => api.reviews(kind), [kind]);
   const [name, setName] = usePerson();
   const [done, setDone] = useState<Set<number>>(new Set());
-  const [toast, setToast] = useState<string>();
+  const [toast, setToast] = useState<ReactNode>();
 
   useEffect(() => setDone(new Set()), [kind]);
 
   const decide = async (item: ReviewItem, d: Omit<Decision, "by">) => {
-    await api.decide(item.id, { ...d, by: name || "anonymous" });
+    const out = await api.decide(item.id, { ...d, by: name || "anonymous" });
     setDone((s) => new Set(s).add(item.id));
-    setToast(saved(item, d));
+    setToast(saved(item, d, out.case));
     notifyChanged();
   };
 
@@ -146,8 +149,9 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
       {toast && (
         <Notice role="status">
           {toast}
-          <p><a href={href("/sources")}>Review source loads and freshness</a>{" · "}
-            <a href={href("/jobs")}>Inspect technical execution</a></p>
+          {/* a message's answer is a case, not a load: Sources and Jobs have nothing to show for it */}
+          {kind !== "message" && <p><a href={href("/sources")}>Review source loads and freshness</a>{" · "}
+            <a href={href("/jobs")}>Inspect technical execution</a></p>}
         </Notice>
       )}
 
@@ -198,15 +202,15 @@ function QuestionCard({ item, onDecide }: { item: ReviewItem; onDecide: OnDecide
 export function CaseQuestion({ id, kind, onDone }: { id: number; kind: ReviewKind; onDone: () => void }) {
   const q = useAsync(() => api.review(kind, id), [kind, id]);
   const [name] = usePerson();
-  const [done, setDone] = useState<string>();
+  const [done, setDone] = useState<ReactNode>();
   const item = q.data?.find((i) => i.id === id);
   if (done) return <Notice role="status">{done}</Notice>;
   if (!item) return <Status of={q} />;
   const sheet = item.kind === "pid_mismatch" ? item.payload : null;
   return <div className="case-question">
     <QuestionCard item={item} onDecide={async (d) => {
-      await api.decide(item.id, { ...d, by: name || "anonymous" });
-      setDone(saved(item, d)); notifyChanged(); onDone();
+      const out = await api.decide(item.id, { ...d, by: name || "anonymous" });
+      setDone(saved(item, d, out.case)); notifyChanged(); onDone();
     }} />
     {sheet?.document && <DrawingViewer id={sheet.document} highlight={[sheet.fuzer_id]} title={sheet.sheet} compact />}
   </div>;

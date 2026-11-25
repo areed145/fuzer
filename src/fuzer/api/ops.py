@@ -359,7 +359,7 @@ class ExceptionDispatch(BaseModel):
 
 class Closeout(BaseModel):
     by: str
-    disposition: Literal["real", "false_alarm", "duplicate", "data_problem", "done"]
+    disposition: Literal["real", "false_alarm", "duplicate", "data_problem", "done", "log_only"]
     failure_mode: str | None = None
     mechanism: str | None = None
     cause: str | None = None

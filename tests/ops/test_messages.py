@@ -38,6 +38,12 @@ def test_the_reader_needs_no_database_and_no_model():
     assert messages.read("crane on J12 down", pack, reg).candidates == ["area:OKAN-72"]  # only a place
     assert messages.read("Thanks, received.", pack, reg).outcome == "handled"
     assert messages.read("noted", pack, reg, subject="Automatic reply: Out of office").outcome == "handled"
+    # only says what was done, with nothing wrong or asked in it: a log entry, kept with what it names (#1363)
+    logged = messages.read("Swapped 20-K-2200B to standby, isolated and drained.", pack, reg)
+    assert (logged.outcome, logged.refs, logged.why) == ("handled", ["tag:20-K-2200B"], messages.LOG_ONLY)
+    for news in ("20-K-2200B tripped, restarted and running", "Swapped 20-K-2200B, can you check the seal?",
+                 "20-K-2200B isolated, gas smell at the flange"):
+        assert messages.read(news, pack, reg).outcome == "case", news
     # an alias alone is 0.8 sure: a deployment that wants more asks the steward
     assert messages.read("inlet separator carrying over", pack, reg, min_confidence=0.9).outcome == "steward"
 
@@ -66,13 +72,13 @@ def test_the_recorded_okan_messages_are_matched_and_scored(read):
     right = [i for i in cases if recorded.ANSWERS[i][0] == "case"
              and _id(conn, got[i]["refs"][0]) == _id(conn, recorded.ANSWERS[i][1])]
     assert set(cases) - set(right) == KNOWN_MISSES
-    assert (len(right), len(cases)) == (11, 12)  # precision 11/12 = 0.92, as docs/eval-results.md records
+    assert (len(right), len(cases)) == (10, 11)  # precision 10/11 = 0.91, as docs/eval-results.md records
     wanted = {i for i, a in recorded.ANSWERS.items() if a[0] == "case"}
-    assert set(right) == wanted - KNOWN_MISSES  # recall 11/12 too
+    assert set(right) == wanted - KNOWN_MISSES  # recall 10/11 too
     for kind in ("steward", "handled"):
         assert {i for i, r in got.items() if r["outcome"] == kind} == {
             i for i, a in recorded.ANSWERS.items() if a[0] == kind}
-    assert out == {"case": 12, "steward": 8, "handled": 3, "refused": 0}
+    assert out == {"case": 11, "steward": 8, "handled": 4, "refused": 0}
 
 
 def test_a_case_shows_the_message_as_its_source(read):
@@ -91,9 +97,53 @@ def test_a_case_shows_the_message_as_its_source(read):
     assert row["kind_label"] == "Reported in a message" or row["joined"]
 
 
+def test_a_case_is_titled_by_a_short_summary_of_its_message():
+    assert messages.title("Morning IOC, 20-K-2200B vibration has crept up since the night shift, about 6 mm/s on the "
+                          "local gauge now. Can someone have it looked at before it trips again?") == \
+        "20-K-2200B vibration has crept up since the night shift"
+    assert messages.title("Swapped 10-P-1001A to 10-P-1001C for the seal job, A is isolated and drained.") == \
+        "Swapped 10-P-1001A to 10-P-1001C for the seal job"
+    assert messages.title("pump B noisy") == "Pump B noisy"
+
+
+def test_a_message_opens_its_own_case_and_never_joins_an_older_one(read):
+    """A field note about a machine with a case open on it already (a trip two days ago) is its own case, titled by
+    what it says, not a second report under the trip's title (#1363, tour N1)."""
+    conn, _ = read
+    pack = load_pack("okan")
+    first = messages.receive(conn, pack, "femi", "20-K-2300A tripped on high discharge temp, restarted, running")
+    then = messages.receive(conn, pack, "femi", "20-K-2300A lube oil pressure dropping, 28 psig, was 35")
+    assert first["outcome"] == then["outcome"] == "case" and first["item_id"] and then["item_id"]
+    assert then["item_id"] != first["item_id"]
+    ex = conn.execute("select * from exception_record where id = %s", (then["exception_id"],)).fetchone()
+    assert ex["joined_to"] is None and ex["title"] == "20-K-2300A lube oil pressure dropping, 28 psig, was 35"
+    assert conn.execute("select title from work_item where id = %s", (then["item_id"],)).fetchone()["title"] == ex["title"]
+    assert then["said"] == f"Sent to the IOC as case {then['item_id']} about 20-K-2300A."  # the phone links it
+    conn.rollback()
+
+
+def test_a_message_case_closes_as_log_only_and_no_other_case_does(read):
+    conn, _ = read
+    from fuzer.ops import disposition
+
+    pack = load_pack("okan")
+    note = messages.receive(conn, pack, "femi", "Put 20-K-2300A on load, running fine")
+    assert note["outcome"] == "case"  # nothing in the reader says it is only news: the IOC closes it as log only
+    form = disposition.form(conn, pack, note["item_id"])
+    assert form["message"] and form["vocabulary"]["dispositions"]["log_only"] == "Log only, no action"
+    row = disposition.record(conn, pack, note["item_id"], "ana", "log_only")
+    assert row["disposition"] == "log_only" and row["recheck_at"] is None
+    other = conn.execute("select item_id from exception_record where type <> 'message_report' and item_id is not null "
+                         "and state = 'open' limit 1").fetchone()["item_id"]
+    assert not disposition.form(conn, pack, other)["message"]
+    with pytest.raises(ValueError, match="log only is for a message"):
+        disposition.record(conn, pack, other, "ana", "log_only")
+    conn.rollback()
+
+
 def test_noise_opens_nothing_and_reading_again_reads_nothing_new(read):
     conn, _ = read
-    for i in ("MSG-0010", "MSG-0019", "MSG-0021"):
+    for i in ("MSG-0010", "MSG-0013", "MSG-0019", "MSG-0021"):
         m = conn.execute("select * from message where id = %s", (i,)).fetchone()
         assert m["outcome"] == "handled" and m["exception_id"] is None and m["review_item_id"] is None
         assert not conn.execute("select 1 from exception_record where key = %s", (i,)).fetchone()
@@ -121,7 +171,8 @@ def test_a_steward_question_carries_the_message_and_its_answer_makes_the_case(re
     m = conn.execute("select * from message where id = 'MSG-0007'").fetchone()
     assert m["outcome"] == "case" and m["refs"] == [chosen] and m["why"] == "chosen by ana"
     ex = conn.execute("select * from exception_record where id = %s", (m["exception_id"],)).fetchone()
-    assert ex["type"] == "message_report" and ex["subjects"] == [chosen] and ex["item_id"]
+    assert ex["type"] == "message_report" and ex["subjects"] == [chosen] and ex["item_id"] and ex["joined_to"] is None
+    assert messages.case_for(conn, q["id"]) == ex["item_id"]  # the steward's confirmation links it
     assert conn.execute("select state from exception_record where type = 'message_to_match' and key = "
                         "'message:MSG-0007'").fetchone()["state"] == "cleared"  # the steward's case closed
     assert conn.execute("select outcome from message where id = 'MSG-0017'").fetchone()["outcome"] == "handled"
@@ -136,7 +187,7 @@ def test_a_field_operators_note_from_the_phone_becomes_routed_work(read):
         assert r.status_code == 200, r.text
         note = r.json()
         assert note["outcome"] == "case" and note["channel"] == "phone" and note["sender"] == "femi"
-        assert note["said"].startswith("Sent to the IOC as a case about 20-K-2100C"), note["said"]
+        assert note["said"] == f"Sent to the IOC as case {note['item_id']} about 20-K-2100C.", note["said"]
         vague = client.post("/messages", json={"by": "femi", "text": "Something rattling near the stairs"}).json()
         assert vague["outcome"] == "steward" and vague["review_item_id"]
         assert vague["said"].startswith("Sent to the IOC. The data steward says which entity")
@@ -154,7 +205,7 @@ def test_the_reader_eval_scores_what_docs_eval_results_records(read, okan_db):
 
     conn, _ = read
     res = message_eval.run(conn, load_pack("okan"), "okan", okan_db.data)
-    assert res["passes"] and (res["right"], res["cases"], res["precision"]) == (11, 12, 0.917)
+    assert res["passes"] and (res["right"], res["cases"], res["precision"]) == (10, 11, 0.909)
     assert res["wrong"] == ["MSG-0023: case tag:20-PT-3003, not case tag:30-PT-3003"]
     assert res["to_steward"] == res["noise_handled"] == 1.0
     [last] = [r for r in runs.load() if r["kind"] == "messages" and r["bundle"] == "okan"][-1:]

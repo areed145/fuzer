@@ -10418,3 +10418,122 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     assert.deepEqual(errors, []);
   });
 }
+
+// P5.26a (#1363): a message is its own work. Its case opens with who sent it, how and when, then the whole message,
+// under a short title; "Another system found this" and a fold of message fields are gone; one that only said what was
+// done closes as log only.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.26a a message's case leads with the message and closes as log only (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const message = { id: "MSG-0013", channel: "radio", channel_label: "Radio call", sender: "PP CRO", subject: null,
+      text: "Swapped 10-P-1001A to 10-P-1001C for the seal job, A is isolated and drained.", received_at: "2026-11-23T06:52" };
+    const source = { id: 9, type: "message_report", key: "MSG-0013", title: "Swapped 10-P-1001A to 10-P-1001C for the seal job",
+      source: "messages", state: "open", first_seen: "2026-11-25T16:30:00Z", last_seen: "2026-11-25T16:30:00Z", joined_to: null,
+      subjects: [], label: "Reported in a message", finding: finding("external", "The tags, wells and aliases a message names", [
+        text("Channel", "Radio call"), text("From", "PP CRO"), text("Message", message.text),
+        text("Matched by", "“10-P-1001A”, tag")]) };
+    const step = { id: 71, process_id: 19, element: "work", name: "Work the case", kind: "user", state: "waiting", flow: null,
+      role: "ops_lead", assignee: null, requires_human: false, due_at: null, escalated_at: null, attempts: 0, error: null,
+      created_at: "2026-11-25T16:30:00Z", finished_at: null, finished_by: null };
+    await page.route("**/work/items/40", (route) => route.fulfill({ json: { id: 40, type: "message_report", state: "open",
+      title: source.title, subjects: [], created_by: "messages", created_at: "2026-11-25T16:30:00Z",
+      payload: { exception_id: 9, message }, sources: [source], events: [],
+      processes: [{ id: 19, process_key: "queue_item", version: 1, definition_id: 3, parent_token: null, state: "running",
+        outcome: null, data: {}, started_by: "messages", started_at: "2026-11-25T16:30:00Z", path: [], open: [step] }] } }));
+    await page.route("**/work/items/40/options", (route) => route.fulfill({ json: caseOptions({ applies: false, item_id: 40,
+      why_not: "a message", options: [] }) }));
+    const closed = [];
+    await page.route("**/work/items/40/closeout", (route) => {
+      if (route.request().method() === "POST") {
+        closed.push(route.request().postDataJSON());
+        return route.fulfill({ json: { item_id: 40, disposition: "log_only", by: "riley", at: "2026-11-25T17:00:00Z" } });
+      }
+      return route.fulfill({ json: { item_id: 40, record: null, repeats: [], suggestion: { from: "words" }, equipment: false,
+        message: true, vocabulary: { dispositions: { real: "A real problem", false_alarm: "False alarm", duplicate: "Duplicate",
+          data_problem: "Data problem", done: "Done as asked", log_only: "Log only, no action" },
+        outcomes: {}, failure_modes: {}, mechanisms: {}, causes: {}, activities: {} } } });
+    });
+    await page.goto(`${url}/#/cases/40`);
+    await page.getByRole("heading", { level: 1, name: "Swapped 10-P-1001A to 10-P-1001C for the seal job" }).waitFor();
+    const card = page.locator(".case-message");
+    await card.getByRole("heading", { name: /^Radio call · PP CRO · Nov 23, 6:52 AM/ }).waitFor();
+    await card.getByText(message.text).waitFor();
+    // the message comes first: above the step that works it
+    const [m, next] = [await card.boundingBox(), await page.getByLabel("Next step").boundingBox()];
+    assert.ok(m.y < next.y, "the message is the case's first card");
+    const main = await page.locator("main").innerText();
+    for (const gone of ["Another system found this", "opened by", "7 fields"])
+      assert.ok(!main.includes(gone), `no ${gone} on a message's case`);
+    await page.getByRole("button", { name: "Close out", exact: true }).click();
+    const form = page.locator(".closeout-form");
+    await form.getByLabel("What it was").selectOption({ label: "Log only, no action" });
+    assert.equal(await form.getByLabel("Failure mode").count(), 0);
+    await form.getByRole("button", { name: "Close the case" }).click();
+    for (let i = 0; i < 50 && !closed.length; i++) await page.waitForTimeout(20);
+    assert.equal(closed[0]?.disposition, "log_only");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}
+
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.26a the field's one free note sits under the work and links the case it opened (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+    await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
+      counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+    const job = { id: 7, type: "leak", key: "walk-9", title: "Leak at P-101", source: "olga", state: "open", priority: null,
+      value_usd: null, subjects: [], unmatched: [], item_id: 31, case_state: "open", assignee: "fred", role: null, raised_count: 1,
+      first_seen: "2026-11-25T06:00:00Z", last_seen: "2026-11-25T07:00:00Z", label: "Leak", due: null, task_id: null, task_name: null,
+      assets: [], finding: finding("external", null, []), history: [], field: [], queued: false,
+      sent: { by: "ann", at: "2026-11-25T07:05:00Z", reason: "isolate and check the gland" } };
+    await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", jobs: [job], coming_up: [] } }));
+    const sent = [];
+    await page.route("**/messages", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: {
+      id: "note-1", outcome: "case", said: "Sent to the IOC as case 1160 about 20-K-2300A.", exception_id: 88, review_item_id: null,
+      item_id: 1160 } }); });
+    await page.goto(`${url}/#/inbox`);
+    const jobCard = page.locator(".field-job", { hasText: "Leak at P-101" });
+    await jobCard.waitFor();
+    const note = page.getByRole("textbox", { name: "Note to the IOC", exact: true });
+    await note.waitFor();
+    // one free note, after the jobs: the job's own note stays on its card
+    assert.equal(await page.getByRole("heading", { name: "Note to the IOC" }).count(), 1);
+    assert.ok((await note.boundingBox()).y > (await jobCard.boundingBox()).y, "the free note sits under the jobs");
+    const box = await note.boundingBox();
+    assert.ok(box.width >= Math.min(viewport.width - 80, 600), `the note takes the card's width (${box.width})`);
+    await note.fill("20-K-2300A lube oil pressure dropping, 28 psig, was 35");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    const link = page.getByRole("link", { name: "Open case 1160" });
+    await link.waitFor();
+    assert.equal(await link.getAttribute("href"), "#/cases/1160");
+    assert.equal(sent[0].text, "20-K-2300A lube oil pressure dropping, 28 psig, was 35");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}
+
+test("P5.26a the steward's answer to a message links the case it opened, with no links to loads", async () => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  const item = { id: 29797, kind: "message", subject: "MSG-0007", status: "open", label: null, payload: {
+    message: { id: "MSG-0007", channel: "radio", channel_label: "Radio call", sender: "ST1 CRO", subject: null,
+      text: "PT-2001 reading erratic, jumping 5 bar either way.", received_at: "2026-11-23T11:05" },
+    why: "“PT-2001” is in 2 areas", question: "Which entity is this about? PT-2001 reading erratic",
+    candidates: [{ fuzer_id: "fz-tag-30pt2001", label: "30-PT-2001" }, { fuzer_id: "fz-tag-20pt2001", label: "20-PT-2001" }] } };
+  let answered = false;
+  await page.route("**/review?*", (route) => route.fulfill({ json: answered ? [] : [item] }));
+  const decided = [];
+  await page.route("**/review/29797", (route) => { decided.push(route.request().postDataJSON()); answered = true;
+    return route.fulfill({ json: { decided: 29797, case: 1155 } }); });
+  await page.goto(`${url}/#/masterdata?tab=questions&kind=message`);
+  await page.getByRole("button", { name: /About 30-PT-2001/ }).click();
+  await page.getByRole("button", { name: "Confirm decision" }).click();
+  const status = page.getByRole("status").filter({ hasText: "Saved." });
+  await status.waitFor();
+  assert.equal(await status.getByRole("link", { name: "case 1155" }).getAttribute("href"), "#/cases/1155");
+  assert.equal(await status.getByRole("link", { name: "Review source loads and freshness" }).count(), 0);
+  assert.equal(decided[0].value, "fz-tag-30pt2001");
+  assert.deepEqual(errors, []);
+});

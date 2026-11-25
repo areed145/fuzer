@@ -47,7 +47,8 @@ def run(conn, pack, bundle: str, data_dir) -> dict:
     noise = [k for k, a in answers.items() if a[0] == "handled" and k in got]
     wrong = [f"{k}: {got[k].outcome}{' ' + got[k].refs[0] if got[k].refs else ''}, not "
              f"{' '.join(answers[k])}" for k in sorted(got)
-             if (got[k].outcome, *got[k].refs[:1]) != tuple(answers[k]) and k not in right]
+             if (got[k].outcome != answers[k][0] or (got[k].outcome == "case" and tuple(got[k].refs[:1]) != tuple(answers[k][1:])))
+             and k not in right]  # a log entry keeps what it names: only a case is scored on its entity
     precision = round(len(right) / len(cases), 3) if cases else None
     return {"bundle": bundle, "messages": len(got), "cases": len(cases), "right": len(right), "precision": precision,
             "recall": round(len(right) / len(wanted), 3) if wanted else None,

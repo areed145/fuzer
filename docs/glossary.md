@@ -50,8 +50,8 @@ child case); the item is done when that case is.
 **Clash.** Two planned jobs on one asset at the same time, a person booked twice, or two jobs whose permits must
 not run side by side. Shown on Plan and checked again at dispatch; it is a flag, not a case.
 
-**Close-out.** Closing a case by saying what it was (a real problem, a false alarm, a duplicate, a data problem)
-and, for a real problem, what failed, why and what was done. Where another system raised the work, the update for
+**Close-out.** Closing a case by saying what it was (a real problem, a false alarm, a duplicate, a data problem, or
+for a message that only said what was done, log only with no action) and, for a real problem, what failed, why and what was done. Where another system raised the work, the update for
 that system is drafted for a planner to approve. Work someone asked for (a task) is **finished** instead: done as
 asked, or a duplicate.
 

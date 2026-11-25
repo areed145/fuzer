@@ -2,15 +2,19 @@
 Teams posts and a field operator's note from the phone. Each is read once, into one of three outcomes:
 
     case      it names an entity the register knows, for certain: a `message_report` exception about that entity, with
-              the message as its evidence, routed like any other (it joins the open case about the same asset)
+              the message as its evidence and a short summary of it as its title, routed like any other. A message
+              is its own work: it opens its own case and never joins an older one about the same asset, where its
+              news would read as a second report under someone else's title (#1363)
     steward   it names nothing for certain (a short tag in several areas, a tag the register lacks, only a place, or
               nothing at all): a question in the data steward's queue, who says which entity it is about (a case
               follows) or that it needs no work
-    handled   it asks for nothing ("thanks", an out-of-office reply): kept, with no case
+    handled   it asks for nothing ("thanks", an out-of-office reply), or only says what was done ("swapped 10-P-1001A to
+              C, A is isolated") with nothing wrong in it: kept, with no case (a log entry)
 
     read_new(conn, pack)                 every loaded message not read yet (after each register build)
     receive(conn, pack, by, text)        a note posted from the phone, read the same way
     sync_answers(conn)                   steward answers to message questions: a case, or handled
+    case_for(conn, review_item_id)       the case a steward's answer opened, for the line that confirms it
     read(text, pack, register, subject)  the reading itself, without a database (what the eval scores)
     reader(conn, pack)                   the pack and register a reading takes
 
@@ -31,7 +35,7 @@ from ..core.exceptions import exception_type, match, raise_exception
 from ..core.findings import EXTERNAL, Finding, at, fact
 
 MESSAGE_REPORT = exception_type(
-    "message_report", "Reported in a message", role="role:ops_lead", audience=("ioc", "field"),
+    "message_report", "Reported in a message", role="role:ops_lead", audience=("ioc", "field"), joins=False,
     description="A message to the IOC (mail, radio, Teams or a field note) about an entity in the register.").name
 SOURCE = "messages"
 REVIEW_KIND = "message"
@@ -45,6 +49,18 @@ ACK = frozenset({"thanks", "thank", "you", "ta", "cheers", "ok", "okay", "k", "n
                  "yes", "appreciated"})
 AUTO_REPLY = re.compile(r"\b(out of (the )?office|automatic reply|auto-?reply|on (annual )?leave until)\b",
                         re.IGNORECASE)
+# A message that only says what was done is a log entry: an operating move made, and nothing wrong or asked in it.
+DONE = re.compile(r"\b(swapped|changed over|switched (over|to)|(de-?)?isolated|drained|purged|lined up|started up|"
+                  r"restarted|returned to service|back in service|back online|put (back )?(in|on)to service|"
+                  r"handed over|completed|finished)\b", re.IGNORECASE)
+CONCERN = re.compile(r"\?|\b(please|can (you|someone|we|anyone)|could (you|someone)|needs?|needed|check|look at|"
+                     r"have a look|urgent|asap|help|leak\w*|weep\w*|drip\w*|nois\w*|rattl\w*|grind\w*|vibrat\w*|"
+                     r"trip\w*|alarm\w*|smell\w*|hot|overheat\w*|high|low|drop\w*|falling|rising|erratic|drift\w*|"
+                     r"stuck|stick\w*|fail\w*|fault\w*|broke\w*|crack\w*|damage\w*|cavitat\w*|bypass\w*|gas|fire|"
+                     r"spill\w*|zero|wrong|problem|issue|not)\b", re.IGNORECASE)
+LOG_ONLY = "log only: it says what was done and asks for nothing"
+GREETING = re.compile(r"^((good )?(morning|afternoon|evening)|hi|hello|hey|dear)\b[^,.:;!]{0,30}[,.:;!]\s*",
+                      re.IGNORECASE)
 
 
 class MessageError(ValueError):
@@ -65,6 +81,11 @@ def _noise(text: str, subject: str | None) -> bool:
         return True
     words = re.findall(r"[a-z']+", text.lower())
     return all(w in ACK for w in words)
+
+
+def _log_only(text: str, subject: str | None) -> bool:
+    """Whether a message only says what was done: an operating move, with nothing wrong or asked in it."""
+    return bool(DONE.search(text)) and not CONCERN.search(f"{subject or ''} {text}")
 
 
 def read(text: str, pack, register, subject: str | None = None, min_confidence: float = 0.8) -> Reading:
@@ -93,6 +114,8 @@ def read(text: str, pack, register, subject: str | None = None, min_confidence: 
             sure.append((f"{m.kind}:{m.key}", m.confidence, f"“{m.text}”, {HOW.get(m.method, m.method)}"))
     refs = list(dict.fromkeys(r for r, _, _ in sure))
     confidence = min((c for _, c, _ in sure), default=None)
+    if _log_only(text, subject):  # kept with what it names, for the log: no case and no question
+        return Reading("handled", refs=refs, confidence=confidence, why=LOG_ONLY)
     if refs and not unsure and confidence is not None and confidence >= min_confidence:
         return Reading("case", refs=refs, confidence=confidence, why="; ".join(dict.fromkeys(h for _, _, h in sure)))
     if not unsure:
@@ -128,6 +151,20 @@ def _short(text: str, n: int = 120) -> str:
     return text if len(text) <= n else text[:n - 1].rsplit(" ", 1)[0] + "…"
 
 
+def title(text: str, n: int = 72) -> str:
+    """A message's case title: a short summary, the whole message being first on the case. Its first sentence without
+    the greeting, cut at a clause, else a word, to `n` characters: "Morning IOC, 20-K-2200B vibration has crept up since
+    the night shift, about 6 mm/s on the local gauge now. ..." is "20-K-2200B vibration has crept up since the night
+    shift"."""
+    text = " ".join(text.split())
+    said = GREETING.sub("", text) or text
+    first = re.split(r"(?<=[.!?])\s+", said, maxsplit=1)[0].rstrip(".!")
+    if len(first) > n and (cut := first.rfind(",", 0, n)) >= 25:
+        first = first[:cut]
+    first = _short(first, n)
+    return first[:1].upper() + first[1:]
+
+
 def _finding(m: dict, reading: Reading) -> Finding:
     return Finding("messages.reader", EXTERNAL, method="The tags, wells and aliases a message names",
                    start=_when(m["received_at"]), confidence=reading.confidence, data={"message": _message(m)}, items=(
@@ -137,7 +174,7 @@ def _finding(m: dict, reading: Reading) -> Finding:
 
 
 def _raise_case(conn, m: dict, reading: Reading, by: str) -> dict:
-    return raise_exception(conn, MESSAGE_REPORT, m["id"], _short(m["text"]), by, refs=reading.refs, source=SOURCE,
+    return raise_exception(conn, MESSAGE_REPORT, m["id"], title(m["text"]), by, refs=reading.refs, source=SOURCE,
                            finding=_finding(m, reading))
 
 
@@ -162,9 +199,10 @@ def _take(conn, pack, register, m: dict, by: str) -> dict:
     if not m.get("received_at"):
         raise MessageError("a message needs the time it was received")
     reading = read(m["text"], pack, register, m.get("subject"), float(settings.get(conn, "messages.min_confidence")))
-    exception_id = review_id = None
+    exception_id = review_id = item_id = None
     if reading.outcome == "case":
-        exception_id = _raise_case(conn, m, reading, by)["id"]
+        ex = _raise_case(conn, m, reading, by)
+        exception_id, item_id = ex["id"], ex.get("item_id")
     elif reading.outcome == "steward":
         review_id = _ask_steward(conn, m, reading)
     row = conn.execute(
@@ -174,7 +212,7 @@ def _take(conn, pack, register, m: dict, by: str) -> dict:
         values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) returning *
         """, (m["id"], m["channel"], m["sender"], m.get("subject") or None, m["text"], m["received_at"],
               reading.outcome, reading.refs, reading.confidence, reading.why, exception_id, review_id)).fetchone()
-    return {**row, "candidates": reading.candidates}
+    return {**row, "candidates": reading.candidates, "item_id": item_id}
 
 
 def _steward_work(conn) -> None:
@@ -212,7 +250,7 @@ def read_new(conn, pack, by: str = SOURCE) -> dict:
 
 def receive(conn, pack, by: str, text: str, channel: str = "phone") -> dict:
     """A note a person sent from the phone (or another channel), read as a loaded message is. Returns the message with
-    its outcome. The caller commits."""
+    its outcome and the case it opened (`item_id`). The caller commits."""
     from ..core import clock
 
     m = {"id": f"note-{uuid.uuid4().hex[:12]}", "channel": channel, "sender": by, "subject": None,
@@ -229,9 +267,12 @@ def _said(conn, m: dict) -> str:
         ids, _ = match(conn, m["refs"])
         names = [r["label"] for r in conn.execute(
             "select label from entity_label where fuzer_id = any(%s) order by array_position(%s, fuzer_id)", (ids, ids))]
-        return f"Sent to the IOC as a case about {', '.join(names) or ', '.join(m['refs'])}."
+        case = f"case {m['item_id']}" if m.get("item_id") else "a case"
+        return f"Sent to the IOC as {case} about {', '.join(names) or ', '.join(m['refs'])}."
     if m["outcome"] == "steward":
         return f"Sent to the IOC. The data steward says which entity it is about: {m['why']}."
+    if m["why"] == LOG_ONLY:
+        return "Kept in the log. It says what was done and asks for nothing, so no case was opened."
     return "Kept. It asks for no work, so no case was opened."
 
 
@@ -258,3 +299,10 @@ def sync_answers(conn, by: str = SOURCE) -> dict:
                          (f"no work needed, said {r['decided_by']}", r["id"]))
             out["handled"] += 1
     return out
+
+
+def case_for(conn, review_item_id: int) -> int | None:
+    """The case a steward's answer to a message question opened, once `sync_answers` has run; None for no work."""
+    row = conn.execute("select e.item_id from message m join exception_record e on e.id = m.exception_id "
+                       "where m.review_item_id = %s", (review_item_id,)).fetchone()
+    return row["item_id"] if row else None

@@ -79,19 +79,20 @@ function Refused({ w, jobs }: { w: QueuedWrite; jobs: { id: number; title: strin
 export function NoteToIOC({ person }: { person: string }) {
   const { busy, error, run } = useAction();
   const [text, setText] = useState("");
-  const [said, setSaid] = useState<string | null>(null);
+  const [said, setSaid] = useState<{ said: string; item_id: number | null } | null>(null);
   const send = () => {
     const sent = text.trim();
     // Clear only the note that went: words typed while the request was in flight stay.
     return run("Sending…", () => api.sendNote(person, sent), (out) => {
-      setSaid(out.said);
+      setSaid(out);
       setText((t) => (t.trim() === sent ? "" : t));
     });
   };
   return <Card title="Note to the IOC">
-    <Textarea aria-label="Note to the IOC" rows={2} value={text} onChange={(e) => { setText(e.target.value); setSaid(null); }} />
+    <Textarea aria-label="Note to the IOC" rows={2} width="full" value={text} onChange={(e) => { setText(e.target.value); setSaid(null); }} />
     <Button variant="primary" disabled={!!busy || !text.trim()} onClick={() => void send()}>Send</Button>
-    <ActionStatus busy={busy} error={error}>{said}</ActionStatus>
+    <ActionStatus busy={busy} error={error}>{said && <>{said.said}
+      {said.item_id != null && <> <a href={href(`/cases/${said.item_id}`)}>Open case {said.item_id}</a></>}</>}</ActionStatus>
   </Card>;
 }
 

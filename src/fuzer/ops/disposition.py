@@ -6,6 +6,7 @@ what was done, in the ISO 14224 terms of `standards/iso14224.yaml`, so the close
     duplicate     another case already covers it (named by `duplicate_of`)
     data_problem  the data was wrong, not the equipment
     done          done as asked: only for work someone asked for (no exception opened it), such as a task
+    log_only      log only, no action: only for a message to the IOC that turned out to say what was done (#1363)
 
 The form is pre-filled from an agent's suggestion on the case (`payload.closeout_suggestion`), else from the case's
 own words: the failure-mode keywords of the taxonomy and pack, and the action words below. The person confirms it.
@@ -26,7 +27,7 @@ from ..core.taxonomy import failure_modes_in, load_standard
 from . import routing
 
 DISPOSITIONS = {"real": "A real problem", "false_alarm": "False alarm", "duplicate": "Duplicate",
-                "data_problem": "Data problem", "done": "Done as asked"}
+                "data_problem": "Data problem", "done": "Done as asked", "log_only": "Log only, no action"}
 OUTCOMES = {"fixed": "Fixed", "contained": "Contained, follow-up planned", "not_fixed": "Not fixed",
             "monitoring": "Being monitored"}
 # words that name the maintenance activity (ISO 14224 Table B.5), first match wins
@@ -118,6 +119,12 @@ def asked_case(conn, item_id: int) -> bool:
         (item_id,)).fetchone()["x"]
 
 
+def message_case(conn, item_id: int) -> bool:
+    """A case a message to the IOC opened (ops.messages): one that only said what was done closes as log only."""
+    return conn.execute("select 1 from exception_record where item_id = %s and type = 'message_report' limit 1",
+                        (item_id,)).fetchone() is not None
+
+
 def form(conn, pack: Pack, item_id: int) -> dict:
     """Everything the close-out form needs: the record if there is one, the pre-fill, the lists, and whether a real
     problem on it needs the equipment-failure terms."""
@@ -128,7 +135,7 @@ def form(conn, pack: Pack, item_id: int) -> dict:
         suggestion = {k: v for k, v in suggestion.items() if k not in TERMS}
     return {"item_id": item_id, "record": get(conn, item_id), "suggestion": suggestion,
             "vocabulary": vocabulary(pack), "repeats": repeats, "equipment": equipment,
-            "asked": asked_case(conn, item_id)}
+            "asked": asked_case(conn, item_id), "message": message_case(conn, item_id)}
 
 
 TERMS = ("failure_mode", "mechanism", "cause", "activity")  # a real problem's equipment-failure terms
@@ -157,6 +164,8 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
     if disposition == "done" and not asked_case(conn, item_id):
         raise ValueError("a case an exception opened says what it was: a real problem, a false alarm, a duplicate "
                          "or a data problem")
+    if disposition == "log_only" and not message_case(conn, item_id):
+        raise ValueError("log only is for a message that only said what was done")
     for name, value, allowed in (("failure mode", failure_mode, v["failure_modes"]), ("mechanism", mechanism, v["mechanisms"]),
                                  ("cause", cause, v["causes"]), ("action", activity, v["activities"]),
                                  ("outcome", outcome, OUTCOMES)):
