@@ -52,7 +52,7 @@ function StatPanel(props: PanelProps) {
   const good = d ? onTarget(d, d.value) : null;
   return <PanelFrame title={props.panel.title ?? d?.title ?? ""} result={d} loading={r} className="report-stat">
     {d && <>
-      <strong className={`report-stat-value${good === false ? " report-off-target" : ""}`}>{show(d.value, d.unit)}</strong>
+      <strong className={`report-stat-value${good === false ? " report-off-target" : ""}`}>{d.unknown ? "Unknown" : show(d.value, d.unit)}</strong>
       <Text as="div" small muted>
         {[d.target != null && `target ${d.better === "lower" ? "≤" : "≥"} ${show(d.target, d.unit)}`,
           d.previous != null && `${show(d.previous, d.unit)} the period before`].filter(Boolean).join(" · ")}
@@ -97,7 +97,7 @@ function TablePanel(props: PanelProps) {
         return <td key={c.key} className={c.align === "end" ? "num" : undefined}>
           {i === 0 && row.href ? <a href={appLink(row.href)}>{v}</a> : v}</td>;
       })}</tr>)}</tbody>
-    </Table> : <Empty>Nothing to show for this scope and window.</Empty>)}
+    </Table> : !d.unknown && <Empty>Nothing to show for this scope and window.</Empty>)}
     {d && d.total > d.rows.length && <Text as="div" small muted>{d.rows.length} of {count(d.total)}</Text>}
   </PanelFrame>;
 }

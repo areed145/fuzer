@@ -162,6 +162,9 @@ export interface PanelResultBase {
   as_of: string | null;
   /** Why it is empty, or what it leaves out. */
   note: string | null;
+  /** Stat and table panels: it can't be said because what it is read from isn't loaded (the note says which), so it
+   * is unknown, never 0 or nothing. */
+  unknown?: boolean;
   /** False when the data is for the whole register, not the scope asked for. */
   scoped: boolean;
   /** What it is made of: entity ids or "case:<id>". */

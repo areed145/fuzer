@@ -740,7 +740,8 @@ export interface BoardFilter {
 /** A shift handover (#467). */
 export interface Handover {
   id: number; shift_start: string; shift_end: string; state: "draft" | "handed_over" | "acknowledged";
-  facts: { sections: Record<string, { text: string; cites: string[] }[]>; more?: Record<string, number> };
+  /** `unknown`: sections that can't be said, and why ("no bypass register loaded"): not sections with nothing. */
+  facts: { sections: Record<string, { text: string; cites: string[] }[]>; more?: Record<string, number>; unknown?: Record<string, string> };
   item_id: number | null; drafted_at: string; notes: string | null; notes_by: string | null; notes_at: string | null;
   acknowledged_by: string | null; acknowledged_at: string | null; acknowledged_note: string | null;
 }

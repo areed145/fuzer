@@ -189,7 +189,8 @@ measures:
     records: bypass register (state, in since) and the safeguard each bypasses
     window: 1d
     from: {kind: bypass, at: bypassed_from, links: [bypasses, bypasses.protects, bypasses.acts_on],
-           where: {state: [active, in place, applied, bypassed, inhibited, overridden, forced]}}
+           where: {state: [active, in place, applied, bypassed, inhibited, overridden, forced]},
+           missing: no bypass register loaded}
     aggregate: count
     grains: [facility, area]
 
@@ -204,7 +205,8 @@ measures:
     records: bypass register (state, in since) and the safeguard each bypasses
     window: 1d
     from: {kind: bypass, at: bypassed_from, links: [bypasses, bypasses.protects, bypasses.acts_on],
-           where: {state: [active, in place, applied, bypassed, inhibited, overridden, forced]}}
+           where: {state: [active, in place, applied, bypassed, inhibited, overridden, forced]},
+           missing: no bypass register loaded}
     aggregate: age_days
     grains: [facility, area]
 
@@ -220,6 +222,7 @@ measures:
     records: the demand log and the safeguard each demanded
     standard: IEC 61511-1 demand log
     window: 30d
-    from: {kind: demand, at: at, links: [demands, demands.protects, demands.acts_on], unless: {outcome: [spurious, false]}}
+    from: {kind: demand, at: at, links: [demands, demands.protects, demands.acts_on], unless: {outcome: [spurious, false]},
+           missing: no safeguard demand log loaded}
     aggregate: count
     grains: [facility, area]

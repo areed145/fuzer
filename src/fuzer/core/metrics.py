@@ -26,6 +26,8 @@ The older form of compute function takes (conn, pack, grain) (and `at` for a `da
     refs     what the headline is made of: entity ids or "case:<id>"
     as_of    the date or period it is for
     note     why it is None, or what it leaves out
+    unknown  True when it can't be said because what it is read from isn't there (no bypass register loaded): the
+             note says why, and nobody reads it as 0 or none
     history  optional [{at, value}], the value over earlier periods, oldest first, where the computation keeps them
 
 A metric may declare a `target`, the value it should reach (at least it when higher is better, at most when lower), so
@@ -314,7 +316,8 @@ def value(conn, pack, key: str, scope: str | None = None, window: str | None = N
         _legacy(conn, pack, m, window, at, grain, history)
     if scope and not out["scope"]:
         out["note"] = " ".join(x for x in (out.get("note"), WHOLE) if x)
-    return {**m.describe(), "value": out.get("value"), "rows": out.get("rows") or [], "refs": out.get("refs") or [],
+    return {**m.describe(), "value": out.get("value"), "unknown": bool(out.get("unknown")),
+            "rows": out.get("rows") or [], "refs": out.get("refs") or [],
             "as_of": out.get("as_of"), "note": out.get("note"), "grain": grain, "history": out["history"],
             "scope": out["scope"], "window": out["window"], "previous": out["previous"], "span": out.get("span")}
 

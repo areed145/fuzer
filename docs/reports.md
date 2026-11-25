@@ -115,6 +115,9 @@ trend_spec.from_measures(conn, pack, keys, scope, window, at) -> TrendSpec
 the measure's own period) ending `at`. Its result keeps today's fields (`value`, `rows`, `refs`, `as_of`, `note`,
 `history`, the declaration) and adds `scope` and `window`: what it was actually computed for. A measure that can't yet
 be cut by scope returns `scope: None`, and a report says the figure is for the whole register rather than pretend.
+A measure whose records aren't there at all returns `value: None`, `unknown: True` and the reason in `note` (a YAML
+measure's `from.missing`, such as "no bypass register loaded"): a stat panel shows Unknown with that line, a table the
+line alone, the AI note is told never to read it as zero, and the shift handover says the section is unknown.
 
 `trend_spec.from_measures` draws measures over a window as a trend spec (`analysis/trend_spec.py`), one series per
 measure with its label and unit, so the one chart (`ui/src/trends/TrendChart.tsx`) draws it.
@@ -153,6 +156,7 @@ Every panel result carries the same envelope, then its type's own fields:
 ```python
 {"id", "type", "title", "scope": {"id", "label", "kind"}, "window": {...as above},
  "as_of", "note",      # the day the value is for; why it is empty or what it leaves out
+ "unknown",            # stat and table: True when what it is read from isn't loaded (the note says which)
  "scoped",             # False when the data is for the whole register, not the scope asked for
  "refs",               # what it is made of: entity ids or "case:<id>"
  "href",               # where it drills: the metric, the Work list with the same filter, the row set's page

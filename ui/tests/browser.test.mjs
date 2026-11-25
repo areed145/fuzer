@@ -389,6 +389,8 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
     if (id === "t") return route.fulfill({ json: { ...base, type: "table", title: "Opened by type", columns: [{ key: "label", label: "Type" },
       { key: "value", label: "Cases opened", unit: "cases", align: "end" }], rows: [{ key: "x", cells: { label: "context gap", value: 5 }, href: "/list?kind=x" }], total: 1 } });
     if (id === "w") return route.fulfill({ json: { ...base, type: "cases", title: "Overdue", cases: [], total: 0, overdue: 0, labels: {}, href: "/list?overdue=true" } });
+    if (id === "d") return route.fulfill({ json: { ...base, type: "stat", title: "Safeguards bypassed", measure: "safety.bypasses_active",
+      value: null, unknown: true, note: "no bypass register loaded", unit: "bypasses", target: 0, better: "lower", previous: null, history: [] } });
     return route.fulfill({ json: { ...base, type: "stat", title: "Open cases", measure: "work.backlog", value: 12, unit: "cases", target: null,
       better: "lower", previous: 10, history: [] } });
   });
@@ -397,6 +399,10 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
   await page.goto(`${url}/#/reports/work`);
   await page.getByRole("heading", { level: 1, name: "Work and dispatch" }).waitFor();
   await page.getByText("12 cases").first().waitFor();
+  // a measure whose register isn't loaded is unknown, and says why: never 0
+  const unknown = page.locator(".report-type-stat", { hasText: "Safeguards bypassed" });
+  await unknown.getByText("no bypass register loaded").waitFor();
+  assert.equal(await unknown.locator(".report-stat-value").innerText(), "Unknown");
   assert.equal(new Set(await tops()).size, 1, "four stats share a row on a desk");
   await page.setViewportSize({ width: 820, height: 1180 });
   assert.equal(new Set(await tops()).size, 2, "two across on an iPad");
@@ -4553,7 +4559,8 @@ test("a handover reads in a minute on a phone: what needs the lead first, five l
   const many = (word, n) => Array.from({ length: n }, (_, i) => ({ text: `${word} ${i + 1}`, cites: [`case:${i + 1}`] }));
   await page.route("**/handovers/8", (route) => route.fulfill({ json: { ...row, drafted_at: "2026-11-12T06:00:00Z",
     notes: null, acknowledged_note: null, facts: { sections: { "Open work": many("Backlog case", 25), "In the field": [],
-      "Escalated or overdue": many("Escalated step", 2) }, more: { "Open work": 121 } } } }));
+      "Escalated or overdue": many("Escalated step", 2), "Active bypasses": [] }, more: { "Open work": 121 },
+      unknown: { "Active bypasses": "no bypass register loaded" } } } }));
   await page.goto(`${url}/#/handover?id=8`);
   await page.getByText("Escalated step 1").waitFor();
   // the headline says what the incoming lead takes on first, in reading order (#11)
@@ -4562,6 +4569,9 @@ test("a handover reads in a minute on a phone: what needs the lead first, five l
   assert.ok(headings[0].startsWith("Escalated or overdue") && headings[1].startsWith("Open work"), headings.join(" | "));
   assert.equal(await page.locator("main li", { hasText: /^Backlog case/ }).count(), 5);
   assert.ok(await page.getByText("Nothing in in the field.").count());
+  // no bypass register: the section is unknown and why, never "nothing in active bypasses"
+  assert.ok(await page.getByText("Active bypasses unknown: no bypass register loaded.").count());
+  assert.doesNotMatch(await page.locator("main").innerText(), /nothing in [^.]*active bypasses/i);
   await page.getByRole("button", { name: "Show all 146" }).click();
   assert.equal(await page.locator("main li", { hasText: /^Backlog case/ }).count(), 25);
   await page.getByText("and 121 more").waitFor();

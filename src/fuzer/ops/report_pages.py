@@ -207,7 +207,8 @@ def stat(conn, pack, d, panel, scope, w) -> dict:
     previous = m.get("previous")
     if previous is None and len(past) >= 2 and str(past[-1]["at"])[:10] == str(m.get("as_of") or "")[:10]:
         previous = past[-2]["value"]
-    return {"title": m["label"], "measure": m["key"], "value": m["value"], "unit": m["unit"], "target": m["target"],
+    return {"title": m["label"], "measure": m["key"], "value": m["value"], "unknown": m["unknown"], "unit": m["unit"],
+            "target": m["target"],
             "better": m["better"], "previous": previous, "history": past, "as_of": m.get("as_of"),
             "note": _note(scope, m), "scoped": _scoped(scope, m), "refs": m["refs"], "href": f"/metrics/{m['key']}"}
 
@@ -270,7 +271,8 @@ def table(conn, pack, d, panel, scope, w) -> dict:
         out = import_module("fuzer.core.rowsets").read(conn, pack, panel["rows"], scope["id"], w["key"], _at(w),
                                                     panel.get("limit", 20))
         return {"title": out.get("label"), "columns": out["columns"], "rows": out["rows"], "total": out["total"],
-                "note": out.get("note"), "scoped": out.get("scoped", False), "href": ROWSET_PAGE.get(panel["rows"])}
+                "note": out.get("note"), "unknown": out.get("unknown", False), "scoped": out.get("scoped", False),
+                "href": ROWSET_PAGE.get(panel["rows"])}
     if panel.get("measures"):
         return _measures_table(conn, pack, panel, scope, w)
     m, rows = _grain_rows(conn, pack, panel, scope, w)

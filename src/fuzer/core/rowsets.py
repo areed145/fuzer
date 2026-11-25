@@ -22,8 +22,10 @@ Two places declare one, and both land here:
 
     registry(pack)                           {key: RowSet}
     read(conn, pack, key, scope=None, window=None, at=None, limit=50)
-        -> {key, label, columns: [{key, label, unit?, align?}], rows: [{key, cells, href}], total, note, scoped,
-            scope, window, span}
+        -> {key, label, columns: [{key, label, unit?, align?}], rows: [{key, cells, href}], total, note, unknown,
+            scoped, scope, window, span}
+        `unknown`: no rows because what they are read from isn't there (no bypass register loaded), not because
+        there are none; the note says why
 
 An entity row opens its entity page (`/e/<id>`), a case row its case (`/cases/<id>`), as hrefs for the shell's router.
 """
@@ -174,7 +176,8 @@ def read(conn, pack, key: str, scope: str | None = None, window: str | None = No
         note = " ".join(x for x in (note, "For the whole register: it isn't cut by entity.") if x)
     return {"key": key, "label": rs.label, "columns": list(rs.columns),
             "rows": [{k: r.get(k) for k in ("key", "cells", "href")} for r in rows[:limit]], "total": len(rows),
-            "note": note, "scoped": bool(q.scope) or not scope, "scope": q.scope.id if q.scope else None,
+            "note": note, "unknown": bool(out.get("unknown")) and not rows,
+            "scoped": bool(q.scope) or not scope, "scope": q.scope.id if q.scope else None,
             "window": (window or rs.default_window) if span else None,
             "span": {"start": span.start.isoformat(timespec="minutes"), "end": span.end.isoformat(timespec="minutes"),
                      "at": span.at.isoformat(), "days": span.days} if span else None}

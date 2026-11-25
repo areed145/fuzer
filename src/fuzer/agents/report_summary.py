@@ -31,6 +31,8 @@ Write what the people who read this report (named in `for`) need to take from th
 - headline: one sentence, at most 20 words, on how the scope did over the window.
 - points: two to five short sentences, most important first: what is off target or moved most against the last
   window, where the losses or the work concentrate, what needs someone now.
+A panel with `unknown: true` has no value because what it is read from isn't loaded: say it is unknown and why, in its
+note's words (no bypass register loaded); never read it as zero, none or nothing to report.
 Say numbers exactly as given, with their units; never add, subtract, round or work out a new number. Name entities by
 their labels. Never advise how to operate the plant. If the panels show nothing of note, say so in the headline and give
 one point at most. For each point list in `cites` what it rests on: measure keys (like "production.oil"), entity ids
@@ -101,7 +103,8 @@ def facts(conn, pack, key: str, scope: str | None, window: str, at: date, asked:
         scope_ref, resolved = scope_ref or r.get("scope"), resolved or r.get("window")
         if r.get("error"):
             continue
-        result = {k: v for k, v in r.items() if k not in ("id", "type", "title", "scope", "window", "href", "error")}
+        result = {k: v for k, v in r.items() if k not in ("id", "type", "title", "scope", "window", "href", "error")
+                  and (k != "unknown" or v)}  # said only where it is: the note gives the reason
         if p["type"] == "trend":  # the spec's series, without how to draw them
             spec = result.pop("spec", None) or {}
             result["series"] = [{"measure": s.get("point"), "label": s.get("label"), "unit": s.get("unit"),

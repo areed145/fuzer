@@ -95,9 +95,13 @@ def readable(facts: dict) -> dict:
 
 
 def facts(conn, start: datetime, end: datetime) -> dict:
-    """The sections over [start, end), from live work. Each line is {text, cites}; `more` counts the rest."""
+    """The sections over [start, end), from live work. Each line is {text, cites}; `more` counts the rest; `unknown`
+    names a section that can't be said and why (no bypass register loaded), which is not a section with nothing."""
+    from . import safeguards
+
     sections: dict[str, list[dict]] = {s: [] for s in SECTIONS}
     more: dict[str, int] = {}
+    unknown = {} if safeguards.loaded(conn) else {"Active bypasses": safeguards.NO_REGISTER}
 
     def keep(name: str, rows: list, render) -> None:
         sections[name] = [render(r) for r in rows[:LIMIT]]
@@ -174,7 +178,7 @@ def facts(conn, start: datetime, end: datetime) -> dict:
         where type = %s and state = 'open' and joined_to is null order by evidence->>'at' desc, id
         """, (RECORDS,)).fetchall(),
         lambda r: _line(r["title"], f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
-    return {"sections": sections, "more": more}
+    return {"sections": sections, "more": more, "unknown": unknown}
 
 
 def _local(at: str | None) -> str:
@@ -188,7 +192,8 @@ def _local(at: str | None) -> str:
 
 def _bypasses(conn, end: datetime) -> list[dict]:
     """Safeguards bypassed at the shift change, from the bypass register (P3.9, P5.11e): an overdue one first and
-    saying so, a removed or not yet started one left out. A bundle with no bypass register has none."""
+    saying so, a removed or not yet started one left out. Without a bypass register there are no lines, and the
+    section is unknown (facts' `unknown`), not empty."""
     from . import safeguards
 
     rows = sorted(safeguards.bypasses(conn, at_time=end), key=lambda b: (not b["overdue"], b["expires"] or "", b["label"] or ""))
@@ -271,7 +276,7 @@ def draft(conn, by: str, now: datetime | None = None, force: bool = False, curre
     if current or row["item_id"]:
         return _ordered(row)
     label = end.astimezone(_tz()).strftime("%b %-d, %-I:%M %p")
-    n = {k: len(v) + f["more"].get(k, 0) for k, v in f["sections"].items()}
+    n = {k: None if k in f["unknown"] else len(v) + f["more"].get(k, 0) for k, v in f["sections"].items()}
     from . import routing
 
     payload = {"handover_id": row["id"], **{k.lower(): v for k, v in n.items()}}

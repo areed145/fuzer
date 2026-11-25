@@ -62,7 +62,8 @@ row_sets:
     label: Safeguards bypassed
     definition: Safeguards out of service at the window's end, the longest out first.
     from: {kind: bypass, at: bypassed_from, links: [bypasses, bypasses.protects, bypasses.acts_on],
-           where: {state: [active, in place, applied, bypassed, inhibited, overridden, forced]}}
+           where: {state: [active, in place, applied, bypassed, inhibited, overridden, forced]},
+           missing: no bypass register loaded}
     stock: true
     window: 1d
     order: "@at asc"
