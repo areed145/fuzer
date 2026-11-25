@@ -644,7 +644,7 @@
   "ask": "Loop eval: check it on site",
   "assets": [
    {
-    "fuzer_id": "fz-tag-f46a53680182",
+    "fuzer_id": "fz-tag-4056d117e03b",
     "kind": "tag",
     "label": "H1-G-8004",
     "lat": 47.309,
@@ -653,7 +653,16 @@
     "site": "Area H1 utilities and thermal oxidiser"
    },
    {
-    "fuzer_id": "fz-permit-d268ddba56aa",
+    "fuzer_id": "fz-isolation-0e06ce038eaa",
+    "kind": "isolation",
+    "label": "ISO-31105-1",
+    "lat": null,
+    "lon": null,
+    "offshore": false,
+    "site": null
+   },
+   {
+    "fuzer_id": "fz-permit-8a5ea43f82b4",
     "kind": "permit",
     "label": "PTW-31105",
     "lat": null,
@@ -666,7 +675,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-24T04:57:51.540491+00:00",
+  "due": "2026-11-25T22:39:47.780663+00:00",
   "evidence": {
    "finding": {
     "detector": "permits.permit_lapsed",
@@ -699,7 +708,7 @@
      {
       "kind": "time",
       "label": "Valid to",
-      "value": "2026-11-14 18:00"
+      "value": "2026-11-16 18:00"
      },
      {
       "kind": "text",
@@ -709,7 +718,7 @@
     ],
     "method": "Permit to work register: permits past their valid-to time and not closed, read with the state of each isolation they hold",
     "origin": "deterministic",
-    "start": "2026-11-14 18:00",
+    "start": "2026-11-16 18:00",
     "v": 1
    },
    "isolations": [
@@ -753,7 +762,7 @@
     {
      "kind": "time",
      "label": "Valid to",
-     "value": "2026-11-14 18:00"
+     "value": "2026-11-16 18:00"
     },
     {
      "kind": "text",
@@ -765,22 +774,23 @@
    "origin": "deterministic",
    "origin_label": "Rule",
    "standard": null,
-   "start": "2026-11-14 18:00",
+   "start": "2026-11-16 18:00",
    "subjects": [
-    "fz-tag-f46a53680182",
-    "fz-permit-d268ddba56aa"
+    "fz-tag-4056d117e03b",
+    "fz-isolation-0e06ce038eaa",
+    "fz-permit-8a5ea43f82b4"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-23T20:57:51.530140+00:00",
+  "first_seen": "2026-11-25T14:39:47.755042+00:00",
   "handover": null,
   "history": [],
-  "id": 38,
-  "item_id": 38,
+  "id": 36,
+  "item_id": 36,
   "joined_to": null,
   "key": "PTW-31105",
   "label": "Permit lapsed with plant still isolated",
-  "last_seen": "2026-11-23T20:57:51.530140+00:00",
+  "last_seen": "2026-11-25T14:39:47.755042+00:00",
   "need": "condition",
   "own_step": true,
   "permit": {
@@ -801,8 +811,8 @@
     "state": "expired",
     "type": "electrical",
     "valid": false,
-    "valid_from": "2026-11-13 06:00",
-    "valid_to": "2026-11-14 18:00",
+    "valid_from": "2026-11-15 06:00",
+    "valid_to": "2026-11-16 18:00",
     "why_not": "expired",
     "work": "Standby generator load test"
    }
@@ -813,7 +823,7 @@
   "reports": 1,
   "role": "operator",
   "sent": {
-   "at": "2026-11-23T20:57:51.540491+00:00",
+   "at": "2026-11-25T14:39:47.780663+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -824,16 +834,17 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-f46a53680182",
-   "fz-permit-d268ddba56aa"
+   "fz-tag-4056d117e03b",
+   "fz-isolation-0e06ce038eaa",
+   "fz-permit-8a5ea43f82b4"
   ],
   "task_id": 92,
   "task_name": "Field check",
   "task_role": "operator",
-  "title": "PTW-31105 on H1-G-8004: lapsed with 1 isolation still in place",
+  "title": "Permit PTW-31105 lapsed with 1 isolation still in place on H1-G-8004",
   "type": "permit_lapsed",
   "unmatched": [],
-  "updated_at": "2026-11-23T20:57:51.530140+00:00",
+  "updated_at": "2026-11-25T14:39:47.755042+00:00",
   "value_usd": null,
   "warnings": []
  },
