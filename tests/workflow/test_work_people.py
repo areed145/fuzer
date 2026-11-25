@@ -121,4 +121,4 @@ def test_source_problems_reach_a_data_steward(conn, client):
     conn.execute(db.schema_sql())  # what a deploy with this schema runs on a database seeded before it
     row = conn.execute("select kind, escalate_to from work_role where name = 'data_steward'").fetchone()
     conn.commit()
-    assert row == {"kind": "person", "escalate_to": "ops_lead"}
+    assert row == {"kind": "person", "escalate_to": None}  # stays with the stewards (#1346)

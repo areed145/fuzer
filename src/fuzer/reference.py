@@ -568,7 +568,7 @@ def work_types_md() -> str:
         about = (
             purpose
             + (f". A step is due in {long}" if long else "")
-            + (f", then escalates to `{escalates}`" if escalates else "")
+            + (f", then escalates to `{escalates}`" if escalates else ", then is marked escalated in this queue" if long else "")
         )
         out += [
             f"### {role.replace('_', ' ').capitalize().replace('Hse', 'HSE')} queue",

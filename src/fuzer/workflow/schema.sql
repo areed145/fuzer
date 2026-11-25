@@ -82,9 +82,12 @@ on conflict do nothing;
 
 -- The data steward (#476): source problems (fuzer.sources.alerts) route to its queue. Same rule as above.
 insert into work_role (name, kind, description, default_sla, escalate_to, updated_by)
-select 'data_steward', 'person', 'Master data steward: source problems and register gaps', 'P1D', 'ops_lead', 'seed'
+select 'data_steward', 'person', 'Master data steward: source problems and register gaps', 'P1D', null, 'seed'
 where exists (select 1 from work_role)
 on conflict do nothing;
+-- An overdue steward question stays with the stewards (#1346). A seeded role still escalating to the ops lead stops;
+-- a site that chose the ops lead itself keeps its choice.
+update work_role set escalate_to = null where name = 'data_steward' and escalate_to = 'ops_lead' and updated_by = 'seed';
 
 create table if not exists work_item (
     id          bigserial primary key,
@@ -354,3 +357,23 @@ create table if not exists fuzer.operating_model_rollout (
     rollback_reason text
 );
 create index if not exists operating_model_rollout_project on fuzer.operating_model_rollout (project, id desc);
+
+-- Steward questions that escalated to the ops lead queue before #1346 go back to the steward queue, still marked
+-- escalated (so they don't escalate again). Only a queue step nobody took, whose last move was that escalation,
+-- and only while the steward role no longer escalates to the ops lead. Runs each time the schema is applied; idempotent.
+with moved as (
+    update work_token t set role = 'data_steward'
+    from work_process p
+    where p.id = t.process_id and p.process_key = 'queue_item' and p.data->>'role' = 'data_steward'
+      and t.state = 'waiting' and t.kind = 'user' and t.element = 'work' and t.role = 'ops_lead'
+      and t.assignee is null and t.escalated_at is not null
+      and exists (select 1 from work_role where name = 'data_steward' and escalate_to is distinct from 'ops_lead')
+      and (select e.kind = 'escalated' and e.data->>'to' = 'role:ops_lead' from work_event e
+           where e.token_id = t.id and e.kind in ('escalated', 'handed_off')
+           order by e.id desc limit 1)
+    returning t.id, t.item_id
+)
+update work_item i set role = 'data_steward', assignee = null
+from moved where i.id = moved.item_id
+  and not exists (select 1 from work_token o where o.item_id = i.id and o.state = 'waiting' and o.kind = 'user'
+                  and o.role is distinct from 'data_steward' and o.id not in (select id from moved));
