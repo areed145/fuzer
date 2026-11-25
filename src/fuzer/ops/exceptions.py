@@ -980,13 +980,17 @@ def field_jobs(conn, person: str, brief: bool = False) -> list[dict]:
                or (%(field)s and t.id is not null and t.assignee is null and t.role = %(op)s)
                or (%(field)s and t.id is null and w.assignee is null and w.role = %(op)s)
                or (e.evidence->'handover'->>'to' = %(p)s and e.evidence->'handover'->>'accepted_at' is null))
+          -- acting as some roles (the demo account), only the jobs in those roles' queues (#1380): an operator's
+          -- job is not the ops lead's
+          and (%(acting)s::text[] is null or coalesce(t.role, w.role) is null
+               or coalesce(t.role, w.role) = any(%(acting)s))
         order by coalesce(e.evidence->'handover'->>'to' = %(p)s and e.evidence->'handover'->>'accepted_at' is null,
                           false) desc,
                  coalesce(t.assignee = %(p)s, false) or (t.id is null and coalesce(w.assignee = %(p)s, false)) desc,
                  coalesce(w.priority, e.priority) desc nulls last, coalesce(t.due_at, w.due) nulls last,
                  e.value_usd desc nulls last
         """, {"p": person, "field": OPERATOR_ROLE in (roles := work.roles_of(conn, person)),
-              "op": OPERATOR_ROLE}).fetchall()
+              "op": OPERATOR_ROLE, "acting": work.acting_roles(conn, person)}).fetchall()
     out, known = [], types(conn)
     if brief:
         return [{**r, "label": known[r["type"]].label if r["type"] in known else r["type"].replace("_", " "),

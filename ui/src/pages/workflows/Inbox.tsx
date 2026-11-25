@@ -52,6 +52,10 @@ export function InboxPage() {
   useEffect(() => setPicked(new Set()), [person]);
   // What the field just reported, said where its card was: the card leaves the list once the IOC has it (#1344).
   const [reported, setReported] = useState<{ id: number; said: string; at: number; list: "sent" | "waiting" } | null>(null);
+  // Jobs taken from the queue here: they move up into the person's own jobs at once, not when the jobs are read again
+  // (#1380), which with every queue held takes a while.
+  const [taken, setTaken] = useState<Set<number>>(new Set());
+  useEffect(() => setTaken(new Set()), [person]);
   // Kept in view clear of the top bar, again once the jobs are read afresh and the list around it settles.
   useEffect(() => { if (reported) document.getElementById("field-reported")?.scrollIntoView({ block: "nearest" }); }, [reported, field.data]);
   if (!person) return <section><PageHeader>My work</PageHeader><UICard title="Pick your name to see your work">
@@ -69,7 +73,7 @@ export function InboxPage() {
   const d: WorkInbox = inbox.data ?? { person, roles: [], mine: [], queue: [], counts: { mine: none, queue: none } };
   const keep = (r: WorkRow) => (!type || r.type === type) &&
     (!q || `${r.title} ${r.name ?? ""} ${r.type}`.toLowerCase().includes(q.toLowerCase()));
-  const jobs = field.data?.jobs ?? [];
+  const jobs = (field.data?.jobs ?? []).map((j) => (j.queued && taken.has(j.id) ? { ...j, queued: false } : j));
   const coming = field.data?.coming_up ?? [];
   // Field work leads an operator's page. Only the operator queue's jobs come as field cards with "Take it" (#1364):
   // anyone else (an ops lead a field check came back to) sends it out again from its row.
@@ -84,6 +88,7 @@ export function InboxPage() {
       <span>{reported.said}</span><Button size="sm" onClick={() => setReported(null)}>OK</Button></Notice>;
     const out = list.map((j, i) => said && reported?.id === j.id ? said
       : <FieldJobCard key={j.id} job={j} person={person} onChange={field.reload}
+        onTaken={() => setTaken((t) => new Set(t).add(j.id))}
         onReported={(text) => setReported({ id: j.id, said: text, at: i, list: name })} />);
     if (said && !list.some((j) => j.id === reported?.id)) out.splice(Math.min(reported!.at, out.length), 0, said);
     return out;
@@ -110,6 +115,12 @@ export function InboxPage() {
   const lead = d.roles.includes("ops_lead");
   // The latest handover whose shift has ended: one still being written by the outgoing lead isn't ready to read.
   const handover = lead ? handovers.data?.find((h) => new Date(h.shift_end).getTime() <= Date.now()) : undefined;
+  // The jobs sent to them.
+  const yours = (sent.length > 0 || reported?.list === "sent") && <section className="field-jobs" aria-labelledby="sent-to-you">
+    {/* the count is of the job cards under it: a job just reported shows its notice in place, not counted */}
+    <Heading id="sent-to-you" detail={sent.filter((j) => j.id !== reported?.id).length || undefined}>Your field jobs</Heading>
+    {cards(sent, "sent")}
+  </section>;
   const toggle = (id: number) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
     <section>
@@ -126,6 +137,8 @@ export function InboxPage() {
         Reports wait here and send when the signal returns.</Notice>}
       <FieldModeOffer />
       <Outbox onSent={() => { field.reload(); inbox.reload(); }} jobs={jobs.filter((j) => !j.queued)} />
+      {/* A note about no job, at the top of the field's page (#1380): a job's own note is on its card (P5.26a) */}
+      {!offline && fieldRole && <NoteToIOC person={person} />}
       {/* What changed on your work since you last looked is Home's Needs you; a field operator, whose Home is this
           page, reads it beside their jobs below. */}
       <nav className="chips work-views" aria-label="Show in my work">
@@ -147,11 +160,7 @@ export function InboxPage() {
       {pickedRows.length > 0 && <Bulk rows={pickedRows} person={person} onDone={() => setPicked(new Set())} />}
       {!all.length && !jobs.length && <Empty>Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}.</Empty>}
       {!all.length && !jobs.length && <SampleTeam onAdded={inbox.reload} />}
-      {(sent.length > 0 || reported?.list === "sent") && <section className="field-jobs" aria-labelledby="sent-to-you">
-        {/* the count is of the job cards under it: a job just reported shows its notice in place, not counted */}
-        <Heading id="sent-to-you" detail={sent.filter((j) => j.id !== reported?.id).length || undefined}>Your field jobs</Heading>
-        {cards(sent, "sent")}
-      </section>}
+      {yours}
       {!offline && fieldRole && <NewForYou person={person} told={told} onCard={onCard} />}
       <Group title={chip.key ? chip.label : "Waiting on you"} rows={chip.rows} person={person} picked={picked} toggle={toggle}
         hint={chip.key === "queue" ? "claim one to make it yours" : chip.key === "escalated" ? "past their SLA and moved to you or your role" : undefined} />
@@ -161,8 +170,6 @@ export function InboxPage() {
       </section>}
       {(d.roles.includes("operator") || offline) && <RoundsThisShift person={person} />}
       {coming.length > 0 && <ComingUp items={coming} person={person} onChange={field.reload} />}
-      {/* A note about no job, once, under the work: a job's own note is on its card (P5.26a) */}
-      {!offline && fieldRole && <NoteToIOC person={person} />}
       <OtherFields person={person} />
       <HowYouAreTold person={person} />
     </section>

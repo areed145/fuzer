@@ -14,7 +14,8 @@ The Workflows section is where people do it and manage it:
 - **My work** (`#/inbox`): what's waiting for you, most urgent first: escalated to you, jobs the IOC sent you,
   assigned to you (or to someone away you cover for), unclaimed in your roles' queues, field jobs waiting in the operator queue and
   what you're planned onto. It replaces the separate Inbox and My jobs pages (#503); `#/field` redirects here, and a
-  case with a field job shows once, as its job card. A task opens as a page: its form and evidence,
+  case with a field job shows once, as its job card. A field operator's page opens with the **Note to the IOC**, then
+  their jobs. A task opens as a page: its form and evidence,
   claim / release / hand off (to a person, a role's queue or an agent), where it sits in its process, the case's
   history. Who you are is set once, in the sidebar.
 - **Cases** (All work's In progress and Closed views, `#/exceptions?list=progress`; `#/cases` redirects there): every
@@ -225,7 +226,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   (**Take it**), each by priority, then due, with the IOC's instruction, where to go, what was seen and what happened
   there lately. They report **On site**, **Done**, **Could not do** (with why) or a note; every report lands on the
   exception and the case history. Done and Could not do are never greyed out: tapped without a note (or, for Done,
-  before On site, a reading or a photo), they ask for it at the note box.
+  with no On site, note, reading or photo on this visit, said now or earlier), they ask for it at the note box. A job
+  taken from the queue moves up into their own jobs at once.
 - **Back to the IOC.** Done or Could not do ends the field's part (#1364): the job leaves the operator's list for the
   ops lead queue, not the dispatcher in person, who may be off shift, so it reappears on the IOC's My work with the
   field's note as "Back from the field". A step a process returns to that has a desk queue of its own goes there

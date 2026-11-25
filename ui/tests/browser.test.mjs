@@ -4446,15 +4446,68 @@ for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]
     const counted = await page.evaluate(() => [...document.querySelectorAll("section.field-jobs")].map((s) =>
       [Number(s.querySelector("h2 .muted, h2 small, h2 span")?.textContent ?? 0) || 0, s.querySelectorAll(".field-job").length]));
     assert.ok(counted.length > 0 && counted.every(([n, cards]) => n === cards), JSON.stringify(counted));
-    // said where the card was: below the job above it, in view and clear of the top bar
+    // said where the card was: taken, it had moved up into their own jobs (P5.27b, #1380), above the job still waiting in
+    // the queue; in view and clear of the top bar
     const [prev, note] = await Promise.all([page.locator(".field-job", { hasText: "Gauge check" }).boundingBox(), said.boundingBox()]);
     const bar = await page.evaluate(() => { const b = document.querySelector(".topbar")?.getBoundingClientRect();
       return b && getComputedStyle(document.querySelector(".topbar")).position === "sticky" ? b.bottom : 0; });
-    assert.ok(note.y > prev.y, "the confirmation sits where the card was, not at the top");
+    assert.equal(await page.locator("section[aria-labelledby=sent-to-you] #field-reported").count(), 1,
+      "the confirmation sits where the card was, in their own jobs");
+    assert.ok(note.y < prev.y, "above the job still waiting in the queue");
     assert.ok(note.y >= bar && note.y + note.height <= height, `the confirmation is in view (top ${note.y}, bar ${bar})`);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await said.getByRole("button", { name: "OK" }).click();
     await said.waitFor({ state: "detached" });
+  });
+}
+
+// P5.27b (#1380): the field's My work is the field's. The Note to the IOC is in the first screen, not under every job;
+// Done is accepted after On site then a note (it asked for On site again); a job taken from the queue leaves the queue
+// section at once, while the jobs read again still say it waits.
+for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]]) {
+  test(`the field's My work: note first, Done after On site and a note, a taken job moves up (P5.27b, ${name})`, async () => {
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+    const finding = { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null,
+      end: null, confidence: null, items: [], checks: [], subjects: [], value_usd: null };
+    const base = { type: "upset", source: "scada", state: "open", priority: null, value_usd: null, subjects: [], unmatched: [],
+      raised_count: 1, first_seen: "2026-11-25T06:00:00Z", last_seen: "2026-11-25T06:00:00Z", evidence: {}, finding,
+      history: [], label: "Upset", role: "operator", assets: [] };
+    const sent = { by: "riley", at: "2026-11-25T07:00:00Z", reason: "Read the local gauge" };
+    // on site, then a note: the last report is the note
+    const mine = { ...base, id: 30, key: "m", title: "Outlet gauge reads high on 20-E-2150A", item_id: 50, assignee: "fred",
+      queued: false, sent, field: [
+        { at: "2026-11-25T06:00:00Z", by: "fred", status: "on_site", note: null },  // an earlier visit's
+        { at: "2026-11-25T07:10:00Z", by: "fred", status: "on_site", note: null },
+        { at: "2026-11-25T07:20:00Z", by: "fred", status: "note", note: "Gauge reads 146 °F" }] };
+    const queued = Array.from({ length: 12 }, (_, i) => ({ ...base, id: 40 + i, key: `q${i}`, title: `Queue job ${i + 1}`,
+      item_id: 60 + i, assignee: null, queued: true, sent: null, field: [] }));
+    await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "fred", coming_up: [], jobs: [mine, ...queued] } }));
+    const reports = [];
+    await page.route("**/exceptions/30/report", (route) => { reports.push(route.request().postDataJSON()); return route.fulfill({ json: mine }); });
+    await page.route("**/exceptions/45/dispatch", (route) => route.fulfill({ json: queued[5] }));
+    await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
+      counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+    await page.setViewportSize({ width, height });
+    await page.goto(`${url}/#/inbox`);
+    const note = page.getByRole("textbox", { name: "Note to the IOC", exact: true });
+    await note.waitFor();
+    const box = await note.boundingBox();
+    assert.ok(box.y + box.height <= height, `the Note to the IOC is in the first screen (top ${box.y})`);
+    const firstJob = await page.locator(".field-job").first().boundingBox();
+    assert.ok(box.y < firstJob.y, "the note box comes before the jobs");
+
+    const card = page.locator(".field-job", { hasText: "Outlet gauge reads high" });
+    await card.getByRole("button", { name: "On site ✓" }).waitFor();  // still on site after the note
+    await card.getByRole("button", { name: "Done", exact: true }).click();
+    await expectReports(reports, 1);
+    assert.equal(reports[0].status, "done");
+    assert.equal(await card.getByText("Say you are on site").count(), 0);
+
+    const job = page.locator(".field-job", { hasText: "Queue job 6" });
+    await job.getByRole("button", { name: "Take it" }).click();
+    await page.locator("section[aria-labelledby=sent-to-you] .field-job", { hasText: "Queue job 6" }).waitFor();
+    assert.equal(await page.locator("section[aria-labelledby=waiting-jobs] .field-job", { hasText: "Queue job 6" }).count(), 0);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   });
 }
 
@@ -10589,7 +10642,7 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
 }
 
 for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
-  test(`P5.26a the field's one free note sits under the work and links the case it opened (${size})`, async () => {
+  test(`P5.26a the field's one free note sits above the work and links the case it opened (${size})`, async () => {
     await page.setViewportSize(viewport);
     await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
     await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
@@ -10609,9 +10662,9 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     await jobCard.waitFor();
     const note = page.getByRole("textbox", { name: "Note to the IOC", exact: true });
     await note.waitFor();
-    // one free note, after the jobs: the job's own note stays on its card
+    // one free note, at the top of the page, before the jobs (P5.27b, #1380): the job's own note stays on its card
     assert.equal(await page.getByRole("heading", { name: "Note to the IOC" }).count(), 1);
-    assert.ok((await note.boundingBox()).y > (await jobCard.boundingBox()).y, "the free note sits under the jobs");
+    assert.ok((await note.boundingBox()).y < (await jobCard.boundingBox()).y, "the free note sits above the jobs");
     const box = await note.boundingBox();
     assert.ok(box.width >= Math.min(viewport.width - 80, 600), `the note takes the card's width (${box.width})`);
     await note.fill("20-K-2300A lube oil pressure dropping, 28 psig, was 35");

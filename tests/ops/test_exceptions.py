@@ -1520,3 +1520,50 @@ def test_an_event_from_before_every_need_had_a_case_gets_one_at_reconcile(conn, 
     assert waits(conn, impl._row(conn, e["id"]))
     assert impl.open_missing_cases(conn) == 0
     conn.commit()
+
+
+def _acting(roles):
+    """The demo session's pick of roles to act as here (act_as), as the request middleware sets it."""
+    from fuzer.core import access
+
+    return access.ACTING.set({db.scope().project or "": roles} if roles else None)
+
+
+def test_the_demo_account_acting_as_a_desk_role_is_not_shown_an_operators_job(conn, types):
+    """#1380 (tour C7): every role's My work opened with "Your field jobs", an operator's job shown to the ops lead and
+    the steward. Acting as some roles, the demo account's field jobs and its own steps are those in the roles it acts
+    as; acting as the operator (or as every role) the job is still there."""
+    from fuzer.core import access
+    from fuzer.ops import worklist
+    from fuzer.workflow import engine
+
+    demo = "user:demo"
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    engine.set_person(conn, demo, ["ops_lead", "operator", "data_steward"])
+    types("gauge_high", role="role:ops_lead", audience=("ioc", "field"))
+    e = raise_exception(conn, "gauge_high", "PG-7", "Outlet gauge reads high on P-101", "rounds", refs=["tag:P-101"])
+    impl.dispatch(conn, e["id"], "ivy", "role:operator", reason="Go and read the gauge")
+    token = _acting(["operator"])  # acting as the operator, the demo account takes it from the field's queue
+    try:
+        assert e["id"] in {j["id"] for j in impl.field_jobs(conn, demo) if j["queued"]}
+        impl.dispatch(conn, e["id"], demo, demo, "taken from the queue")
+    finally:
+        access.ACTING.reset(token)
+    step = conn.execute("select id, role, assignee from work_token where item_id = %s and kind = 'user' and "
+                        "state = 'waiting'", (e["item_id"],)).fetchone()
+    assert (step["role"], step["assignee"]) == ("operator", demo)
+
+    def seen():
+        jobs = {j["id"] for j in impl.field_jobs(conn, demo)}
+        mine = {r["item_id"] for r in engine.my_work(conn, demo)["mine"]}
+        waiting = {r["item_id"] for r in worklist.rows(conn, waiting_on=demo)["rows"]}
+        return e["id"] in jobs, e["item_id"] in mine, e["item_id"] in waiting
+
+    for roles, shown in ((None, True), (["operator"], True), (["ops_lead"], False), (["data_steward"], False)):
+        token = _acting(roles)
+        try:
+            assert seen() == (shown, shown, shown), roles
+        finally:
+            access.ACTING.reset(token)
+    conn.commit()
+
