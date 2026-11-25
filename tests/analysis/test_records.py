@@ -91,7 +91,7 @@ def test_gaps_reach_the_ops_lead_queue_and_the_handover_and_clear(conn):
     f = handover.facts(conn, now.replace(year=now.year - 1), now)
     lines = f["sections"]["Records to check"]
     assert {c for x in lines for c in x["cites"]} >= {f"exception:{r['id']}" for r in rows}
-    assert not any(f"case:{r['item_id']}" in x["cites"] for x in f["sections"]["Open work"] for r in rows)
+    assert not any(f"case:{r['item_id']}" in x["cites"] for x in f["sections"]["New exceptions"] for r in rows)
     conn.rollback()
 
     try:

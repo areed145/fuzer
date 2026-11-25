@@ -1959,7 +1959,7 @@ Shift handovers (#467, ops/handover.py): drafted from live work at each shift ch
 | `shift_start` | timestamptz |  |
 | `shift_end` | timestamptz | the shift change it hands over at |
 | `facts` | jsonb | sections: {name: [{text, cites}]}, more: {name: n} |
-| `state` | text | draft \| handed_over (notes added) \| acknowledged |
+| `state` | text | draft \| acknowledged (handover.status says it in words) |
 | `item_id` | bigint, | its case on the ops lead queue |
 | `created_by` | text |  |
 | `drafted_at` | timestamptz |  |

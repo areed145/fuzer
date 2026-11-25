@@ -1415,7 +1415,7 @@ def test_every_headline_count_equals_the_list_it_opens(conn, types):
     assert worklist.figures(conn, "ivy")["waiting_on_you"]["to_dispatch"] == worklist.figures(conn)["stages"]["dispatch"]
     assert worklist.figures(conn)["waiting_on_you"] is None
 
-    # the shift handover lists the same open work at the same stages
+    # the shift handover lists the same work in the field and back from it
     from datetime import UTC, datetime, timedelta
 
     from fuzer.ops import handover
@@ -1423,8 +1423,7 @@ def test_every_headline_count_equals_the_list_it_opens(conn, types):
     h = handover.facts(conn, now - timedelta(hours=12), now)
     lines = lambda name: len(h["sections"][name]) + h["more"].get(name, 0)
     f = worklist.figures(conn)
-    assert (lines("Open work"), lines("In the field"), lines("Back from the field")) == (
-        f["open"], f["stages"]["field"], f["stages"]["back"])
+    assert (lines("In the field"), lines("Back from the field")) == (f["stages"]["field"], f["stages"]["back"])
     conn.rollback()
 
 

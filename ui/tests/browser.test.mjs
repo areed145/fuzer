@@ -4663,7 +4663,7 @@ test("My work opens in place: the banner, what is new and the counts don't push 
   const late = (json, ms) => (route) => setTimeout(() => route.fulfill({ json }).catch(() => {}), ms);
   await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
   await page.route("**/handovers", late([{ id: 7, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z",
-    state: "handed_over", notes_by: "bo", acknowledged_by: null, acknowledged_at: null, item_id: 40, lines: 6 }], 600));
+    state: "draft", status: "not acknowledged", notes_by: "bo", acknowledged_by: null, acknowledged_at: null, item_id: 40, lines: 6 }], 600));
   await page.route("**/work/notifications?*", late({ unread: 1, notifications: [{ id: 1, kind: "escalated", text: "Escalated to you",
     link: "#/cases/40", created_at: "2026-11-12T06:00:00Z", read_at: null }] }, 900));
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -4708,14 +4708,14 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "ann", roles: ["ops_lead"] }] }));
   let acked = false;
   const row = () => ({ id: 7, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z",
-    state: acked ? "acknowledged" : "handed_over", notes_by: "bo", acknowledged_by: acked ? "ann" : null,
+    state: acked ? "acknowledged" : "draft", status: acked ? "acknowledged" : "not acknowledged", notes_by: "bo", acknowledged_by: acked ? "ann" : null,
     acknowledged_at: acked ? "2026-11-12T06:10:00Z" : null, item_id: 40, lines: 6 });
   await page.route("**/handovers", (route) => route.fulfill({ json: [row()] }));
   const lines = [
     { text: "Low alarm on OK-J08-03 (peak 10.78 barg) from 2025-12-30 21:20 (upset), with the ops lead queue", cites: ["case:113"] },
     { text: "PTW-30000 hot work on 10-E-3001, issued to 2026-11-16 18:00", cites: ["entity:fz-permit-65501ac23ccf"] },
   ];
-  await page.route("**/handovers/7", (route) => route.fulfill({ json: { ...row(), facts: { sections: { "Open work": lines } },
+  await page.route("**/handovers/7", (route) => route.fulfill({ json: { ...row(), facts: { sections: { "New exceptions": lines } },
     drafted_at: "2026-11-12T06:00:00Z", notes: "Watch K-201", notes_at: "2026-11-12T05:50:00Z", acknowledged_note: null } }));
   // My work is one page at every width (#1345): on an iPad too the banner waits for the incoming lead there
   await page.setViewportSize({ width: 834, height: 1194 });
@@ -4740,28 +4740,60 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
 });
 
 test("a handover reads in a minute on a phone: what needs the lead first, five lines a section, the rest on ask", async () => {
-  const row = { id: 8, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z", state: "handed_over",
-    acknowledged_by: null, acknowledged_at: null, item_id: 41, lines: 30 };
+  const row = { id: 8, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z", state: "draft",
+    status: "not acknowledged", acknowledged_by: null, acknowledged_at: null, item_id: 41, lines: 30 };
   await page.route("**/handovers", (route) => route.fulfill({ json: [row] }));
   const many = (word, n) => Array.from({ length: n }, (_, i) => ({ text: `${word} ${i + 1}`, cites: [`case:${i + 1}`] }));
   await page.route("**/handovers/8", (route) => route.fulfill({ json: { ...row, drafted_at: "2026-11-12T06:00:00Z",
-    notes: null, acknowledged_note: null, facts: { sections: { "Open work": many("Backlog case", 25), "In the field": [],
-      "Escalated or overdue": many("Escalated step", 2), "Active bypasses": [] }, more: { "Open work": 121 },
+    notes: null, acknowledged_note: null, facts: { sections: { "New exceptions": many("New case", 25), "In the field": [],
+      "Escalated or overdue": many("Escalated step", 2), "Active bypasses": [] }, more: { "New exceptions": 121 },
       unknown: { "Active bypasses": "no bypass register loaded" } } } }));
   await page.goto(`${url}/#/handover?id=8`);
   await page.getByText("Escalated step 1").waitFor();
   // the headline says what the incoming lead takes on first, in reading order (#11)
-  assert.equal(await page.locator(".handover-first").innerText(), "First: 2 escalated or overdue · 146 open work");
+  assert.equal(await page.locator(".handover-first").innerText(), "First: 2 escalated or overdue · 146 new exceptions");
   const headings = await page.locator("main h3").allInnerTexts();
-  assert.ok(headings[0].startsWith("Escalated or overdue") && headings[1].startsWith("Open work"), headings.join(" | "));
-  assert.equal(await page.locator("main li", { hasText: /^Backlog case/ }).count(), 5);
+  assert.ok(headings[0].startsWith("Escalated or overdue") && headings[1].startsWith("New exceptions"), headings.join(" | "));
+  assert.equal(await page.locator("main li", { hasText: /^New case/ }).count(), 5);
   assert.ok(await page.getByText("Nothing in in the field.").count());
   // no bypass register: the section is unknown and why, never "nothing in active bypasses"
   assert.ok(await page.getByText("Active bypasses unknown: no bypass register loaded.").count());
   assert.doesNotMatch(await page.locator("main").innerText(), /nothing in [^.]*active bypasses/i);
   await page.getByRole("button", { name: "Show all 146" }).click();
-  assert.equal(await page.locator("main li", { hasText: /^Backlog case/ }).count(), 25);
+  assert.equal(await page.locator("main li", { hasText: /^New case/ }).count(), 25);
   await page.getByText("and 121 more").waitFor();
+  // the standing backlog is not listed: one link to All work for the rest (#1351)
+  assert.equal(await page.getByRole("link", { name: "The rest of the open work is in All work" }).getAttribute("href"), "#/list");
+  // a past handover nobody acknowledged says so, never "draft" or "handed over"
+  await page.getByRole("cell", { name: "not acknowledged" }).waitFor();
+  assert.doesNotMatch(await page.locator("main").innerText(), /\bdraft\b(?! the)|handed over/i);
+});
+
+// #1351: the banner opens the handover at the top, so Notes and Acknowledge sit in the first screen, on a phone too, however
+// long the handover; they were at the bottom, eight phone screens down.
+test("a handover's notes and acknowledge are in the first screen on a phone and a desk (#1351)", async () => {
+  const row = { id: 9, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z", state: "draft",
+    status: "not acknowledged", acknowledged_by: null, acknowledged_at: null, item_id: 42, lines: 60, notes_by: "bo" };
+  await page.route("**/handovers", (route) => route.fulfill({ json: [row] }));
+  const many = (word, n) => Array.from({ length: n }, (_, i) => ({ text: `${word} ${i + 1} on a long line about a valve and its pump`,
+    cites: [`case:${i + 1}`] }));
+  await page.route("**/handovers/9", (route) => route.fulfill({ json: { ...row, drafted_at: "2026-11-12T06:00:00Z",
+    notes: "Compressor B on recycle overnight", notes_at: "2026-11-12T05:40:00Z", acknowledged_note: null,
+    facts: { sections: { "Escalated or overdue": many("Escalated step", 12), "Back from the field": many("Back", 8),
+      "In the field": many("On site", 15), "New exceptions": many("New", 17), Closed: many("Closed", 9) } } } }));
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${url}/#/handover?id=9`);
+    const notes = page.getByRole("textbox", { name: "Outgoing notes" });
+    const ack = page.getByRole("button", { name: "I have read it: acknowledge" });
+    await ack.waitFor();
+    assert.equal(await notes.inputValue(), "Compressor B on recycle overnight", "the saved notes are in the box, not said twice");
+    for (const [what, el] of [["Outgoing notes", notes], ["Save notes", page.getByRole("button", { name: "Save notes" })], ["Acknowledge", ack]]) {
+      const box = await el.boundingBox();
+      assert.ok(box && box.y >= 0 && box.y + box.height <= viewport.height, `${what} below the first ${viewport.width} px screen: ${JSON.stringify(box)}`);
+    }
+    assert.equal(await page.evaluate(() => window.scrollY), 0);
+  }
 });
 
 test("a dispatched operator sees what they were sent on My work and lands on the job from it (#604)", async () => {
