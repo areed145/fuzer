@@ -173,13 +173,15 @@ def _with_compare(s: dict, overlays: list[dict], compare: str) -> dict:
     """Each series with its values over the compared windows, moved forward onto this window's times."""
     if "error" in s:
         return s
+    end = datetime.fromisoformat(s["time"]["end"])  # this window's end, now at the latest: nothing moves past it
     for o in overlays:
         theirs = {t["id"]: t for g in [*o["view"]["groups"], {"traces": o["view"]["other"]}] for t in g["traces"]}
         for x in s["series"]:
             t = theirs.get(x["key"])
             if not t or not t["values"]:
                 continue
-            moved = [[(datetime.fromisoformat(at) + o["shift"]).isoformat(timespec="minutes"), v] for at, v in t["values"]]
+            moved = [[m.isoformat(timespec="minutes"), v] for at, v in t["values"]
+                     if (m := datetime.fromisoformat(at) + o["shift"]) <= end]
             x.setdefault("compare", []).append({"label": o["label"], "values": moved})
     s["compare"] = {"mode": compare, "labels": [o["label"] for o in overlays]}
     return s

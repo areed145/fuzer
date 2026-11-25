@@ -815,6 +815,31 @@ def test_a_cases_trend_opens_on_the_point_its_event_was_seen_on_with_the_event_m
     conn.rollback()
 
 
+def test_a_case_raised_this_hour_ends_its_window_at_now_on_the_plants_clock(conn, compressor, three_sources, monkeypatch):
+    """#1350: an event seen ten minutes ago has no six hours after it yet. Its window, the trend's still-going shading
+    and the "plant time" label end at now on the plant's clock, not six hours on, and not at UTC's now."""
+    from datetime import UTC, datetime, timedelta
+
+    from fuzer.core import clock
+    from fuzer.core.findings import Finding
+    from fuzer.ops import around
+
+    monkeypatch.setattr(clock, "name", lambda: "America/Chicago")
+    seen = datetime.now(UTC) - timedelta(minutes=10)
+    trip = raise_exception(conn, "upset_x", "UPSET-NOW", "Step change on 20-K-2001", "sre",
+                           refs=[compressor["equipment"]],
+                           finding=Finding("test", "deterministic", start=seen.isoformat(timespec="seconds")))
+    before = clock.now()
+    a, b, _ = around.window(conn, trip["item_id"])
+    assert before <= b <= clock.now()  # now on Chicago's wall clock, hours behind UTC's
+    assert a == clock.wall(seen.isoformat(timespec="seconds")) - timedelta(hours=4)
+    ctx = around.context(conn, trip["item_id"])
+    assert ctx["window"]["end"] <= clock.now().isoformat(timespec="minutes")
+    shade = next(m for m in around.trend(conn, trip["item_id"])["marks"] if m["kind"] == "window")
+    assert shade["end"] <= clock.now().isoformat(timespec="minutes")
+    conn.rollback()
+
+
 def test_a_cases_window_reads_findings_written_with_and_without_a_zone(conn, compressor, three_sources, monkeypatch):
     """#1107: one source writes a finding's start with a zone ("...+00:00", "Z"), another without; the case's window
     reads both on the plant's wall clock instead of failing to compare them."""

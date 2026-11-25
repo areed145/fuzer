@@ -107,6 +107,13 @@ def high_rate(s: dict, start: datetime, end: datetime, step_seconds: int, src=No
     return read(s, start, end, step_seconds) if read else []
 
 
+def until_now(t: datetime) -> datetime:
+    """`t`, or now when `t` is later: a naive time on the plant's wall clock, an aware one as the instant."""
+    from ..core import clock
+
+    return min(t, clock.aware(clock.now()) if t.tzinfo else clock.now())
+
+
 class SyntheticProvider:
     """Points a fake plant's process model covers (process_model.json in its data folder) come from
     that model, so they move together; the rest are drawn per point, shaped around upsets."""
@@ -125,7 +132,9 @@ class SyntheticProvider:
         return self.values(s["point"], s["uom"] or "", start, end, step_minutes, s["upsets"], s.get("description") or "")
 
     def values(self, point, uom, start, end, step_minutes, upsets, description=""):
-        """The point's values in its own unit: made (and faulted) in the model's SI unit, then converted."""
+        """The point's values in its own unit: made (and faulted) in the model's SI unit, then converted. Never past
+        now: a historian holds nothing later, so neither does this one (#1350)."""
+        end = until_now(end)
         return to_point_unit(self._model_values(point, MODEL_UNIT.get(uom, uom), start, end, step_minutes, upsets,
                                                 description), uom)
 
@@ -143,7 +152,7 @@ class SyntheticProvider:
 
     def high_rate(self, s, start, end, step_seconds):
         """Points the process model covers, every `step_seconds`; others have no high-rate values here."""
-        if self.model and self.model.covers(s["point"]):
+        if self.model and self.model.covers(s["point"]) and start <= (end := until_now(end)):
             return to_point_unit(self.model.fine(s["point"], start, end, step_seconds), s.get("uom") or "")
         return []
 
