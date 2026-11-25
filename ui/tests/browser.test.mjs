@@ -370,6 +370,31 @@ test("a report waiting on an agent no worker has claimed says the agent worker m
   await page.getByRole("note").filter({ hasText: "Waiting for an agent worker" }).waitFor({ state: "detached" });
 });
 
+test("P5.26e a published daily report shows readers the report alone, drawn from the records now when they changed", async () => {
+  await page.route("**/reports/daily", route => route.fulfill({ json: [] }));
+  await page.route("**/reports/daily/2025-12-30*", route => route.fulfill({ json: { day: "2025-12-30", version: 2,
+    versions: [1, 2], drafted_by: "template", markdown: "# Daily operations report 2025-12-30\n\n- Production efficiency 100% [fz-a]",
+    checks: { ok: false, uncited_lines: ["x"], unknown_citations: [], unknown_numbers: [] }, seconds: null, changes: null,
+    production_day: null, facts: { sections: {} }, stale_of: 2, review: { item_id: 5, status: "published", outcome: "published",
+      closed_at: "2025-12-31T09:55:00Z", comments: null, step: null } } }));
+  const win = { key: "1d", at: "2025-12-30", start: "2025-12-30", end: "2025-12-30", days: 1, label: "30 Dec 2025", asked: true,
+    previous: { start: "2025-12-29", end: "2025-12-29" } };
+  const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
+  const view = { scope, window: win, repeats: {}, scopes: [scope], definition: { schema: 1, key: "operations",
+    title: "Daily operations", version: 1, for: [], scope: { kinds: ["facility"] }, source: "platform",
+    window: { default: "1d", options: ["1d"], at: "production_day" },
+    rows: [{ id: "report", panels: [{ id: "narrative", type: "narrative", size: 2 }] }] } };
+  await page.route("**/reports/operations?*", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/operations/panels/**", (route) => route.fulfill({ json: { id: "narrative", type: "narrative",
+    title: "Daily report", scope, window: win, as_of: "2025-12-30", note: null, scoped: true, refs: [], href: "/cases/5",
+    day: "2025-12-30", status: "published", version: 2, ok: false } }));
+  await page.goto(`${url}/#/reports/operations?at=2025-12-30`);
+  await page.getByText("Production efficiency 100%").waitFor();
+  await page.getByText("The day's records changed after version 2 was drafted", { exact: false }).waitFor();
+  assert.equal(await page.getByText("drafted by", { exact: false }).count(), 0, "how it was drafted is for the reviewer");
+  assert.equal(await page.getByText("No citation:", { exact: false }).count(), 0);
+});
+
 test("a report page wraps its rows four, two and one across, keeps scope and window in its link, and drops phone: false panels", async () => {
   const win = { key: "7d", at: "2026-11-24", start: "2026-11-18", end: "2026-11-24", days: 7, label: "7 days to 24 Nov 2026",
     previous: { start: "2026-11-11", end: "2026-11-17" } };
@@ -429,7 +454,7 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
   await page.setViewportSize({ width: 1440, height: 900 });
 });
 
-test("a report's AI note cites what it rests on and keeps what the checks found from readers; a note shows its live values and adds for the period", async () => {
+test("a report's AI note cites what it rests on by name and keeps a note that fails its checks from readers; a note shows its live values and adds for the period", async () => {
   const win = { key: "7d", at: "2026-11-24", start: "2026-11-18", end: "2026-11-24", days: 7, label: "7 days to 24 Nov 2026",
     previous: { start: "2026-11-11", end: "2026-11-17" } };
   const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
@@ -441,6 +466,7 @@ test("a report's AI note cites what it rests on and keeps what the checks found 
     body: "Backlog at {work.backlog} after the trip.", by: "Dana", written_at: "2026-11-24T08:00:00Z", edited_at: null, own: true,
     values: { "{work.backlog}": { key: "work.backlog", scope: "fz-f1", value: 1250, unit: "cases", error: null } } };
   const added = [];
+  let checks = { ok: true, uncited_points: [], unknown_citations: [], unknown_numbers: [] };
   await page.route("**/reports/work?*", (route) => route.fulfill({ json: view }));
   await page.route("**/reports/work", (route) => route.fulfill({ json: view }));
   await page.route("**/reports/work/notes", (route) => { added.push(route.request().postDataJSON()); return route.fulfill({ json: { ...note, id: 8 } }); });
@@ -450,16 +476,24 @@ test("a report's AI note cites what it rests on and keeps what the checks found 
     if (id === "notes") return route.fulfill({ json: { ...base, type: "note", text: null, values: {}, notes: [note] } });
     return route.fulfill({ json: { ...base, type: "summary", can_write: false, due: false, summary: {
       report: "work", scope: "fz-f1", window: "7d", at: "2026-11-24", headline: "Backlog up to 42 cases this week",
-      points: [{ text: "Most of it waits for dispatch.", cites: ["work.backlog", "case:12"] }],
-      checks: { ok: false, uncited_points: [], unknown_citations: [], unknown_numbers: ["12%"] },
+      points: [{ text: "Most of it waits for dispatch.", cites: ["work.backlog", "case:12", "plan.lines"] }], checks,
+      labels: { "work.backlog": "Open cases" },
       written_at: "2026-11-24T07:00:00Z", by: "user:a", model: "m", cost_usd: 0.001 } } });
   });
   await page.goto(`${url}/#/reports/work`);
   await page.getByText("Backlog up to 42 cases this week").waitFor();
   await page.getByRole("link", { name: "case 12" }).waitFor();
+  // P5.26e: a measure is cited by its label, never its key
+  await page.getByRole("link", { name: "Open cases" }).waitFor();
+  assert.equal(await page.getByText("work.backlog").count(), 0);
+  assert.equal(await page.getByText("plan.lines").count(), 0);
   await page.getByText("1,250 cases", { exact: true }).waitFor();
-  // what the checks found is for whoever can write the note again: a reader sees the note alone
+  // a note that fails its checks is for whoever can write it again: a reader sees no note, and no flags
+  checks = { ok: false, uncited_points: [], unknown_citations: [], unknown_numbers: ["12%"] };
+  await page.reload();
+  await page.getByText("No note for this period.").waitFor();
   assert.equal(await page.getByText("12% not on the page").count(), 0);
+  assert.equal(await page.getByText("Backlog up to 42 cases this week").count(), 0);
   await page.getByRole("textbox", { name: "Add a note" }).fill("Compressor back on Thursday.");
   await page.getByRole("button", { name: "Add note" }).click();
   await page.waitForFunction(() => true);

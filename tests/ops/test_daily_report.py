@@ -81,6 +81,23 @@ def test_late_records_make_a_new_version(conn):
     conn.rollback()
 
 
+def test_a_version_drafted_from_other_facts_is_not_shown(conn):
+    """P5.26e, #1367: the latest version, drafted before the day's facts changed (late records, or a change to what
+    the facts say, as when "99.8% of potential" became the day's production efficiency), is not shown beside the page's
+    figures: the plain draft of the facts now is, naming the version. A read stores nothing."""
+    day = "2025-12-28"
+    daily_report.close_day(conn, PACK, day)
+    assert "stale_of" not in daily_report.get(conn, day, pack=PACK)
+    conn.execute("update daily_ops_report set markdown = '- Oil 99.8%% of potential [x]', fingerprint = 'old' "
+                 "where day = %s", (day,))
+    r = daily_report.get(conn, day, pack=PACK)
+    assert r["stale_of"] == r["version"] and "99.8%" not in r["markdown"] and r["drafted_by"] == "template"
+    assert r["markdown"] == daily_report.render(daily_report.facts(conn, PACK, day)) and r["checks"]["ok"]
+    assert daily_report.get(conn, day)["markdown"].startswith("- Oil 99.8%"), "only a read with the pack checks"
+    assert daily_report.get(conn, day, r["version"], PACK)["markdown"].startswith("- Oil 99.8%"), "a named version as kept"
+    conn.rollback()
+
+
 GOOD = """# Daily operations report 2024-11-05
 
 ## 1. Headline

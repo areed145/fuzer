@@ -158,13 +158,16 @@ def _unknown_rows(conn, pack, d: dict, scope: dict, w: dict) -> list[dict]:
 
 
 def panel_data(conn, pack, key: str, panel_id: str, scope: str | None = None, window: str | None = None,
-               at=None, draft: dict | None = None) -> dict:
+               at=None, draft: dict | None = None, history: bool = True) -> dict:
     """One panel's result: what every panel carries, then its type's own fields; `error` when it couldn't be read.
-    `draft`: a checked definition being edited, read in place of the saved one (a panel not saved yet)."""
+    `draft`: a checked definition being edited, read in place of the saved one (a panel not saved yet). `history`:
+    False reads a stat without its sparkline (the AI note asking whether its figures moved)."""
     d = draft or definition(conn, pack, key)
     panel = next((p for p in reports.panels(d) if p["id"] == panel_id), None)
     if panel is None:
         raise ReportError(f"{d['title']} has no panel {panel_id}")
+    if not history:
+        panel = {**panel, "history": False}
     # a repeat row's panels are read for each entity it draws for, of the repeat's kind
     row = next(r for r in d["rows"] if r["id"] == panel["row"])
     ref = _scope(conn, d, scope, (row.get("repeat") or {}).get("kind"), pack)

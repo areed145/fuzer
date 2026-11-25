@@ -10,6 +10,7 @@ import { Markdown } from "../../Markdown";
 import { Status, entityHref, href, useAsync, useAction } from "../../lib";
 import { AgentIdle } from "../../pages/workflows/shared";
 import { Badge, Button, ErrorText, Heading, List, Text, Textarea, type Tone } from "../../ui";
+import { usePermission } from "../../Auth";
 import { usePerson } from "../../work";
 import { units } from "../../wording";
 import { PanelFrame, usePanel } from "../panels";
@@ -42,12 +43,17 @@ export function NarrativePanel(props: PanelProps) {
 function Narrative({ day }: { day: string }) {
   const [version, setVersion] = useState<number | undefined>();
   const r = useAsync(() => api.dailyReport(day, version), [day, version]);
+  const operate = usePermission("operate");
   const d = r.data;
+  // how it was drafted and what its checks found are for the reviewer while it waits; a reader sees the report
+  const reviewing = operate && !!d?.review && d.review.status !== "published";
   return <>
     <Status of={r} />
     {d && <>
+      {d.stale_of && <Text as="p" small muted>The day's records changed after version {d.stale_of} was drafted; this
+        is drawn from them now.</Text>}
       <Markdown text={units(readableCitations(d.markdown))} />
-      {!d.checks.ok && <List small>
+      {reviewing && !d.checks.ok && <List small>
         {d.checks.uncited_lines.map((l) => <li key={l}>No citation: {l}</li>)}
         {d.checks.unknown_citations.map((c) => <li key={c}>Cites a record not in the day's facts: {c}</li>)}
         {d.checks.unknown_numbers.map((n) => <li key={n}>A number not in the records: {n}</li>)}
@@ -62,17 +68,17 @@ function Narrative({ day }: { day: string }) {
           </div>
         ))}
       </>}
-      <div className="row small muted report-versions">
+      {(reviewing || d.versions.length > 1 || d.production_day) && <div className="row small muted report-versions">
         {d.versions.length > 1 && <>
           <span>Version</span>
           {d.versions.map((v) => (
             <Button key={v} className={v === d.version ? "chip on" : "chip"} onClick={() => setVersion(v)}>{v}</Button>
           ))}
         </>}
-        <span>{d.checks.ok ? "Every line cites its records" : "Has lines to check"} · drafted by {d.drafted_by}</span>
-        {d.usage?.cost_usd !== undefined && <span>{money(d.usage.cost_usd)}</span>}
+        {reviewing && <span>{d.checks.ok ? "Every line cites its records" : "Has lines to check"} · drafted by {d.drafted_by}</span>}
+        {reviewing && d.usage?.cost_usd !== undefined && <span>{money(d.usage.cost_usd)}</span>}
         {d.production_day && <a href={entityHref(d.production_day)}>Production day record</a>}
-      </div>
+      </div>}
     </>}
   </>;
 }

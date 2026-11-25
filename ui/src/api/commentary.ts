@@ -12,9 +12,12 @@ export interface ReportSummary {
   report: string; scope: string | null; window: WindowKey; at: string;
   headline: string; points: ReportNotePoint[]; checks: ReportNoteChecks;
   written_at: string; by: string; model: string | null; cost_usd: number | null;
+  /** The label of each measure a point cites, so a key is never shown. */
+  labels: Record<string, string>;
 }
 
-/** The `summary` panel's result. `due`: none kept, the default window, ending today, so a visit with AI access writes it. */
+/** The `summary` panel's result: the kept note only while the figures it talks about read as they did. `due`: none ever kept,
+ * the default window, ending today, so a visit with AI access writes it. */
 export interface SummaryPanelResult extends SummaryResult { summary: ReportSummary | null; can_write: boolean; due: boolean }
 
 /** A live value a note names (`{production.oil}`), resolved by the server for the note's scope and period. */

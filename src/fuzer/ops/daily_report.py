@@ -370,7 +370,11 @@ def reporter_agent(call) -> dict:
     return {"draft": {k: out[k] for k in ("report_id", "version", "checks")}}
 
 
-def get(conn, day: str, version: int | None = None) -> dict | None:
+def get(conn, day: str, version: int | None = None, pack=None) -> dict | None:
+    """One version of a day's report (the latest when none is named). With `pack`, the latest is checked against the
+    day's records now (P5.26e, #1367): a version drafted from facts that have changed since (late records, or a change
+    to what the facts say) is not shown; the plain draft of the facts now is, with `stale_of` naming the version. The
+    next day close stores it as a version; a read writes nothing."""
     r = conn.execute("select * from daily_ops_report where day = %s and (%s::int is null or version = %s) "
                      "order by version desc limit 1", (day, version, version)).fetchone()
     if not r:
@@ -380,9 +384,19 @@ def get(conn, day: str, version: int | None = None) -> dict | None:
                         "order by version desc limit 1", (day,)).fetchone()
     review = _reviews(conn, [item["item_id"]]).get(item["item_id"]) if item else None
     prod = _day001(conn, str(day))
-    return _plain({k: r[k] for k in ("day", "version", "markdown", "facts", "drafted_by", "changes", "usage", "seconds",
-                                     "item_id", "created_at")} | {"checks": _recheck(r), "versions": versions, "review": review,
-                                                                  "production_day": prod["id"] if prod else None})
+    out = _plain({k: r[k] for k in ("day", "version", "markdown", "facts", "drafted_by", "changes", "usage", "seconds",
+                                    "item_id", "created_at")} | {"checks": _recheck(r), "versions": versions, "review": review,
+                                                                 "production_day": prod["id"] if prod else None})
+    if pack is not None and version is None and prod is not None:
+        try:
+            now = facts(conn, pack, str(day))
+        except ValueError:
+            return out
+        if fingerprint(now) != r["fingerprint"]:
+            md = render(now)
+            out |= _plain({"markdown": md, "facts": now, "checks": check(md, now), "drafted_by": "template",
+                           "usage": None, "seconds": None, "changes": _changes(r["facts"], now), "stale_of": r["version"]})
+    return out
 
 
 def for_people(report: dict) -> dict:
