@@ -9,6 +9,7 @@ import re
 import time
 from contextvars import ContextVar
 
+import psycopg
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
@@ -19,6 +20,7 @@ from ..core import access, db, settings
 
 current: ContextVar[access.Principal | None] = ContextVar("fuzer_http_principal", default=None)
 mutating: ContextVar[bool] = ContextVar("fuzer_http_mutating", default=False)
+reading: ContextVar[bool] = ContextVar("fuzer_http_reading", default=False)  # a GET or HEAD, signed in or not
 # The shell is public: the page, its offline worker (P5.14d) and health. Everything else needs a session.
 # The icons iPhones and browsers ask for at the root on their own: public like the page they belong to.
 ROOT_ICONS = ("/favicon.ico", "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png",
@@ -144,6 +146,20 @@ def _arguments(kwargs):
         kwargs["by"] = person.actor
 
 
+def _read_again(values) -> bool:
+    """Whether a read the database chose as a deadlock's victim may run once more: True after rolling back the
+    connections it was given. On a zero-downtime deploy the new instance's schema update locks tables while the old
+    one still answers reads, and a read holding one table while waiting on another can be the side Postgres cancels
+    (#1332). A read changes nothing, so running it again once the update has its locks is safe; a write is never
+    replayed (AGENTS.md)."""
+    if not reading.get() or mutating.get():
+        return False
+    for value in values.values():
+        if isinstance(value, psycopg.Connection):
+            value.rollback()
+    return True
+
+
 class AuthenticatedRoute(APIRoute):
     def __init__(self, path, endpoint, **kwargs):
         # include_router reconstructs routes, so wrap each endpoint only once.
@@ -153,11 +169,21 @@ class AuthenticatedRoute(APIRoute):
                 @functools.wraps(original)
                 async def endpoint(**values):
                     _arguments(values)
+                    try:
+                        return await original(**values)
+                    except psycopg.errors.DeadlockDetected:
+                        if not _read_again(values):
+                            raise
                     return await original(**values)
             else:
                 @functools.wraps(original)
                 def endpoint(**values):
                     _arguments(values)
+                    try:
+                        return original(**values)
+                    except psycopg.errors.DeadlockDetected:
+                        if not _read_again(values):
+                            raise
                     return original(**values)
             endpoint._trusted_actor = True
         super().__init__(path, endpoint, **kwargs)
@@ -166,6 +192,13 @@ class AuthenticatedRoute(APIRoute):
         handler = super().get_route_handler()
 
         async def protected(request: Request):
+            token = reading.set(request.method in ("GET", "HEAD"))
+            try:
+                return await guarded(request)
+            finally:
+                reading.reset(token)
+
+        async def guarded(request: Request):
             global _active
             if self.path in PUBLIC_SHELL:
                 return await handler(request)
