@@ -81,10 +81,15 @@ export function setWorkKinds(kinds: Record<string, string>) {
  * and "Sap order" on the next; a kind nothing labels reads as its name in words, as the server says it. */
 export const workKind = (type: string): string => workKinds[type] ?? cap(type.replace(/_/g, " "));
 
+// Sources whose key is not a word (#1383): "ptw" read "Ptw"; the demo's sample crew, the synthetic field operators a
+// demonstration facility runs (ops/sample_crew.py), read as a source name in lower case beside the kind.
+const SOURCE_WORDS: Record<string, string> = { ptw: "Permit to work", "sample crew": "Demo crew" };
+
 /** What raised an event, as words (#16): "alarm_performance" reads "Alarm performance", "agent:opportunity_scan" the
  * "Opportunity scan agent". */
 export function detectorName(source: string): string {
   if (/^(agent|detector):/.test(source)) return person(source);
+  if (SOURCE_WORDS[source]) return SOURCE_WORDS[source];
   return /^[a-z0-9]+(_[a-z0-9]+)*$/.test(source)
     ? cap(source.replace(/_/g, " ")).replace(/\b(sre|sap|iow|dcs)\b/gi, (w) => w.toUpperCase()) : source;
 }

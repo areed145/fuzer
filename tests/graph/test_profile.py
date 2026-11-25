@@ -37,3 +37,21 @@ def test_an_instrument_sits_under_its_unit(conn):
     p = queries.profile(conn, queries.resolve_ref(conn, PACK, "20-PT-2300A"))
     assert p["location"][0]["label"] == "20-K-2300A"
     assert p["manufacturer"] is None or isinstance(p["manufacturer"], str)  # not stated, not guessed
+
+
+def test_names_never_give_an_id_a_rebuild_merged_and_search_names_equipment_by_its_tag(conn):
+    """#1383 (tour C, C8): a case kept the id its tag had before a rebuild merged it ("about fz-tag-8e6a6091be32"), and
+    the steward's picker named equipment by its serial number or its id. A merged id reads as the entity it is now;
+    a search hit for equipment carries the tag it is installed at, which the page names it by."""
+    tag = queries.resolve_ref(conn, PACK, "20-XV-3100")
+    old = "fz-tag-0000000a1383"
+    conn.execute("insert into entity (fuzer_id, kind, merged_into) values (%s, 'tag', %s)", (old, tag))
+    try:
+        assert queries.names(conn, [old, tag])[old]["label"] == "20-XV-3100" == queries.names(conn, [tag])[tag]["label"]
+    finally:
+        conn.rollback()
+    unit = conn.execute("select src from edge where dst = %s and rel = 'installed_at' and valid_to is null",
+                        (queries.resolve_ref(conn, PACK, "20-K-2300A"),)).fetchone()["src"]
+    serial = queries.names(conn, [unit])[unit]["label"]
+    [hit] = [h for h in queries.search(conn, PACK, serial, "equipment", 50) if h["fuzer_id"] == unit] or [None]
+    assert hit and hit["at"] == "20-K-2300A", hit

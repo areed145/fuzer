@@ -74,7 +74,7 @@ export interface MessageSaid {
 export interface MessagePayload {
   message: MessageSaid; why: string; question: string;
   /** the entities it might be about that work can be about, each with its kind, description and place (P5.26f) */
-  candidates: { fuzer_id: string; kind: string; label: string | null; description: string | null; parent_label: string | null }[];
+  candidates: { fuzer_id: string; kind: string; label: string | null; description: string | null; parent_label: string | null; at?: string | null }[];
   /** the kinds a message's case can be about: the register search for another is limited to them */
   kinds?: string[];
 }

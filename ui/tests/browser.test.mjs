@@ -11022,3 +11022,44 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     assert.deepEqual(errors, []);
   });
 }
+
+// P5.27e (#1383, tour C C8, A23, B-N17): people and entities by name, from one formatter each. A field note's sender
+// and the steward who chose its entity are actors ("user:demo"), a subject the register no longer holds is an id, a
+// clash names whoever is booked by their actor, a 0-1 priority read "scored 0.90 of 1", and a step's first send read
+// "sent ... again".
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.27e a case names people and entities, never their ids (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const gone = "fz-equipment-6124c3fd7d62";
+    const message = { id: "MSG-0101", channel: "phone", channel_label: "Field note", sender: "user:demo", subject: null,
+      text: "V-2002 level glass cracked, isolated it.", received_at: "2026-11-25T16:00" };
+    const source = { id: 11, type: "message_report", key: "MSG-0101", title: "V-2002 level glass cracked", source: "messages",
+      state: "open", first_seen: "2026-11-25T16:30:00Z", last_seen: "2026-11-25T16:30:00Z", joined_to: null, subjects: [gone],
+      label: "Reported in a message", finding: finding("external", "The tags, wells and aliases a message names", [
+        text("Channel", "Field note"), text("From", "user:demo"), text("Message", message.text), text("Chosen by", "user:demo")]) };
+    await page.route("**/entities/names*", (route) => route.fulfill({ json: { [gone]: { label: null, description: null } } }));
+    await page.route("**/work/items/41", (route) => route.fulfill({ json: { id: 41, type: "message_report", state: "open",
+      title: source.title, subjects: [gone], priority: 0.9, created_by: "messages", created_at: "2026-11-25T16:30:00Z",
+      payload: { exception_id: 11, message }, sources: [source], processes: [], events: [
+        { id: 1, kind: "step_started", actor: "riley", element: "field_check", at: "2026-11-25T16:40:00Z",
+          data: { role: "operator", assignee: null } },
+        { id: 2, kind: "handed_off", actor: "riley", element: "field_check", at: "2026-11-25T16:40:00Z",
+          data: { from: null, to: "role:operator", reason: "Look at the level glass" } }] } }));
+    const options = caseOptions({ item_id: 41, exception_id: 11, type: "message_report" });
+    options.options[0].clashes = ["user:demo is also on “Loose cable gland on 30-PT-2001” then"];
+    await page.route("**/work/items/41/options", (route) => route.fulfill({ json: options }));
+    await page.goto(`${url}/#/cases/41`);
+    const card = page.locator(".case-message");
+    await card.getByRole("heading", { name: /^Field note · Demo account · / }).waitFor();
+    await card.getByText("Chosen by Demo account", { exact: true }).waitFor();
+    await page.locator(".case-head").getByText("Equipment with no name").waitFor();
+    await page.getByText("Demo account is also on", { exact: false }).first().waitFor();
+    await page.locator(".timeline").getByText(/sent Field check to the operator queue/).waitFor();
+    const main = await page.locator("main").innerText();
+    for (const raw of ["user:demo", gone, "scored", "Matched by chosen", "again to"])
+      assert.ok(!main.includes(raw), `no "${raw}" on the case`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}

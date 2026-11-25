@@ -6,7 +6,7 @@ import { api, type CaseOption, type CaseOptions } from "../../api";
 import { estimate, money, twoFigures, when } from "../../format";
 import { Status, notifyChanged, useAction, useAsync } from "../../lib";
 import { ActionStatus, Badge, Button, Card, Field, Input, Line, Notice, Select, Text, type Tone } from "../../ui";
-import { person as personName, queue } from "../../wording";
+import { person as personName, queue, say } from "../../wording";
 
 const RISK: Record<string, Tone> = { Low: "ok", Medium: "warn", High: "danger" };
 /** What the button does, said as the act. */
@@ -111,7 +111,8 @@ function Option({ opt, d, readOnly, busy, open, anyOpen, onOpen, onChoose, statu
   return (
     <li className={`case-option${rec ? " recommended" : ""}`}>
       <Line wrap><strong>{opt.label}</strong>{rec && <Badge tone="ok">Recommended</Badge>}</Line>
-      {opt.detail && <Text as="div" small>{opt.detail}</Text>}
+      {/* the server words these with whoever is on them as their actor ("user:demo is also on"): named here (#1383) */}
+      {opt.detail && <Text as="div" small>{say(opt.detail)}</Text>}
       <div className="case-option-facts">
         <span>Done by {when(opt.by)}</span>
         {/* with nothing deferred now the card's first line says so once, not on every option */}
@@ -121,11 +122,11 @@ function Option({ opt, d, readOnly, busy, open, anyOpen, onOpen, onChoose, statu
         {!blocked && (opt.key === "dispatch" || opt.key === "window") &&
           (opt.unknown?.length ? <Badge tone="muted">unknown</Badge> : <Badge tone="ok">ready</Badge>)}
       </div>
-      {blocked && <Text as="div" small><Badge tone="warn">not ready</Badge> {opt.blockers?.[0]}</Text>}
-      {(opt.unknown ?? []).map((u) => <Text as="div" small key={u}>{u}</Text>)}
-      {(opt.clashes ?? []).slice(0, 2).map((c) => <Text as="div" small key={c}><Badge tone="warn">clash</Badge> {c}</Text>)}
-      {(opt.warnings ?? []).slice(0, 1).map((w) => <Text as="div" small key={w}><Badge tone="warn">check</Badge> {w}</Text>)}
-      {rec && d.reason && <div className="case-option-why">{d.reason}</div>}
+      {blocked && <Text as="div" small><Badge tone="warn">not ready</Badge> {say(opt.blockers?.[0])}</Text>}
+      {(opt.unknown ?? []).map((u) => <Text as="div" small key={u}>{say(u)}</Text>)}
+      {(opt.clashes ?? []).slice(0, 2).map((c) => <Text as="div" small key={c}><Badge tone="warn">clash</Badge> {say(c)}</Text>)}
+      {(opt.warnings ?? []).slice(0, 1).map((w) => <Text as="div" small key={w}><Badge tone="warn">check</Badge> {say(w)}</Text>)}
+      {rec && d.reason && <div className="case-option-why">{say(d.reason)}</div>}
       {!readOnly && <div className="case-option-act">
         {oneTap
           ? <Button variant={anyOpen ? "secondary" : "primary"} disabled={busy} onClick={() => onChoose({})}>{VERB[opt.key]}</Button>

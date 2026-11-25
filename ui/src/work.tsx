@@ -33,7 +33,8 @@ export function priorityLevel(p: number | null | undefined, type?: string | null
     const sap = 5 - Math.round(p);
     return level(sap <= 2 ? "High" : sap === 3 ? "Medium" : "Low", `SAP priority ${sap}`);
   }
-  if (p <= 1) return level(p >= 0.8 ? "High" : p >= 0.5 ? "Medium" : "Low", `scored ${p.toFixed(2)} of 1`);
+  // a 0–1 score says nothing more than its word: "scored 0.90 of 1" told nobody anything (#1383)
+  if (p <= 1) return level(p >= 0.8 ? "High" : p >= 0.5 ? "Medium" : "Low", "");
   return level(p >= 10000 ? "High" : p >= 1000 ? "Medium" : "Low", `${money(p)} at stake`);
 }
 
@@ -62,8 +63,9 @@ export function reportedBy(sources: { source?: string | null }[]): string {
 }
 
 export function Actor({ who }: { who: string }) {
-  if (who.startsWith("agent:")) return <UIBadge tone="info">{who.slice(6).replace(/_/g, " ")} agent</UIBadge>;
-  if (who === "system") return <UIBadge>fuzer</UIBadge>;
+  // one formatter for who did something (#1383): the Actor badge and a sentence name them the same way
+  if (who.startsWith("agent:")) return <UIBadge tone="info">{personName(who)}</UIBadge>;
+  if (who === "system") return <UIBadge>{personName(who)}</UIBadge>;
   return <strong>{personName(who)}</strong>;
 }
 
@@ -114,7 +116,9 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "released": return { text: <>let go of <strong>{el}</strong></> };
     case "completed": return { text: <>completed <strong>{step}</strong></>, body: <DataView data={d.data} /> };
     case "agent_result": return { text: <>finished <strong>{step}</strong></>, body: <DataView data={d.data} /> };
-    case "handed_off": return { text: d.from === d.to ? <>sent <strong>{el ?? "the case"}</strong> again to {to(d.to)}</>
+    // no `from`: the step's first send, straight after it started in that queue (#1383)
+    case "handed_off": return { text: !d.from ? <>sent <strong>{el ?? "the case"}</strong> to {to(d.to)}</>
+      : d.from === d.to ? <>sent <strong>{el ?? "the case"}</strong> again to {to(d.to)}</>
       : <>handed <strong>{el ?? "the case"}</strong> from {to(d.from)} to {to(d.to)}</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
     case "escalated": return { text: escalation(e) };
     case "timer_fired": return { text: <>timer <strong>{el}</strong> fired</> };
@@ -128,7 +132,6 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "attached": return { text: <>attached an answer from Ask</>, body: <div className="attached-answer">
       <Text as="p" small><strong>{d.question}</strong></Text><Markdown text={String(d.answer ?? "")} /></div> };
     case "cancelled": return { text: <>cancelled the workflow</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
-    case "migrated": return { text: <>picked up the current version of its workflow</> };
     case "adopted": return { text: <>now runs as the <strong>{d.process_key}</strong> process, still with {to(d.assignee ?? (d.role ? `role:${d.role}` : null))}</> };
     case "auto_assigned": return { text: <><strong>{step}</strong> went to {personName(d.to)} (the {d.role} role assigns automatically)</> };
     case "delegated": return { text: <><strong>{el ?? "a step"}</strong> went to {personName(d.to)} instead of {personName(d["for"])}, who is away</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };

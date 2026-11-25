@@ -7,13 +7,18 @@ import { useState } from "react";
 import { errorMessage } from "../../lib";
 import { api, type SearchHit } from "../../api";
 import { count } from "../../format";
+import { display } from "../../entityRefs";
 import { kindWord } from "../../wording";
 import { Button, Input, Empty, ErrorText, Line, List, Checkbox, Text } from "../../ui";
 
 /** One register entity as a line a person can tell apart from the next: "30-PT-2001 · Tag · Test separator pressure ·
- * ST1". */
-export const hitLine = (h: Pick<SearchHit, "fuzer_id" | "kind" | "label" | "description" | "parent_label">) =>
-  [h.label ?? h.fuzer_id, kindWord(h.kind), h.description, h.parent_label].filter(Boolean).join(" · ");
+ * ST1". It is named as everywhere else (`display`): equipment by the tag it is installed at, never by its serial number
+ * or its id (#1383). */
+export const hitLine = (h: Pick<SearchHit, "fuzer_id" | "kind" | "label" | "description" | "parent_label" | "at">) => {
+  const name = display(h.fuzer_id, { [h.fuzer_id]: { label: h.label, description: h.description, at: h.at ?? undefined } });
+  const said = h.description && !name.includes(h.description) ? h.description : null;
+  return [name, kindWord(h.kind), said, h.parent_label].filter(Boolean).join(" · ");
+};
 
 const SHOWN = 12;
 

@@ -5,7 +5,7 @@ import { confirmDialog } from "../../ui";
 import { OpportunityPanel } from "./OpportunityPanel";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
-import { cap, say, workKind } from "../../wording";
+import { cap, person as personName, say, workKind } from "../../wording";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { api, type CaseSource, type MessageSaid, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
 import { CaseQuestion } from "../Review";
@@ -158,7 +158,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
             <UIBadge>{workKind(it.type)}</UIBadge>
             <UIBadge tone={closed ? "ok" : "muted"}>{cap(it.state)}{it.outcome ? `: ${say(it.outcome)}` : ""}</UIBadge>
             {!closed && <Due at={it.due} />}
-            {level && <span><PriorityBadge p={it.priority} type={it.type} low /> <Text muted>priority, {level.why}</Text></span>}
+            {level && <span><PriorityBadge p={it.priority} type={it.type} low /> <Text muted>priority{level.why && `, ${level.why}`}</Text></span>}
             {(it.subjects.length > 0 || dataset) && <span><Text muted>about</Text>{" "}
               <EntityLinks ids={it.subjects} />
               {dataset && <> source dataset <a href={href("/sources", { view: "dataset", name: dataset })}>{dataset}</a></>}
@@ -205,10 +205,14 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
 const messageOf = (m: unknown): MessageSaid | null =>
   m && typeof m === "object" && typeof (m as MessageSaid).text === "string" ? m as MessageSaid : null;
 
-/** How the reader placed a message's case: its finding's "Matched by". */
+/** How a message's case was placed: the reader's "Matched by", or the steward's "Chosen by", whose value is an actor
+ * and reads as their name (#1383). */
 const matchedBy = (sources?: CaseSource[]): string | null => {
-  const item = sources?.find((x) => x.type === "message_report")?.finding.items.find((i) => i.label === "Matched by");
-  return item ? String(item.value) : null;
+  const items = sources?.find((x) => x.type === "message_report")?.finding.items ?? [];
+  const chosen = items.find((i) => i.label === "Chosen by");
+  if (chosen) return `Chosen by ${personName(String(chosen.value))}`;
+  const item = items.find((i) => i.label === "Matched by");
+  return item ? `Matched by ${String(item.value)}` : null;
 };
 
 /** The message a case was opened from, first on the case (P5.26a): "Radio call · GGCP CRO · Nov 23, 6:52 AM", then
@@ -218,13 +222,14 @@ function CaseMessage({ m, matched, person, exceptionId, onChanged }: {
   /** The open message case's event, where its entities can be changed (a wrong match, #1382); null when they can't. */
   exceptionId: number | null; onChanged: () => void;
 }) {
+  // a field note's sender is the operator's actor, named like anyone else (#1383)
   const operate = usePermission("operate");
   const a = useAction();
   const [changes, setChanges] = useState(0);  // a change made closes the picker: it opens fresh for the next
-  return <UICard className="case-message" title={`${m.channel_label} · ${m.sender} · ${when(m.received_at)}`}>
+  return <UICard className="case-message" title={`${m.channel_label} · ${personName(m.sender)} · ${when(m.received_at)}`}>
     {m.subject && <Text as="p" small>{m.subject}</Text>}
     <p>{say(m.text)}</p>
-    {matched && <Text as="p" small muted>Matched by {matched}</Text>}
+    {matched && <Text as="p" small muted>{matched}</Text>}
     {exceptionId != null && operate && person && <MatchRef key={changes} value="" label="Change the entity"
       canRemember={false} kinds={["work"]} multiple busy={!!a.busy} onPick={(_, __, all) => a.run("Changing the entity…",
         () => api.changeMessageEntities(exceptionId, person, all),

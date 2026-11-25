@@ -256,17 +256,29 @@ def _same(a: dict, b: dict) -> bool:
     return da == db
 
 
+# Kept on a case for the engine and the gap reports, never something anyone did on it: a process moved onto the
+# current version of its workflow, and what the options could not determine (the Options card says it) (#1383).
+BOOKKEEPING = frozenset({"migrated", "undetermined"})
+
+
 def history(events: list[dict]) -> list[dict]:
-    """A case's history as people read it (#1372): a hand-off that leaves the step where it was is dropped (with a
-    reason, it reads as sent again), and a run of entries that read the same is one entry, the latest, with
-    `count`. The stored events are not changed."""
+    """A case's history as people read it (#1372): bookkeeping is left out, a hand-off that leaves the step where it
+    was is dropped (with a reason, it reads as sent again, or, straight after the step started there, as its first
+    send, with no `from`), and a run of entries that read the same is one entry, the latest, with `count`. The stored
+    events are not changed."""
     out: list[dict] = []
+    last: dict = {}  # each step's last start or hand-off, by element
     for e in events:
         d = e["data"] or {}
+        if e["kind"] in BOOKKEEPING:
+            continue
         if e["kind"] == "handed_off" and _queue(d.get("from")) == _queue(d.get("to")):
             if not d.get("reason"):
                 continue
-            e = {**e, "data": {**d, "from": d.get("to")}}
+            first = last.get(e["element"]) == "step_started"
+            e = {**e, "data": {**d, "from": None if first else d.get("to")}}
+        if e["kind"] in ("step_started", "handed_off") and e["element"]:
+            last[e["element"]] = e["kind"]
         if out and _same(out[-1], e):
             e = {**e, "count": out[-1].get("count", 1) + 1}
             out[-1] = e

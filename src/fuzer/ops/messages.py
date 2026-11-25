@@ -84,6 +84,7 @@ class Reading:
     candidates: list[str] = field(default_factory=list)  # what the steward chooses among
     confidence: float | None = None
     why: str = ""                                        # how it was matched, or why a person must say
+    chosen_by: str | None = None                         # the steward who said which entity, when one did
 
 
 def _noise(text: str, subject: str | None) -> bool:
@@ -193,7 +194,9 @@ def _finding(m: dict, reading: Reading) -> Finding:
                    start=_when(m["received_at"]), confidence=reading.confidence, data={"message": _message(m)}, items=(
                        fact("Channel", CHANNELS[m["channel"]]), fact("From", m["sender"]),
                        fact("Subject", m.get("subject")), fact("Message", m["text"]),
-                       at("Received", m["received_at"]), fact("Matched by", reading.why)))
+                       at("Received", m["received_at"]),
+                       # who chose it is an actor, which a page names (#1383): never "Matched by chosen by user:demo"
+                       fact("Chosen by", reading.chosen_by) if reading.chosen_by else fact("Matched by", reading.why)))
 
 
 def _raise_case(conn, m: dict, reading: Reading, by: str) -> dict:
@@ -313,7 +316,7 @@ def sync_answers(conn, by: str = SOURCE) -> dict:
         value = d.get("value") if d.get("decision") == "choose" else None
         chosen = [value] if isinstance(value, str) else list(value or [])  # one entity, or several (#1382)
         if chosen:
-            reading = Reading("case", refs=chosen, why=f"chosen by {r['decided_by']}")
+            reading = Reading("case", refs=chosen, why=f"chosen by {r['decided_by']}", chosen_by=r["decided_by"])
             ex = _raise_case(conn, dict(r), reading, r["decided_by"] or by)
             conn.execute("update message set outcome = 'case', refs = %s, why = %s, exception_id = %s where id = %s",
                          (chosen, reading.why, ex["id"], r["id"]))

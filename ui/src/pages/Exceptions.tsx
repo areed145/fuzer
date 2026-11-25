@@ -7,7 +7,7 @@ import { Badge, Button, ButtonLink, Card, Disclosure, Field, Input, Select, Tabl
 import { Status, entityHref, href, planItemHref, useAsync, useAction } from "../lib";
 import { holder, reportedBy } from "../work";
 import { useEntityNames } from "../useEntityNames";
-import { display, type EntityNames } from "../entityRefs";
+import { display, named, type EntityNames } from "../entityRefs";
 import { PriorityBadge } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { MatchRef } from "./masterdata/MatchRef";
@@ -155,7 +155,7 @@ function Joined({ r, person, onChange }: { r: ExceptionRow; person: string | nul
 /** What raised an event, after its type: a detector or system by name, or a message by its channel and sender (P2.8),
  * whose words are the event's title. */
 function sourceWords(source: string | null, message?: MessageSaid | null): string {
-  if (message) return ` · ${message.channel_label} from ${message.sender}`;
+  if (message) return ` · ${message.channel_label} from ${personName(message.sender)}`;
   return source ? ` · ${detectorName(source)}` : "";
 }
 
@@ -183,8 +183,7 @@ export function namedSubjects(ids: string[], names: EntityNames | null | undefin
   if (!names) return [];  // until the names come: never a raw id in their place (#1072)
   // Equipment reads as the tag it is installed at, so that tag beside it would say the same thing twice.
   const at = new Set(ids.map((id) => names[id]?.at).filter(Boolean));
-  const named = ids.filter((id) => display(id, names) !== id && (names[id]?.at || !at.has(names[id]?.label ?? "")));
-  return named;
+  return ids.filter((id) => named(id, names) && (names[id]?.at || !at.has(names[id]?.label ?? "")));
 }
 
 type Panel = null | "dispatch" | "options" | "more" | "plan" | "shelve";

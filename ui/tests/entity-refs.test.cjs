@@ -5,11 +5,17 @@ const { resolve } = require("node:path");
 const { runInNewContext } = require("node:vm");
 const ts = require("typescript");
 
-const exportsObject = {};
-const code = ts.transpileModule(readFileSync(resolve(__dirname, "../src/entityRefs.ts"), "utf8"), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText;
-runInNewContext(code, { exports: exportsObject });
+// entityRefs names an unnamed entity by its kind (#1383), from wording, which is loaded the same way
+const load = (file, require) => {
+  const out = {};
+  const code = ts.transpileModule(readFileSync(resolve(__dirname, `../src/${file}`), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  runInNewContext(code, { exports: out, require });
+  return out;
+};
+const wording = load("wording.ts");
+const exportsObject = load("entityRefs.ts", () => wording);
 const { linkCitations, idsIn, display, commonName, TOKEN } = exportsObject;
 
 const WELL = "fz-well-2526585e8224", TERM = "fz-allocation_node-b708d0477249", DAY = "fz-daily_report-82c067e8e550", SEP = "fz-tag-94741a20e99d";
@@ -76,11 +82,13 @@ test("other brackets and text are left alone", () => {
   assert.equal(link("no citations here"), "no citations here");
 });
 
-test("every id is found once, and a name falls back to its id", () => {
+test("every id is found once, and a name falls back to its kind when the register has no name for it (#1383)", () => {
   assert.deepEqual([...idsIn(`${WELL} [${WELL}, ${DAY}]`)], [WELL, DAY]);
   assert.equal(display(WELL, names), "OK-J09-04");
-  assert.equal(display(WELL, {}), WELL);
-  assert.equal(display(WELL, undefined), WELL);
+  assert.equal(display(WELL, {}), WELL);  // unknown to the register: visible as itself
+  assert.equal(display("fz-equipment-6124c3fd7d62", { "fz-equipment-6124c3fd7d62": { label: null, description: null } }),
+    "Equipment with no name");
+  assert.equal(display(WELL, undefined), WELL);  // until the names come
   assert.ok(TOKEN.test(linkCitations(`OK-J09-04 [${WELL}]`, names)));
 });
 

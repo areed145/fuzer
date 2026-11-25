@@ -174,6 +174,9 @@ def test_a_steward_question_carries_the_message_and_its_answer_makes_the_case(re
     assert ex["type"] == "message_report" and ex["subjects"] == [chosen] and ex["item_id"] and ex["joined_to"] is None
     answer = messages.answer_of(conn, q["id"])  # the steward's confirmation links the case and the tag (#1382)
     assert answer["case"] == ex["item_id"] and answer["about"] == [{"fuzer_id": chosen, "label": "30-PT-2001"}]
+    # who chose it is kept as their actor, for the page to name (#1383): never "Matched by chosen by user:demo"
+    items = {i["label"]: i["value"] for i in ex["evidence"]["finding"]["items"]}
+    assert items["Chosen by"] == "ana" and "Matched by" not in items
     assert conn.execute("select state from exception_record where type = 'message_to_match' and key = "
                         "'message:MSG-0007'").fetchone()["state"] == "cleared"  # the steward's case closed
     assert conn.execute("select outcome from message where id = 'MSG-0017'").fetchone()["outcome"] == "handled"

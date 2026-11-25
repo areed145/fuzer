@@ -28,7 +28,7 @@ import { usePermission } from "../Auth";
 import { usePerson } from "../work";
 import { personSignedIn } from "../identityStore";
 import { FindingEvidence } from "../Finding";
-import { say } from "../wording";
+import { person, say } from "../wording";
 import { DrawingViewer } from "../DrawingViewer";
 import { MatchRef, hitLine } from "./masterdata/MatchRef";
 import { caseHref } from "./workflows/shared";
@@ -678,7 +678,7 @@ function MessageCard({ id, p, onDecide }: { id: number; p: MessagePayload; onDec
   const { busy, feedback, run } = useBusy(onDecide, "The entity you choose gets a case, routed like any other.");
   const m = p.message;
   return (
-    <UICard className="review" title={`${m.channel_label} from ${m.sender}`} detail={<>#{id}</>}>
+    <UICard className="review" title={`${m.channel_label} from ${person(m.sender)}`} detail={<>#{id}</>}>
       {m.subject && <Text as="p" small>{m.subject}</Text>}
       <p>{m.text}</p>
       <Text as="p" small>Why it stopped: {p.why}</Text>

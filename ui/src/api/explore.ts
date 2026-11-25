@@ -22,6 +22,8 @@ export interface SearchHit {
   /** what it sits in (its nearest container), when it sits in anything */
   parent?: string | null;
   parent_label?: string | null;
+  /** equipment: the tag it is installed at, what people know it by */
+  at?: string | null;
 }
 
 export interface Edge {

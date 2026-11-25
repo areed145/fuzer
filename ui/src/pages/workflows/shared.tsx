@@ -59,7 +59,7 @@ export { priorityLevel, type PriorityLevel } from "../../work";
 export function PriorityBadge({ p, type, low = false }: { p: number | null | undefined; type?: string | null; low?: boolean }) {
   const l = priorityLevel(p, type);
   if (!l || (l.level === "Low" && !low)) return null;
-  return <UIBadge tone={l.tone} title={l.why}>{l.level}</UIBadge>;
+  return <UIBadge tone={l.tone} title={l.why || undefined}>{l.level}</UIBadge>;
 }
 
 /** Most urgent first: overdue (longest first), then due soonest, then highest priority. */
@@ -98,7 +98,7 @@ export function WorkLine({ r, title, extra }: {
         {!GENERIC_STEP.test(r.name ?? "") && <><strong>{r.name ?? "open"}</strong> · </>}
         {r.checklist && <><strong>{progressText(r.checklist)}</strong> · </>}
         {workKind(r.type)} · with {holder(r.assignee, r.role, r.kind)}
-        {p && <> · <span title={p.why}>{p.level} priority</span></>}<StepBadges row={r} />
+        {p && <> · <span title={p.why || undefined}>{p.level} priority</span></>}<StepBadges row={r} />
       </Text>
       {r.handed_reason && <Text small muted>{r.handed_reason}</Text>}
     </div>
