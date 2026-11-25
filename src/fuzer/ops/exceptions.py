@@ -584,7 +584,8 @@ def listing(conn, state: str | None = OPEN, type: str | None = None, subject: st
                 order by p.start_at limit 1) as planned,
                coalesce((select json_agg(json_build_object('id', j.id, 'type', j.type, 'key', j.key, 'title', j.title,
                                                            'source', j.source, 'state', j.state, 'value_usd', j.value_usd,
-                                                           'subjects', j.subjects, 'first_seen', j.first_seen)
+                                                           'subjects', j.subjects, 'first_seen', j.first_seen,
+                                                           'message', j.evidence->'message')
                                          order by j.first_seen)
                          from exception_record j where j.joined_to = e.id), '[]') as joined
         from exception_record e

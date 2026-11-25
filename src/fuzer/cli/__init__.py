@@ -188,7 +188,8 @@ def parser() -> argparse.ArgumentParser:
                     help="with --agents: only the questions in this domain (repeatable), e.g. --domain charts")
     ev.add_argument("--out", default=None, help="with --agents or --packs: also write the full results (answers) to this JSON file")
     ev.add_argument("--record", action="store_true",
-                    help="with --agents, --packs, --watch, --drifts or --ops --full: keep the scores in evals/runs/ for "
+                    help="with --agents, --packs, --watch, --drifts, --messages or --ops --full: keep the scores in "
+                         "evals/runs/ for "
                          "docs/eval-results.md")
     ev.add_argument("--ops", action="store_true",
                     help="replay history through the operations detectors and score them against the fake "
@@ -223,6 +224,9 @@ def parser() -> argparse.ArgumentParser:
                     help="replay the slow-drift detector a day at a time over the stretch in the bundle's "
                          "evals/drifts.yaml (or --since to --until) and score it against the fake plant's slow upsets "
                          "(P3.11a; free; exits 1 over 5 false alarms a week or with no slow upset raised)")
+    ev.add_argument("--messages", action="store_true",
+                    help="read the bundle's recorded messages to the IOC and score which entity each case is about "
+                         "against answer_keys/messages.json (P2.8; free, writes nothing; exits 1 under 90%% precision)")
     ev.add_argument("--promoted", action="store_true",
                     help="score each drafted rule (P3.4) that has no score yet on the fake plant's replay over --since "
                          "to --until: recall over the kinds of event its examples matched, precision, false alarms")
@@ -458,6 +462,20 @@ def main(argv=None):
                     _say(f"recorded {runs.save(runs.drifts(res))}")
                 if not res["passes"]:
                     raise SystemExit("drift eval: over its false alarm bar, or no slow upset raised")
+            elif args.cmd == "eval" and args.messages:
+                from ..evals import message_eval, runs
+
+                try:
+                    res = message_eval.run(conn, pack, resolve(conn).name, data)
+                except ValueError as e:
+                    raise SystemExit(f"{e}. Set FUZER_DATA_DIR to the fake plant's folder.") from e
+                _say(f"{res['bundle']}: {res['right']} of {res['cases']} cases about the right entity (precision "
+                     f"{res['precision']}, recall {res['recall']}), {res['to_steward']} of the unplaceable to the "
+                     f"steward, {res['noise_handled']} of the noise handled; wrong: {res['wrong'] or 'none'}")
+                if args.record:
+                    _say(f"recorded {runs.save(runs.messages(res))}")
+                if not res["passes"]:
+                    raise SystemExit(f"message eval: precision under {message_eval.BAR:.0%}")
             elif args.cmd == "eval" and args.promoted:
                 from ..evals import watch_eval
 

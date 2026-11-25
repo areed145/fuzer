@@ -15,6 +15,7 @@ import {
   type Decision,
   type MappingPayload,
   type MatchPayload,
+  type MessagePayload,
   type ReviewItem,
   type ReviewGroup,
   type ReviewKind,
@@ -29,13 +30,14 @@ import { personSignedIn } from "../identityStore";
 import { FindingEvidence } from "../Finding";
 import { say } from "../wording";
 import { DrawingViewer } from "../DrawingViewer";
+import { MatchRef } from "./masterdata/MatchRef";
 
 /** Where a kind of question is listed: its tab on Master data (P2.3, #505). */
 /** The kinds of question, in the order their tabs show. */
 const QUESTION_KINDS: [ReviewKind, string][] = [
   ["match", "Possible matches"], ["conflict", "Conflicting values"], ["schema", "Schema changes"], ["mapping", "New tables"],
   ["curve", "Datasheet curves"], ["check", "Held loads"], ["pid_connection", "Drawing connections"],
-  ["pid_mismatch", "Drawing disagreements"], ["role", "Measurement roles"],
+  ["pid_mismatch", "Drawing disagreements"], ["role", "Measurement roles"], ["message", "Messages"],
 ];
 
 export const questionsHref = (kind?: string, item?: number) =>
@@ -72,6 +74,10 @@ function saved(item: ReviewItem, d: Omit<Decision, "by">): string {
                 : `Saved #${item.id}. Recorded: ${item.payload.sheet} needs a redline. Nothing was changed in either system.`
           : item.kind === "role"
             ? `Saved #${item.id}. ${item.payload.point ?? "The point"} is ${roleLabel(item.payload, d)} from now on, and stays so after rebuilds.`
+          : item.kind === "message"
+            ? d.decision === "reject"
+              ? `Saved #${item.id}. The message is kept with no case.`
+              : `Saved #${item.id}. The message is a case about the entity you chose, routed like any other.`
           : `Saved #${item.id}. The chosen value is live.`
   );
 }
@@ -81,7 +87,8 @@ function saved(item: ReviewItem, d: Omit<Decision, "by">): string {
 export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats }) {
   const asked = query.get("kind");
   const kind: ReviewKind = asked === "conflict" || asked === "schema" || asked === "mapping" || asked === "curve" ||
-    asked === "check" || asked === "pid_connection" || asked === "pid_mismatch" || asked === "role" ? asked : "match";
+    asked === "check" || asked === "pid_connection" || asked === "pid_mismatch" || asked === "role" ||
+    asked === "message" ? asked : "match";
   const items = useAsync(() => api.reviews(kind), [kind]);
   const [name, setName] = usePerson();
   const [done, setDone] = useState<Set<number>>(new Set());
@@ -131,6 +138,8 @@ export function Review({ query, stats }: { query: URLSearchParams; stats?: Stats
             ? "What each signal means for its equipment. Detectors read roles, never tag names, so confirm or correct the ones Fuzer wasn't sure of."
           : kind === "check"
             ? "The last load was held. Fix it at the source, then load it again from its page."
+          : kind === "message"
+            ? "Say which entity each message is about, or that it needs no work."
             : "Pick the right value. Your choice wins from now on."}
       </Text>
 
@@ -168,6 +177,8 @@ function QuestionCard({ item, onDecide }: { item: ReviewItem; onDecide: OnDecide
           <PidConnectionCard id={item.id} p={item.payload} onDecide={onDecide} />
         ) : item.kind === "role" ? (
           <RoleCard id={item.id} p={item.payload} onDecide={onDecide} />
+        ) : item.kind === "message" ? (
+          <MessageCard id={item.id} p={item.payload} onDecide={onDecide} />
         ) : item.kind === "pid_mismatch" ? (
           <PidMismatchCard id={item.id} label={item.label} p={item.payload} onDecide={onDecide} />
         ) : (
@@ -642,6 +653,27 @@ function RoleCard({ id, p, onDecide }: { id: number; p: RolePayload; onDecide: O
           </Select></Field>
         <Button disabled={busy || !chosen || chosen === p.proposed}
           onClick={() => run({ decision: "choose", value: chosen })}>Use this role</Button>
+      </Line>
+      {feedback}
+    </UICard>
+  );
+}
+
+/** A message to the IOC that named no entity for certain (P2.8): the entity it is about opens its case. */
+function MessageCard({ id, p, onDecide }: { id: number; p: MessagePayload; onDecide: OnDecide }) {
+  const { busy, feedback, run } = useBusy(onDecide, "The entity you choose gets a case, routed like any other.");
+  const m = p.message;
+  return (
+    <UICard className="review" title={`${m.channel_label} from ${m.sender}`} detail={<>#{id}</>}>
+      {m.subject && <Text as="p" small>{m.subject}</Text>}
+      <p>{m.text}</p>
+      <Text as="p" small>Why it stopped: {p.why}</Text>
+      <Line wrap>
+        {p.candidates.map((c) => <Button key={c.fuzer_id} disabled={busy}
+          onClick={() => run({ decision: "choose", value: c.fuzer_id })}>About {c.label ?? c.fuzer_id}</Button>)}
+        <MatchRef value={p.candidates[0]?.label ?? ""} label="Another entity" canRemember={false} busy={busy}
+          onPick={(fid) => run({ decision: "choose", value: fid })} />
+        <Button variant="secondary" disabled={busy} onClick={() => run({ decision: "reject" })}>No work needed</Button>
       </Line>
       {feedback}
     </UICard>

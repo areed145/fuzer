@@ -298,7 +298,7 @@ score search, document links, section failure modes and log reading
 | `--memory` | score the assistant's memory with assistant_memory.json: learn from teaching answers, then ask later questions (Claude; costs money; removes what it stored) |
 | `--domain` | with --agents: only the questions in this domain (repeatable), e.g. --domain charts |
 | `--out` | with --agents or --packs: also write the full results (answers) to this JSON file |
-| `--record` | with --agents, --packs, --watch, --drifts or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md |
+| `--record` | with --agents, --packs, --watch, --drifts, --messages or --ops --full: keep the scores in evals/runs/ for docs/eval-results.md |
 | `--ops` | replay history through the operations detectors and score them against the fake plant's injected events (exits 1 if recall fell since the last run of the same period) |
 | `--detector` | with --ops: the detector to replay (default: limits) |
 | `--full` | with --ops: score everything scheduled (SRE, grouping, diagnosis, daily reports, opportunities) and fail if a score is under its floor or fell since the last run |
@@ -310,6 +310,7 @@ score search, document links, section failure modes and log reading
 | `--watch` | scan --since to --until (or each window in the bundle's evals/watch.yaml) with the rules, read it with the agentic watch and score its proposals against the fake plant's injected events no rule caught (P3.3b, P3.11b; needs a model provider and costs money, shown before it starts; exits 1 if under half match) |
 | `--offline` | with --watch: answer the watch's questions outside the run instead of on the provider (a Claude session on a subscription): writes each to DIR/prompts/, reads DIR/answers/ (same name, .md); run again once answered. Free; never earns live mode |
 | `--drifts` | replay the slow-drift detector a day at a time over the stretch in the bundle's evals/drifts.yaml (or --since to --until) and score it against the fake plant's slow upsets (P3.11a; free; exits 1 over 5 false alarms a week or with no slow upset raised) |
+| `--messages` | read the bundle's recorded messages to the IOC and score which entity each case is about against answer_keys/messages.json (P2.8; free, writes nothing; exits 1 under 90%% precision) |
 | `--promoted` | score each drafted rule (P3.4) that has no score yet on the fake plant's replay over --since to --until: recall over the kinds of event its examples matched, precision, false alarms |
 | `--roles` | score the measurement roles proposed for each point against the fake plant's process model (P1.4; exits 1 under 90%% right or if a wrong role was confident) |
 | `--since` | with --ops: start (default: 28 days before --until) |

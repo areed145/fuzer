@@ -1,7 +1,7 @@
 # Work types
 
 Generated from the work type registry (`core/exceptions.py`) and the detector registry; don't edit by hand (`uv run python -m fuzer.reference`).
-The 47 types of work declared in code, grouped by where the routing table sends each one when it arrives. A deployment adds its own as data (on **Settings > Routing**) or in a source pack's `exception_types`; **Settings > Routing** shows the table as it stands on a running site, those included. [Where work goes](work-map.md) draws the path each group takes through the pages, and [every source of work](work-sources.md) says how each source is matched, routed, dispatched and closed.
+The 49 types of work declared in code, grouped by where the routing table sends each one when it arrives. A deployment adds its own as data (on **Settings > Routing**) or in a source pack's `exception_types`; **Settings > Routing** shows the table as it stands on a running site, those included. [Where work goes](work-map.md) draws the path each group takes through the pages, and [every source of work](work-sources.md) says how each source is matched, routed, dispatched and closed.
 
 Every type is listed on the **List** (All work), whichever group it is in. *The field can be sent* means a case of the type can be dispatched to a field operator's **My work**; *joins one event's case* means it joins an open case about the same asset instead of opening another; *held back by planned work* means a finding during a shutdown or planned job on its asset is counted under that window and opens no case.
 
@@ -65,6 +65,7 @@ Starts the standard one-step `queue_item` workflow in the role's queue, on each 
 | **Links that name nothing** `unresolved_links` | A source's rows name a parent, location or other item the register doesn't have; make each value an alias of the item it means, or fix the source. | - | [`graph.contextualized`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph/contextualized.py) | - |
 | **Load failed a quality check** `failed_quality_check` | A blocking check held a load; fix the export and load it again. | - | - | - |
 | **Measurement role to confirm** `measurement_role_to_confirm` | What a historian point measures on its asset is uncertain; confirm it before detectors read it. | - | - | - |
+| **Message to match** `message_to_match` | A message to the IOC names no entity for certain; choose the one it is about, or say it needs no work. | - | - | - |
 | **Possible match to confirm** `unmatched_record` | Two systems' records may be the same item; confirm or keep them apart. | - | - | - |
 | **Records that match nothing** `unmatched_records` | A source's records describe items the register should already have, but these matched nothing; say they are new, or match each to the item it means. | - | [`graph.contextualized`](https://github.com/areed145/fuzer/tree/main/src/fuzer/graph/contextualized.py) | - |
 | **Source problem** `source_issue` | A dataset failed, is held, fails its checks, changed shape or is stale. | [`source_health`](detectors.md#source_health) | - | - |
@@ -82,6 +83,7 @@ Starts the standard one-step `queue_item` workflow in the role's queue, on each 
 | **Deviation review due** `deviation_review_due` | A named deviation from the operating model is past its review date. | [`deviation_reviews`](detectors.md#deviation_reviews) | [`workflow.conformance`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow/conformance.py) | - |
 | **Permit lapsed with plant still isolated** `permit_lapsed` | A permit to work past its valid-to time, not closed, with isolations still in place. | [`permit_lapsed`](detectors.md#permit_lapsed) | [`ops.permits`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/permits.py) | the field can be sent |
 | **Records don't agree** `records_gap` | Downtime with no operator log entry or notification about the same plant, or a log entry that says something stopped with no downtime record. | [`records_gaps`](detectors.md#records_gaps) | [`analysis.records`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis/records.py) | - |
+| **Reported in a message** `message_report` | A message to the IOC (mail, radio, Teams or a field note) about an entity in the register. | - | [`ops.messages`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/messages.py) | the field can be sent; joins one event's case |
 | **Round finding** `round_finding` | A reading outside its limits, or a failed check, taken by an operator on a round. | - | [`ops.rounds`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/rounds.py) | the field can be sent; joins one event's case |
 
 ### HSE specialist queue

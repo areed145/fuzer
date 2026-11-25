@@ -15,7 +15,7 @@ steward's, not part of the pump's trip.
 """
 
 from ..core.exceptions import clear_exception, exception_type, open_keys, raise_exception
-from ..core.findings import EXTERNAL, Finding, fact, page
+from ..core.findings import EXTERNAL, Finding, at, fact, page
 
 ROLE = "role:data_steward"
 BY = "stewardship"
@@ -40,6 +40,8 @@ KINDS: dict[str, tuple[str, str, str]] = {
               "A blocking check held a load; fix the export and load it again."),
     "role": ("measurement_role_to_confirm", "Measurement role to confirm",
              "What a historian point measures on its asset is uncertain; confirm it before detectors read it."),
+    "message": ("message_to_match", "Message to match",
+                "A message to the IOC names no entity for certain; choose the one it is about, or say it needs no work."),
 }
 TYPES = {kind: exception_type(name, label, role=ROLE, joins=False, description=what)
          for kind, (name, label, what) in KINDS.items()}
@@ -73,6 +75,9 @@ def title(kind: str, subject: str, p: dict) -> str:
         return f"Does {p['from']} pipe to {p['to']}{' on ' + p['sheet'] if p.get('sheet') else ''}?"
     if kind == "pid_mismatch" and p.get("tag"):
         return _drawing_title(p)
+    if kind == "message" and p.get("message"):
+        m = p["message"]
+        return f"Which entity is this about? {m.get('channel_label', 'Message')} from {m.get('sender')}: {m.get('text')}"
     return p.get("question") or f"{KINDS[kind][1]}: {subject}"
 
 
@@ -111,6 +116,8 @@ def refs(kind: str, p: dict) -> list[str]:
         out += [f"tag:{p[k]}" for k in ("from", "to") if isinstance(p.get(k), str)]
     elif kind == "pid_mismatch" and p.get("tag"):
         out.append(f"tag:{p['tag']}")
+    if kind == "message":  # the entities a message might be about (P2.8)
+        out += [c["fuzer_id"] for c in p.get("candidates") or [] if isinstance(c.get("fuzer_id"), str)]
     if kind == "pid_connection":  # the two items the line would join
         out += [f"tag:{p[k]}" for k in ("from", "to") if isinstance(p.get(k), str)]
     return list(dict.fromkeys(out))
@@ -140,7 +147,16 @@ def finding(item_id: int, kind: str, p: dict) -> Finding:
         fact("Field", p.get("field")) if kind == "conflict" else None,
         fact("Dataset", p.get("dataset")) if kind in ("schema", "mapping", "check") else None,
         fact("Question", p.get("question")) if kind == "pid_mismatch" else None,
+        *_message(p.get("message") if kind == "message" else None, p.get("why")),
     ), data={"review_item": item_id, "kind": kind})
+
+
+def _message(m: dict | None, why: str | None) -> tuple:
+    """A message to match: what it said, who sent it and why the reader could not say (P2.8)."""
+    if not m:
+        return ()
+    return (fact("Channel", m.get("channel_label")), fact("From", m.get("sender")), fact("Message", m.get("text")),
+            at("Received", m.get("received_at")), fact("Why it stopped", why))
 
 
 def sync(conn, by: str = BY) -> dict:

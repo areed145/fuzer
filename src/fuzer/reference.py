@@ -221,9 +221,10 @@ def eval_results_md() -> str:
     pk = [r for r in all_runs if r["kind"] == "packs"]
     wa = [r for r in all_runs if r["kind"] == "watch"]
     dr = [r for r in all_runs if r["kind"] == "drifts"]
+    ms = [r for r in all_runs if r["kind"] == "messages"]
     out = ["# Eval results", "", HEADER.format(what="the recorded runs in `evals/runs/`"),
            "Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record`, `fuzer eval --watch --record` or "
-           "`fuzer eval --ops --full --live --record` (all cost money), or `fuzer eval --drifts --record` (free), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: "
+           "`fuzer eval --ops --full --live --record` (all cost money), or `fuzer eval --drifts --record` or `fuzer eval --messages --record` (free), then regenerate. How the evals work: [evals](evals.md); notes on each assistant run: "
            "[assistant eval](assistant-eval.md).", ""]
     if asst:
         out += ["## Operations assistant", "",
@@ -309,6 +310,24 @@ def eval_results_md() -> str:
                        f"{_pct(r.get('precision'))} | {r['false_alarms_per_week']} | {'yes' if r['passes'] else 'no'} | "
                        f"{_cell('; '.join(r.get('slow_missed') or []))} | "
                        f"{_cell('; '.join((r.get('false_alarm_examples') or [])[:5]))} |")
+        out.append("")
+    if ms:
+        from .evals import message_eval
+
+        latest = {r["bundle"]: r for r in ms}  # the latest run on each bundle
+        out += ["## Message reader", "",
+                "Free-text messages to the IOC (P2.8: mail, radio calls, Teams posts, field notes) read with "
+                "`fuzer eval --messages` against the bundle's `answer_keys/messages.json`, with no model: a case about "
+                "the entity a message names, a question for the data steward, or nothing to do. Precision is the share "
+                "of cases about the right entity; to steward, the share of messages no reading can place that reach "
+                f"the steward. A run passes with precision at least {message_eval.BAR:.0%}.", "",
+                "| Run | Bundle | Messages | Cases right | Precision | Recall | To steward | Noise handled | Passed "
+                "| Wrong |", "|---|---|---|---|---|---|---|---|---|---|"]
+        for b, r in sorted(latest.items()):
+            out.append(f"| {r['date']} | {b} | {r['messages']} | {r['right']} of {r['cases']} | "
+                       f"{_pct(r.get('precision'))} | {_pct(r.get('recall'))} | {_pct(r.get('to_steward'))} | "
+                       f"{_pct(r.get('noise_handled'))} | {'yes' if r['passes'] else 'no'} | "
+                       f"{_cell('; '.join(r.get('wrong') or []))} |")
         out.append("")
     if ops:
         out += ["## Operations loop", "",

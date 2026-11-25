@@ -79,3 +79,5 @@ arrive:
   parts_not_ready: {not_here: "no SAP reservations export: no open order reserves a part"}
   # The permit to work system's own work (P3.14): glycol pump B's quarterly service: lapsed three days ago, its suction valve still locked shut
   permit_lapsed: {detector: permit_lapsed}
+  message_report: {not_here: "no messages export: its IOC mailbox, radio calls and Teams posts are not exported"}
+  message_to_match: {not_here: "no messages export: its IOC mailbox, radio calls and Teams posts are not exported"}

@@ -47,6 +47,7 @@ Every source on this page follows these rules unless its row says otherwise.
 | [Integrity and inspection](#integrity-and-inspection) | Inspection or wall loss, pig run anomalies, repeat leaks | Engineer queue | Sent from the case | By themselves when a later survey or screening clears |
 | [Safety, permits and change](#safety-permits-and-change) | Lapsed permits, bypasses, proof tests, safeguard demands, temporary MOCs, unrecorded changes, deviations, records gaps | Ops lead and engineer queues | Lapsed permits | By themselves when the register shows it done |
 | [The field](#the-field) | Round findings, field reports, crew handovers | Ops lead queue | Yes | IOC close-out |
+| [Messages](#messages) | The IOC mailbox, radio calls, Teams posts, field notes from the phone | Ops lead queue; data steward queue | Yes | IOC close-out; the steward's answer |
 | [Regulatory and reporting](#regulatory-and-reporting) | Reports coming due, reports to review, the daily report | HSE queue; daily report workflow | No | When submitted or published |
 | [The register and sources](#the-register-and-sources) | Questions, held loads, source problems, unmatched records, gaps, corrections | Data steward queue; source owners | Field checks from corrections | When the question is answered or the load recovers |
 | [Agents](#agents) | The watch, detector tuning, skill changes, agent steps | Engineer queue | Watch findings, from the case | Desk close-out |
@@ -136,6 +137,24 @@ or well surveillance) send alerts through a source pack's `detection_providers`.
 
 What the field reports on a job (On site, Done, Could not do, a note, a photo, a reading) is evidence on the same
 case, not new work. Done or Could not do sends the job back to whoever dispatched it, under **Back from the field**.
+
+## Messages
+
+Work that arrives as free text with no system behind it: mail to the IOC mailbox, radio calls the control room types
+in, posts in the operations Teams channels (one `messages` export: sender, channel, subject, text), and a field
+operator's **Note to the IOC** from **My work** on the phone. `fuzer.ops.messages` reads each one once, after each
+register build or as the note is sent, with the operator log reader's matching (`core.nel`: tags, wells, the pack's
+aliases and the ones a steward recorded, checked against the register). It calls no model.
+
+| Work | Where it comes from | Matched to | Routed to | Field | Closes |
+|---|---|---|---|---|---|
+| **Reported in a message** `message_report` | A message that names an entity for certain: every tag, well or alias it names is in the register, in one area, and at least `messages.min_confidence` (0.8) sure | What it names, the first named first | Ops lead queue. Joins the open event on the same asset. | Yes | IOC close-out |
+| **Message to match** `message_to_match` | A message that names nothing for certain: a short tag in several areas, a tag the register lacks, only a place, or no tag at all | The entities it might be about | Data steward queue | No | When the steward chooses the entity (its case then opens, as above) or says no work is needed |
+
+A message that asks for nothing ("thanks", an out-of-office reply) opens no case and is kept as handled. On All work
+a message's case shows the channel and sender as its source, its text as the title, and the whole message on the
+case. The reader's precision on Okan's recorded messages is in [eval results](eval-results.md#message-reader)
+(`fuzer eval --messages`).
 
 ## Regulatory and reporting
 

@@ -1,0 +1,7 @@
+# Free-text messages to the IOC (P2.8, #1254): the IOC mailbox, radio calls the control room typed in, posts in the
+# operations Teams channels and field notes, as one export (message_id, received_at, channel, sender, subject, text).
+# A built-in source pack (P1.5): fuzer.ops.messages reads each message after the register is built.
+fuzer_source_pack: 1
+system: {name: messages}
+datasets: [messages]
+optional: [messages]

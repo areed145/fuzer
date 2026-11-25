@@ -43,6 +43,7 @@ from . import (
     journal,
     limits,
     measurements,
+    messages,
     oilfield,
     okan_flare,
     pfd,
@@ -1438,6 +1439,8 @@ def generate(out, seed: int = 11) -> dict:
         {d[0]: (d[9] or {}).get("kind", "healthy") for d in loop_defs}, indent=1))
     _write_csv(out / "pi_points.csv", points + loop_rows + flare["points"])
     _write_csv(out / "oplogs.csv", sorted(logs, key=lambda r: r["timestamp"]))
+    _write_csv(out / "messages.csv", messages.rows())  # free text to the IOC: mail, radio, Teams, phone (P2.8)
+    (out / "answer_keys" / "messages.json").write_text(json.dumps(messages.ANSWERS, indent=1))
     _write_csv(out / "ec_downtime.csv", downtime)
     _write_csv(out / "sap_maintenance_plans.csv", plans + flare_plans)
     _write_csv(out / "lims_results.csv", lab)

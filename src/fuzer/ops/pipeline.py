@@ -332,8 +332,8 @@ class BackgroundRebuild:
 
 def follow_register(conn, pack: Pack) -> dict:
     """What follows a register build wherever it runs (the scheduled `register` asset, `fuzer up`): the work board,
-    the integrated plan's SAP work orders and maintenance plans, and the IOC's intake of open SAP notifications,
-    so work that other systems hold reaches the IOC as soon as the register does."""
+    the integrated plan's SAP work orders and maintenance plans, the IOC's intake of open SAP notifications and the
+    messages sent to it, so work that other systems and people hold reaches the IOC as soon as the register does."""
     from . import board, intake, plan
 
     planned = plan.sync_work_orders(conn)
@@ -350,8 +350,10 @@ def follow_register(conn, pack: Pack) -> dict:
     planned["orders"] = source_links.sync_orders(conn)  # after the notifications: an order joins its notification's case
     planned["activities"] = source_links.sync_activities(conn)  # an activity works its order's or container's case
     planned["moves"] = source_links.send_moves(conn)  # a job done here that SAP still holds open: its confirmation drafted
+    from . import messages
+    read = {**messages.read_new(conn, pack), "answered": messages.sync_answers(conn)}  # free text to the IOC (P2.8)
     board.refresh(conn, pack)  # last, so the exceptions just raised are on it
-    return {"plan": planned, "notifications": notified}
+    return {"plan": planned, "notifications": notified, "messages": read}
 
 
 

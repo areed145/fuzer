@@ -78,6 +78,7 @@ Change them on the Settings page or with `fuzer settings set <key> <value>`; a p
 | `records.notification_tolerance_days` | int | `3` | 0 to 60 | Records mismatch: days either side of a downtime record a notification about the same plant counts as its notification. |
 | `records.notification_categories` | str | `equipment` |  | Records mismatch: downtime reason categories that call for a maintenance notification (comma separated; the pack's downtime_reasons give each reason its category). |
 | `records.lookback_days` | int | `7` | 1 to 90 | Records mismatch: days before the latest log entry whose mismatches are raised for the shift (older ones stay in the calc). |
+| `messages.min_confidence` | float | `0.8` | 0.5 to 1 | A message to the IOC becomes a case about the entity it names when every match is at least this sure (a tag 0.95, a well 0.9, a tag without its area 0.85, an alias 0.8); below it, the data steward says which entity it is about. |
 | `intake.sap_notifications.max_age_days` | int | `60` | 1 to 3650 | Only raise notifications created this many days before the latest data (an older backlog is a planning question). |
 | `intake.sap_notifications.due_hours` | str | `1:24,2:72,3:336,4:720` |  | When a dispatched SAP notification is due, by its SAP priority: priority:hours, comma separated, counted from when Fuzer raised it (empty: no due date). |
 

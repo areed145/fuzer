@@ -63,7 +63,22 @@ export interface MappingPayload {
   yaml: string;
 }
 
-export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve" | "check" | "pid_connection" | "pid_mismatch" | "role";
+export type ReviewKind = "match" | "conflict" | "schema" | "mapping" | "curve" | "check" | "pid_connection" | "pid_mismatch" | "role" | "message";
+
+/** A message to the IOC as its case and its question show it (P2.8): the channel in words, who sent it and what it said. */
+export interface MessageSaid {
+  id: string; channel: string; channel_label: string; sender: string; subject: string | null; text: string; received_at: string;
+}
+
+/** A message that named no entity for certain (P2.8): why the reader stopped and the entities it might be about. */
+export interface MessagePayload {
+  message: MessageSaid; why: string; question: string; candidates: { fuzer_id: string; label: string | null }[];
+}
+
+/** A note sent from the phone, read as any message to the IOC is: what became of it, in one line (`said`). */
+export interface MessageNote {
+  id: string; outcome: "case" | "steward" | "handled"; said: string; exception_id: number | null; review_item_id: number | null;
+}
 
 export interface CurveReading {
   curve: "pump" | "choke";
@@ -122,6 +137,7 @@ export type ReviewItem =
   | { id: number; kind: "pid_connection"; subject: string; status: string; label: null; payload: PidConnectionPayload }
   | { id: number; kind: "pid_mismatch"; subject: string; status: string; label: string | null; payload: PidMismatchPayload }
   | { id: number; kind: "role"; subject: string; status: string; label: string | null; payload: RolePayload }
+  | { id: number; kind: "message"; subject: string; status: string; label: string | null; payload: MessagePayload }
   | {
       id: number;
       kind: "conflict";
@@ -809,6 +825,8 @@ export interface Attention { places: AttentionPlace[]; open: number; unplaced: n
 export interface JoinedException {
   id: number; type: string; key: string; title: string; source: string | null; state: string;
   value_usd: number | null; subjects: string[]; first_seen: string; label: string;
+  /** The message it came from, when a message to the IOC raised it (P2.8). */
+  message?: MessageSaid | null;
 }
 
 /** One labelled value of a finding: text, a number with its unit, yes or no, a moment, or an asset by its name. */
@@ -1109,6 +1127,8 @@ export const workApi = {
     request<FieldJob>("POST", `/exceptions/${id}/report`, undefined, { by, status, note: note ?? null,
       reading: extra.reading ?? null, photos: extra.photos ?? [], client_id: extra.client_id ?? null, at: extra.at ?? null,
       override: extra.override ?? null, permit_in_hand: extra.permit_in_hand ?? null }, extra.project),
+  /** A note from the phone to the IOC (P2.8): a case about what it names, a question for the steward, or nothing. */
+  sendNote: (by: string, text: string) => request<MessageNote>("POST", "/messages", undefined, { by, text }),
   fieldHandover: (id: number, h: { by: string; to: string; done: string; left: string; unsafe?: string }) =>
     request<FieldJob>("POST", `/exceptions/${id}/handover`, undefined, { ...h, unsafe: h.unsafe ?? null }),
   acceptHandover: (id: number, by: string, client_id?: string, project?: string) =>
