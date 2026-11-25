@@ -298,6 +298,8 @@ export interface CloseoutSuggestion {
 export interface CloseoutInput {
   by: string; disposition: string; failure_mode?: string; mechanism?: string; cause?: string; activity?: string;
   outcome?: string; note?: string; duplicate_of?: number; suggested?: CloseoutSuggestion;
+  /** Contained, follow-up planned: who the follow-up goes to, a person or role:<role> (#1385). */
+  follow_up_to?: string;
 }
 
 export interface PerfCell {
@@ -795,7 +797,7 @@ export interface ExceptionRow {
   /** Set aside by a person until then, with why (P3.5c). */
   shelved_until?: string | null; shelved_by?: string | null; shelved_reason?: string | null;
   /** What the source sent with it, and what the field has reported back (`field`). */
-  evidence?: { field?: { at: string; by: string; status: string; note: string | null }[]; [k: string]: unknown };
+  evidence?: { field?: { at: string; by: string; status: string; note: string | null; reading?: FieldReading }[]; [k: string]: unknown };
   /** Other systems' exceptions about the same event, which joined this one's case (#464). */
   joined?: JoinedException[];
 }
@@ -1300,7 +1302,8 @@ export const workApi = {
     request<unknown>("PUT", `/work/people/${encodeURIComponent(name)}/away`, undefined, { by, until, delegate, note }),
   workload: () => request<Workload>("GET", "/work/workload"),
   workHome: (person: string, mark = false) => request<WorkHome>("GET", "/work/home", { person, mark: mark ? "true" : undefined }),
-  caseCloseout: (id: number) => request<{ item_id: number; record: CaseCloseout | null; suggestion: CloseoutSuggestion;
+  caseCloseout: (id: number) => request<{ item_id: number; record: CaseCloseout | null;
+    /** The follow-up case sent when it closed contained. */ follow_up?: number | null; suggestion: CloseoutSuggestion;
     vocabulary: CloseoutVocabulary; repeats: { again: number; at: string }[]; equipment?: boolean;
     /** Work someone asked for: it closes as done as asked. */ asked?: boolean;
     /** A message's case: one that only said what was done closes as log only. */ message?: boolean }>("GET", `/work/items/${id}/closeout`),

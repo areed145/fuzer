@@ -357,18 +357,25 @@ function CaseActions({ it, person, reload }: { it: WorkItem; person: string; rel
   const [priority, setPriority] = useState(it.priority?.toString() ?? "");
   const [due, setDue] = useState("");
   const [reason, setReason] = useState("");
+  // Sent: the form closes (a new key folds the Disclosure) and says where it went (#1385)
+  const [sent, setSent] = useState<string | null>(null);
+  const [sends, setSends] = useState(0);
   const a = useAction();
+  const send = () => a.run("to", () => api.reassignCase(it.id, person, to, reason || undefined), () => {
+    setSent(to); setSends((n) => n + 1); setTo(""); setReason(""); reload();
+  });
+  const role = sent?.startsWith("role:");
   return (
     <div className="case-actions">
-      <Disclosure className="small" label={<>Send to someone else</>}>
+      <Disclosure key={sends} className="small" label={<>Send to someone else</>}>
       <Line wrap>
-        <Field label="Send to" width="md"><AssignPicker value={to} onChange={setTo} /></Field>
+        <Field label="Send to" width="md"><AssignPicker value={to} onChange={(v) => { setTo(v); setSent(null); }} /></Field>
         <Field label="Why (kept in its history)" width="md">
           <Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-        <Button variant="secondary" disabled={!to || !!a.busy}
-          onClick={() => a.run("to", () => api.reassignCase(it.id, person, to, reason || undefined), () => { setTo(""); reload(); })}>Send</Button>
+        <Button variant="secondary" disabled={!to || !!a.busy} onClick={send}>Send</Button>
       </Line>
       </Disclosure>
+      {sent && !a.busy && !a.error && <Text as="p" small role="status">Sent to {holder(role ? null : sent, role ? sent : null)}.</Text>}
       <Disclosure className="small" label={<>Change priority or due time</>}>
         <Line wrap>
           <Field label="Priority" width="xs"><Input value={priority} onChange={(e) => setPriority(e.target.value)} /></Field>

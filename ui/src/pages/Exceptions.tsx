@@ -11,6 +11,7 @@ import { display, type EntityNames } from "../entityRefs";
 import { PriorityBadge } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { MatchRef } from "./masterdata/MatchRef";
+import { readingText } from "../FieldPhoto";
 import { EventOptions } from "./workflows/Options";
 import { detectorName, person as personName, queue, say, workKind } from "../wording";
 
@@ -207,6 +208,9 @@ export function EventRow({ r, place, person, people, queues, onChange, take = nu
   const [shelveTo, setShelveTo] = useState("");
   const [shelveWhy, setShelveWhy] = useState("");
   const fieldSaid = r.evidence?.field?.[r.evidence.field.length - 1];
+  // What the field last said in words or a reading: a Done whose reading came in a note before it shows that reading
+  const fieldWords = [...(r.evidence?.field ?? [])].reverse()
+    .map((f) => [f.note?.trim(), f.reading && readingText(f.reading)].filter(Boolean).join("; ")).find(Boolean);
   const shelved = !!r.shelved_until && new Date(r.shelved_until) > new Date();
   const canAct = r.state === "open" && !!person;
   const subjects = namedSubjects(r.subjects, names);
@@ -245,10 +249,10 @@ export function EventRow({ r, place, person, people, queues, onChange, take = nu
       <td className="work-row-with small">{r.item_id && !notSent(r) ? <a href={href(`/cases/${r.item_id}`)}>{holder(r.assignee, r.role)}</a>
         : r.planned ? <a href={planItemHref(r.planned)}>planned {whenDay(r.planned.start_at)}{r.planned.crew ? ` · ${r.planned.crew}` : ""}</a>
         : <Text muted>not dispatched</Text>}
-        {fieldSaid && <div title={fieldSaid.note ?? undefined}>
+        {fieldSaid && <div title={fieldWords}>
           <Badge tone={fieldSaid.status === "could_not_do" ? "warn" : "ok"}>
             {FIELD_SAID[fieldSaid.status] ?? fieldSaid.status}</Badge> <Text muted>{personName(fieldSaid.by)} · {when(fieldSaid.at)}</Text>
-          {fieldSaid.note && <Text as="div" muted>{fieldSaid.note}</Text>}</div>}
+          {fieldWords && <Text as="div" muted>{fieldWords}</Text>}</div>}
         {shelved && <div><Badge>Shelved</Badge> until {day(r.shelved_until!)}: {r.shelved_reason}
           {r.shelved_by ? ` · ${personName(r.shelved_by)}` : ""}</div>}
       </td>

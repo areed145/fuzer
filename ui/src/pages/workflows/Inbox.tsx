@@ -115,7 +115,10 @@ export function InboxPage() {
   const lead = d.roles.includes("ops_lead");
   // The latest handover whose shift has ended: one still being written by the outgoing lead isn't ready to read.
   const handover = lead ? handovers.data?.find((h) => new Date(h.shift_end).getTime() <= Date.now()) : undefined;
-  // The jobs sent to them.
+  // Jobs sent to them lead a field operator's page; anyone else (an engineer sent to look) reads what waits on them
+  // first (#1385), with these under it. Without signal it is the field's phone: the jobs lead, and stay put while the
+  // roles can't be read (a card moved would lose the note being typed in it).
+  const fieldFirst = fieldRole || !!offline;
   const yours = (sent.length > 0 || reported?.list === "sent") && <section className="field-jobs" aria-labelledby="sent-to-you">
     {/* the count is of the job cards under it: a job just reported shows its notice in place, not counted */}
     <Heading id="sent-to-you" detail={sent.filter((j) => j.id !== reported?.id).length || undefined}>Your field jobs</Heading>
@@ -141,7 +144,7 @@ export function InboxPage() {
       {!offline && fieldRole && <NoteToIOC person={person} />}
       {/* What changed on your work since you last looked is Home's Needs you; a field operator, whose Home is this
           page, reads it beside their jobs below. */}
-      <nav className="chips work-views" aria-label="Show in my work">
+      <nav className="chips my-work-views" aria-label="Show in my work">
         {CHIPS.map((c) => <Button key={c.key} className="chip"
           aria-pressed={c === chip} onClick={() => setShow(c.key)}>
           {c.label} {c.danger && c.rows.length ? <UIBadge tone="danger">{c.rows.length}</UIBadge> : <Text muted>{c.count ?? c.rows.length}</Text>}</Button>)}
@@ -160,10 +163,11 @@ export function InboxPage() {
       {pickedRows.length > 0 && <Bulk rows={pickedRows} person={person} onDone={() => setPicked(new Set())} />}
       {!all.length && !jobs.length && <Empty>Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}.</Empty>}
       {!all.length && !jobs.length && <SampleTeam onAdded={inbox.reload} />}
-      {yours}
+      {fieldFirst && yours}
       {!offline && fieldRole && <NewForYou person={person} told={told} onCard={onCard} />}
       <Group title={chip.key ? chip.label : "Waiting on you"} rows={chip.rows} person={person} picked={picked} toggle={toggle}
         hint={chip.key === "queue" ? "claim one to make it yours" : chip.key === "escalated" ? "past their SLA and moved to you or your role" : undefined} />
+      {!fieldFirst && yours}
       {(waitingJobs.length > 0 || reported?.list === "waiting") && <section className="field-jobs" aria-labelledby="waiting-jobs">
         <Heading id="waiting-jobs" detail={waitingJobs.filter((j) => j.id !== reported?.id).length || undefined}>{d.roles.includes("operator") ? "Field jobs" : "Jobs"} waiting in your queues</Heading>
         {cards(waitingJobs, "waiting")}

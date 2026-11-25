@@ -4511,6 +4511,59 @@ for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]
   });
 }
 
+// P5.27b (#1380): acting as the ops lead, the demo account's My work doesn't open with an operator's field job; P5.27g
+// (#1385): on a phone it has its chips, and what waits on them comes before any job sent to them.
+test("an ops lead's phone My work has its chips and the waiting list first (P5.27g)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const inbox = { person: "ann", roles: ["ops_lead"], mine: [], queue: [{ ...homeRow(1), bulk: [], role: "ops_lead" }],
+    counts: { mine: { total: 0 }, queue: { total: 1 } } };
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+  await page.route("**/work/counts?*", (route) => route.fulfill({ json: workCounts({ dispatch: 2, desk: 1 },
+    { total: 3, overdue: 0, to_dispatch: 2, my_work: 1 }) }));
+  const job = { id: 9, type: "upset", key: "j", source: "scada", state: "open", priority: null, value_usd: null, subjects: [],
+    unmatched: [], raised_count: 1, first_seen: "2026-11-25T06:00:00Z", last_seen: "2026-11-25T06:00:00Z", evidence: {},
+    history: [], field: [], label: "Upset", role: "engineer", assets: [], item_id: 99, assignee: "ann", queued: false,
+    title: "Check the meter run", sent: { by: "riley", at: "2026-11-25T07:00:00Z", reason: "Look at the meter" },
+    finding: { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null,
+      end: null, confidence: null, items: [], checks: [], subjects: [], value_usd: null } };
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "ann", coming_up: [], jobs: [job] } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/inbox`);
+  const chips = page.getByRole("navigation", { name: "Show in my work" });
+  await chips.getByRole("button", { name: "All 1" }).waitFor();
+  assert.ok(await chips.isVisible(), "the chips show on a phone");
+  await chips.getByRole("link", { name: "To dispatch 2" }).waitFor();
+  const waiting = await page.locator("main .work-title").first().boundingBox();
+  const sent = await page.getByRole("heading", { name: "Your field jobs" }).boundingBox();
+  assert.ok(waiting.y < sent.y, "what waits on the ops lead comes before the job sent to them");
+  assert.ok(waiting.y < 844, `the first waiting row is in the first screen (top ${waiting.y})`);
+  assert.equal(await page.getByRole("textbox", { name: "Note to the IOC", exact: true }).count(), 0, "the field's note box");
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+// P5.27g (#1385): a Done whose reading came in a note before it showed a bare "Field: done" on its row.
+for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]]) {
+  test(`a back-from-field row shows what the field last said (P5.27g, ${name})`, async () => {
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ivy"));
+    await page.route("**/exceptions?*", (route) => route.fulfill({ json: [{ id: 3, type: "upset", key: "k3", source: "sre",
+      state: "open", priority: null, value_usd: null, subjects: [], unmatched: [], case_state: "open", role: "ops_lead",
+      raised_count: 1, first_seen: "2026-11-25T06:00:00Z", last_seen: "2026-11-25T07:00:00Z", item_id: 22, assignee: null,
+      title: "Level transmitter drifting", back_from_field: true, stage: "back", evidence: { field: [
+        { at: "2026-11-25T09:00:00Z", by: "otto", status: "note", note: "gauge glass agrees", reading: { value: 41, unit: "%", what: "level" } },
+        { at: "2026-11-25T09:05:00Z", by: "otto", status: "done", note: null }] } }] }));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "otto", roles: ["operator"] }] }));
+    await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [] }));
+    await page.route("**/exceptions/types", (route) => route.fulfill({ json: [] }));
+    await page.route("**/work/counts?*", (route) => route.fulfill({ json: workCounts({ back: 1 }) }));
+    await page.setViewportSize({ width, height });
+    await page.goto(`${url}/#/list`);
+    const row = page.locator("tr.work-row", { hasText: "Level transmitter drifting" });
+    await row.getByText("Field: done").waitFor();
+    await row.getByText("gauge glass agrees; level 41 %").waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
+
 // P5.26b (#1364): on a touch screen nothing is greyed with its reason in a hover title. A tap on Could not do (or
 // Done) with nothing said asks for the note at the note box; with the reason typed, the next tap sends it.
 test("a field operator's tap on Could not do asks for why and then sends it (P5.26b, touch)", async () => {
@@ -7120,6 +7173,53 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     await form.getByRole("button", { name: "Close the case" }).click();
     await expectReports(posts, 2);
     assert.deepEqual([posts[1].failure_mode, posts[1].activity], ["STD", undefined]);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
+
+// P5.27g (#1385): "Contained, follow-up planned" made no follow-up, and the case's Send form stayed open with no word
+// that it had gone. Contained offers sending the follow-up; a send says where it went and folds the form.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`a contained close-out sends the follow-up and Send confirms and closes (P5.27g, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const item = { ...demoTask.item, title: "Seal weep on the booster pump", state: "open", closed_at: null, processes: [], events: [] };
+    await page.route("**/work/items/7", (route) => route.fulfill({ json: item }));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "pat", roles: ["maintenance_planner"] }] }));
+    await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "maintenance_planner", kind: "person" }] }));
+    const vocabulary = { dispositions: { real: "A real problem", false_alarm: "False alarm" },
+      outcomes: { fixed: "Fixed", contained: "Contained, follow-up planned" }, failure_modes: {}, mechanisms: {}, causes: {},
+      activities: {} };
+    const sends = [];
+    await page.route("**/work/items/7/reassign", (route) => { sends.push(route.request().postDataJSON()); return route.fulfill({ json: {} }); });
+    const posts = [];
+    await page.route("**/work/items/7/closeout", (route) => {
+      if (route.request().method() === "POST") {
+        posts.push(route.request().postDataJSON());
+        return route.fulfill({ status: 400, json: { detail: "kept here" } });
+      }
+      return route.fulfill({ json: { item_id: 7, record: null, vocabulary, repeats: [], equipment: false, asked: false,
+        suggestion: { from: "words", disposition: "real" } } });
+    });
+    await page.goto(`${url}/#/cases/7`);
+
+    await page.getByRole("button", { name: "Send to someone else" }).click();
+    await page.getByLabel("Why (kept in its history)").fill("Planner to book the seal change");
+    await page.locator(".case-actions select").selectOption("role:maintenance_planner");
+    await page.locator(".case-actions").getByRole("button", { name: "Send", exact: true }).click();
+    await expectReports(sends, 1);
+    assert.deepEqual([sends[0].to, sends[0].reason], ["role:maintenance_planner", "Planner to book the seal change"]);
+    await page.locator(".case-actions").getByRole("status").filter({ hasText: "Sent to maintenance planner queue." }).waitFor();
+    assert.equal(await page.getByLabel("Why (kept in its history)").count(), 0, "the form folds once sent");
+
+    await page.getByRole("button", { name: "Close out", exact: true }).click();
+    const form = page.locator(".closeout-form");
+    assert.equal(await form.getByLabel("Send the follow-up to").count(), 0);
+    await form.getByLabel("Outcome").selectOption("contained");
+    await form.getByLabel("Send the follow-up to").selectOption("role:maintenance_planner");
+    await form.getByRole("button", { name: "Close the case" }).click();
+    await expectReports(posts, 1);
+    assert.deepEqual([posts[0].outcome, posts[0].follow_up_to], ["contained", "role:maintenance_planner"]);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   });
 }

@@ -11,6 +11,7 @@ No workflow and no queue: it waits on the List's **To dispatch** until the IOC d
 
 | Type of work | What it is | Found by | Declared in | How it behaves |
 |---|---|---|---|---|
+| **Reported in a message** `message_report` | A message to the IOC (mail, radio, Teams or a field note) about an entity in the register. | - | [`ops.messages`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/messages.py) | the field can be sent |
 | **SAP notification** `sap_notification` | An open SAP maintenance notification with no work order raised for it yet. | - | [`ops.intake`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/intake.py) | the field can be sent; joins one event's case; due by priority (`intake.sap_notifications.due_hours`) |
 
 ## Starts its own workflow
@@ -83,7 +84,6 @@ Starts the standard one-step `queue_item` workflow in the role's queue, on each 
 | **Deviation review due** `deviation_review_due` | A named deviation from the operating model is past its review date. | [`deviation_reviews`](detectors.md#deviation_reviews) | [`workflow.conformance`](https://github.com/areed145/fuzer/tree/main/src/fuzer/workflow/conformance.py) | - |
 | **Permit lapsed with plant still isolated** `permit_lapsed` | A permit to work past its valid-to time, not closed, with isolations still in place. | [`permit_lapsed`](detectors.md#permit_lapsed) | [`ops.permits`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/permits.py) | the field can be sent |
 | **Records don't agree** `records_gap` | Downtime with no operator log entry or notification about the same plant, or a log entry that says something stopped with no downtime record. | [`records_gaps`](detectors.md#records_gaps) | [`analysis.records`](https://github.com/areed145/fuzer/tree/main/src/fuzer/analysis/records.py) | - |
-| **Reported in a message** `message_report` | A message to the IOC (mail, radio, Teams or a field note) about an entity in the register. | - | [`ops.messages`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/messages.py) | the field can be sent |
 | **Round finding** `round_finding` | A reading outside its limits, or a failed check, taken by an operator on a round. | - | [`ops.rounds`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/rounds.py) | the field can be sent; joins one event's case |
 
 ### HSE specialist queue

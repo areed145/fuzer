@@ -53,7 +53,7 @@
   .work-row-panel .ui-button { min-height: 44px; }
 }
 /* All work's views are filters on the one list: facets, not a second row of tabs. */
-.work-views a.chip { text-decoration: none; }
+.work-views a.chip, .my-work-views a.chip { text-decoration: none; }
 
 /* On a phone the List is compact cards (the Board is not offered there): the title, then one line of priority, stage,
  * due and value, then what it is about and who has it, then the row's actions side by side across the card. Area and
@@ -94,3 +94,10 @@
   .work-table tr > :is(th, td):nth-child(3) { display: none; }
 }
 .work-more { display: flex; align-items: center; gap: 12px; padding: 12px 4px 4px; }
+/* My work's chips show on a phone too (#1385), as 44 px targets; 56 px in field mode. */
+@media (max-width: 600px) {
+  #main-content .my-work-views { --chip-h: 44px; }
+  #main-content .chips.my-work-views > .chip { min-height: 44px; }
+}
+:root.field-mode #main-content .my-work-views { --chip-h: 56px; }
+:root.field-mode #main-content .chips.my-work-views > .chip { min-height: 56px; }

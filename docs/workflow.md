@@ -15,7 +15,7 @@ The Workflows section is where people do it and manage it:
   assigned to you (or to someone away you cover for), unclaimed in your roles' queues, field jobs waiting in the operator queue and
   what you're planned onto. It replaces the separate Inbox and My jobs pages (#503); `#/field` redirects here, and a
   case with a field job shows once, as its job card. A field operator's page opens with the **Note to the IOC**, then
-  their jobs. A task opens as a page: its form and evidence,
+  their jobs; anyone else's opens with what waits on them, its chips on a phone too. A task opens as a page: its form and evidence,
   claim / release / hand off (to a person, a role's queue or an agent), where it sits in its process, the case's
   history. Who you are is set once, in the sidebar.
 - **Cases** (All work's In progress and Closed views, `#/exceptions?list=progress`; `#/cases` redirects there): every
@@ -242,7 +242,11 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   and Triage comes back to the engineer queue. Any process can do the same with the **Field check** component in the
   modeler and `fuzer:dispatch` on the step that sends to it.
 - **Seeing it come back.** The task page shows a **From the field** box above the form, My work says why a step
-  came back ("Back from the field: done: gauge reads 13 barg"), and All work has a **Back from the field** view.
+  came back ("Back from the field: done: gauge reads 13 barg"; a Done after a reading sent in its own note comes back
+  with that note and reading), and All work has a **Back from the field** view, whose rows show the field's latest note.
+- **A follow-up planned is sent.** Closing out a real problem as **Contained, follow-up planned** offers **Send the
+  follow-up to** a person or a role's queue: the follow-up opens as a case of its own, linked from the closed case.
+  The case page's **Send to someone else** says where it went and folds away.
   A field job card only offers to open a step in the operator's own roles.
 - **Picked, not typed.** Dispatch picks a person (shown with their roles) or a role's queue; a new exception type
   picks its queue from the person roles under Settings > Users, and the API refuses a queue that isn't one. Equipment

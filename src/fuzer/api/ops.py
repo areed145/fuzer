@@ -368,6 +368,7 @@ class Closeout(BaseModel):
     note: str | None = None
     duplicate_of: int | None = None
     suggested: dict[str, Any] | None = None   # what the form was pre-filled with, kept beside what was confirmed
+    follow_up_to: str | None = None           # contained: who the follow-up goes to (a person or role:<role>)
 
 
 @router.get("/work/items/{item_id}/closeout")

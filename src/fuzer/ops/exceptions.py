@@ -889,7 +889,8 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
             # a field step of its own (the upset's Field check) has it completed with what they found, and the step
             # it returns to goes to that step's own queue. Done comes back too (#1115): the IOC closes it out,
             # saying what it was, so the field's work is counted.
-            back = f"Back from the field: {said.lower()}" + (f": {note.strip()[:140]}" if note else "")
+            told = (note or "").strip() or latest_said([*((row["evidence"] or {}).get("field") or []), entry])
+            back = f"Back from the field: {said.lower()}" + (f": {told[:140]}" if told else "")
             # a field step of the case's process (an upset's, or queue_item's since #1145) takes the report
             if not work.report_field_step(conn, row["item_id"], by, status, note, back, IOC_QUEUE):
                 sent = _dispatcher(conn, row["item_id"], by)
@@ -907,6 +908,16 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
     closeout.on_field_report(conn, row, by, status, note)  # the system that raised it hears what the field did (#466)
     events.publish(conn, "exception.reported", f"exception:{row['id']}", {**_payload(row), **entry})
     return row
+
+
+def latest_said(field: list[dict]) -> str:
+    """What the field last said in words or a reading (#1385): a Done whose reading came in a note before it reads
+    with that reading, not a bare "done"."""
+    for f in reversed(field):
+        parts = [x for x in ((f.get("note") or "").strip(), reading_text(f["reading"]) if f.get("reading") else "") if x]
+        if parts:
+            return "; ".join(parts)
+    return ""
 
 
 def _dispatcher(conn, item_id: int, person: str) -> dict | None:

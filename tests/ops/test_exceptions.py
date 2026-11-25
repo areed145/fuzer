@@ -1567,3 +1567,42 @@ def test_the_demo_account_acting_as_a_desk_role_is_not_shown_an_operators_job(co
             access.ACTING.reset(token)
     conn.commit()
 
+
+def test_a_done_after_a_reading_in_a_note_goes_back_with_that_reading(conn, types):
+    """#1385 (tour C15): Done after the reading went in its own note came back as a bare "Back from the field: done".
+    It comes back with what the field last said."""
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    engine.set_person(conn, "olly", ["operator"])
+    types("level_drift", role="role:ops_lead", audience=("ioc", "field"))
+    e = raise_exception(conn, "level_drift", "LT-9", "Level transmitter drifting on P-101", "rounds",
+                        refs=["tag:P-101"])
+    impl.dispatch(conn, e["id"], "ivy", "olly", reason="Compare the gauge glass with the DCS")
+    impl.report(conn, e["id"], "olly", "on_site")
+    impl.report(conn, e["id"], "olly", "note", note="gauge glass agrees with the DCS",
+                reading={"value": 41, "unit": "%", "what": "level"})
+    impl.report(conn, e["id"], "olly", "done")
+    back = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind = 'handed_off' "
+                        "order by id desc limit 1", (e["item_id"],)).fetchone()["r"]
+    assert back == "Back from the field: done: gauge glass agrees with the DCS; level 41 %"
+    assert impl.latest_said([{"note": None}, {"note": " ", "reading": None}]) == ""
+    conn.commit()
+
+
+def test_a_message_case_waits_at_to_dispatch_and_is_counted_there(conn):
+    """#1385 (tour C14): To dispatch read 0 while new message cases waited in the ops lead's queue, never sent. A
+    message's case waits at To dispatch for the IOC to send it, and To dispatch counts it."""
+    from fuzer.ops import messages, worklist
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    before = worklist.figures(conn, "ivy")
+    e = raise_exception(conn, messages.MESSAGE_REPORT, "MSG-T1", "P-101 seal weeping", messages.SOURCE,
+                        refs=["tag:P-101"])
+    assert waits(conn, e)
+    assert next(r for r in impl.listing(conn) if r["id"] == e["id"])["stage"] == "dispatch"
+    after = worklist.figures(conn, "ivy")
+    assert after["stages"]["dispatch"] == before["stages"]["dispatch"] + 1
+    assert after["waiting_on_you"]["to_dispatch"] == before["waiting_on_you"]["to_dispatch"] + 1
+    conn.commit()

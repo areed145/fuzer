@@ -133,7 +133,7 @@ def form(conn, pack: Pack, item_id: int) -> dict:
     equipment, suggestion = equipment_case(conn, item_id), suggest(conn, pack, item_id)
     if not equipment:  # the failure terms are optional here, folded away on the form: nothing fills what isn't shown (#1366)
         suggestion = {k: v for k, v in suggestion.items() if k not in TERMS}
-    return {"item_id": item_id, "record": get(conn, item_id), "suggestion": suggestion,
+    return {"item_id": item_id, "record": get(conn, item_id), "follow_up": follow_up(conn, item_id), "suggestion": suggestion,
             "vocabulary": vocabulary(pack), "repeats": repeats, "equipment": equipment,
             "asked": asked_case(conn, item_id), "message": message_case(conn, item_id)}
 
@@ -153,11 +153,14 @@ def record_known(conn, item_id: int, by: str, disposition: str, note: str | None
 def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure_mode: str | None = None,
            mechanism: str | None = None, cause: str | None = None, activity: str | None = None,
            outcome: str | None = None, note: str | None = None, duplicate_of: int | None = None,
-           suggested: dict | None = None) -> dict:
+           suggested: dict | None = None, follow_up_to: str | None = None) -> dict:
     """Record the close-out and close the case if it is still open. A real problem on equipment needs its failure mode,
     cause and action from the lists (elsewhere they are optional); a duplicate names its case. Recording again
-    corrects it."""
+    corrects it. Contained with a follow-up planned, `follow_up_to` (a person or `role:<role>`) is sent that follow-up
+    as a case of its own (#1385); the row says which (`follow_up`)."""
     item, _ = _text(conn, item_id)
+    if follow_up_to and outcome != "contained":
+        raise ValueError("a follow-up is sent when the outcome is contained, follow-up planned")
     v = vocabulary(pack)
     if disposition not in DISPOSITIONS:
         raise ValueError(f"say what it was: {', '.join(DISPOSITIONS)}")
@@ -211,7 +214,35 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
     else:
         work.comment(conn, item_id, by, f"Close-out: {said}")
     offer_feedback(conn, item_id, row, by)
-    return row
+    return {**row, "follow_up": _send_follow_up(conn, item, by, follow_up_to) if follow_up_to else follow_up(conn, item_id)}
+
+
+FOLLOW_UP = "follow_up_of"  # what a follow-up case carries: the case it follows up
+
+
+def _send_follow_up(conn, item: dict, by: str, to: str) -> int:
+    """The follow-up a contained close-out planned, as a case for `to`: one per case, linked both ways on the
+    history."""
+    if have := follow_up(conn, item["id"]):
+        return have
+    queue = to.startswith("role:")
+    subjects = conn.execute("select subjects from work_item where id = %s", (item["id"],)).fetchone()["subjects"]
+    case = routing.open_task(conn, "task", f"Follow-up: {item['title']}", by, key=f"follow-up:{item['id']}",
+                             role=to if queue else None, assignee=None if queue else to,
+                             data={FOLLOW_UP: item["id"]}, subjects=list(subjects or []), source=f"case:{item['id']}")
+    work.comment(conn, item["id"], by, f"Follow-up sent to {to.removeprefix('role:').replace('_', ' ')}"
+                 f"{' queue' if queue else ''}: case {case['id']}")
+    work.comment(conn, case["id"], by, f"Follows up case {item['id']}, contained when it closed")
+    return case["id"]
+
+
+def follow_up(conn, item_id: int) -> int | None:
+    """The follow-up case sent when this case closed contained, if one was."""
+    row = conn.execute(
+        "select id from work_item where payload->>%(k)s = %(i)s "
+        "union select item_id from work_process where data->>%(k)s = %(i)s and item_id is not null limit 1",
+        {"k": FOLLOW_UP, "i": str(item_id)}).fetchone()
+    return row["id"] if row else None
 
 
 def _checklist_said(conn, item_id: int) -> str:

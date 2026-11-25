@@ -4,7 +4,8 @@ Teams posts and a field operator's note from the phone. Each is read once, into 
     case      it names an entity the register knows, for certain: a `message_report` exception about that entity, with
               the message as its evidence and a short summary of it as its title, routed like any other. A message
               is its own work: it opens its own case and never joins an older one about the same asset, where its
-              news would read as a second report under someone else's title (#1363)
+              news would read as a second report under someone else's title (#1363). The case waits at To dispatch
+              for the IOC to send it, so To dispatch counts it (#1385)
     steward   it names nothing for certain (a short tag in several areas, a tag the register lacks, only a place, or
               nothing at all): a question in the data steward's queue, who says which entity it is about (a case
               follows) or that it needs no work
@@ -35,7 +36,7 @@ from ..core.exceptions import exception_type, match, raise_exception
 from ..core.findings import EXTERNAL, Finding, at, fact
 
 MESSAGE_REPORT = exception_type(
-    "message_report", "Reported in a message", role="role:ops_lead", audience=("ioc", "field"), joins=False,
+    "message_report", "Reported in a message", audience=("ioc", "field"), joins=False,
     description="A message to the IOC (mail, radio, Teams or a field note) about an entity in the register.").name
 SOURCE = "messages"
 REVIEW_KIND = "message"
