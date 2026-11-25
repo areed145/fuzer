@@ -16,8 +16,13 @@ The sections, over the shift that just ended:
     Records to check        downtime with no log entry or notification, and logged stops with no downtime record
                             (#344): questions for the shift, open until a matching record turns up or it is closed
 
-What changed this shift, not every open line (#1351): the standing backlog is All work's, where the page links. A time
-carries its date whenever it is not the day of the shift change.
+What changed this shift, not every open line (#1351): the standing backlog is All work's, where the page links.
+
+A handover reads in under three phone screens (P5.26i, #1371): the same line said again (a round done, a dispatch of one
+title) is one line with how many times, and a section's `links` names the List filtered to its rows where the List can
+show the same rows, so the page lists the first few and links the rest. A line's time is its `at` (an instant, or the plant's
+clock), written `{at}` in its text, so the page says it with its date in the reader's clock: a time written "08:10" on
+the day of the shift change read without a day the next morning, and a running shift's lines had no day at all.
 
 Shift changes are the `handover.shift_times` setting (local times in the project's timezone, "06:00,18:00"). The
 work tick drafts a handover once per shift change (`at_shift_change`); it starts the `shift_handover` process, one
@@ -41,6 +46,10 @@ ROUTINE = "routine_due"  # planned work coming due, not news: on Plan and All wo
 CASE_TYPE = "shift_handover"
 ROLE = "ops_lead"
 LIMIT = 25  # lines per section; the rest is counted
+# The List filtered to a section's rows, where it can show the same rows: the page links "N more" there.
+# Those are the List's own rows, one line each, so their counts stay the List's: their lines are never folded together.
+LINKS = {"In the field": "/list?stage=field", "Back from the field": "/list?stage=back",
+         "Records to check": f"/list?kind={RECORDS}"}
 
 
 def _tz() -> ZoneInfo:
@@ -82,19 +91,33 @@ def current_shift(conn, now: datetime) -> tuple[datetime, datetime]:
     return past[-1].astimezone(UTC), ahead[0].astimezone(UTC)
 
 
-def _at(t: datetime | str | None, day) -> str:
-    """A time as the handover writes it: "08:10" on `day` (the shift change's), "24 Nov 08:10" on any other."""
+def _at(t: datetime | str | None) -> str | None:
+    """A line's time as the page reads it: an instant in ISO with its offset, or the plant's clock as written."""
     if not t:
-        return "?"
-    try:
-        local = (datetime.fromisoformat(t) if isinstance(t, str) else t).astimezone(_tz())
-    except ValueError:
-        return t[11:16]
-    return f"{local:%H:%M}" if local.date() == day else f"{local:%-d %b %H:%M}"
+        return None
+    return t.isoformat(timespec="minutes") if isinstance(t, datetime) else str(t)
 
 
-def _line(text: str, *cites: str) -> dict:
-    return {"text": wording.say(text), "cites": [c for c in cites if c]}
+def _line(text: str, *cites: str, at: datetime | str | None = None) -> dict:
+    """A line: its words (`{at}` where its time goes), what it cites, and its time."""
+    line = {"text": wording.say(text), "cites": [c for c in cites if c]}
+    return {**line, "at": _at(at)} if at else line
+
+
+def _once(lines: list[dict]) -> list[dict]:
+    """The same words said again become one line with how many times, at the first's place and with its citations."""
+    seen: dict[str, dict] = {}
+    for line in lines:
+        key = line["text"]
+        if key in seen:
+            seen[key]["times"] = seen[key].get("times", 1) + 1
+        else:
+            seen[key] = dict(line)
+    out = []
+    for x in seen.values():
+        times = x.pop("times", 1)
+        out.append({**x, "text": f"{x['text']} ({times} times)"} if times > 1 else x)
+    return out
 
 
 def _to(to: str | None) -> str:
@@ -121,9 +144,11 @@ def facts(conn, start: datetime, end: datetime) -> dict:
     unknown = {} if safeguards.loaded(conn) else {"Active bypasses": safeguards.NO_REGISTER}
 
     def keep(name: str, rows: list, render) -> None:
-        sections[name] = [render(r) for r in rows[:LIMIT]]
-        if len(rows) > LIMIT:
-            more[name] = len(rows) - LIMIT
+        lines = [render(r) for r in rows]
+        lines = lines if name in LINKS else _once(lines)
+        sections[name] = lines[:LIMIT]
+        if len(lines) > LIMIT:
+            more[name] = len(lines) - LIMIT
 
     holder = lambda r: r.get("assignee") or (f"the {wording.queue(r['role'])}" if r.get("role") else "nobody yet")
     # In the field and Back from the field are the List's own rows (ops.worklist), so the handover's counts are the
@@ -134,17 +159,14 @@ def facts(conn, start: datetime, end: datetime) -> dict:
     live = [r for r in worklist._all(conn, "open") if r["kind"] not in (CASE_TYPE, RECORDS)]
     cite = lambda r: (f"exception:{r['exception_id']}" if r.get("exception_id") else "", f"case:{r['item_id']}" if r.get("item_id") else "")
     last = lambda r: ((r.get("evidence") or {}).get("field") or [None])[-1] if isinstance(r.get("evidence"), dict) else None
-    day = end.astimezone(_tz()).date()
-    at = lambda t: _at(t, day)
-
     def in_field(r) -> dict:
         said, handed = last(r), (r.get("evidence") or {}).get("handover")
-        text = (f"{r['title']}: {said['by']} on site since {at(said.get('at'))}" if said and said.get("status") == "on_site"
-                else f"{r['title']}: with {holder(r)}")
+        on_site = said and said.get("status") == "on_site"
+        text = f"{r['title']}: {said['by']} on site since {{at}}" if on_site else f"{r['title']}: with {holder(r)}"
         if handed and not handed.get("accepted_at"):
             text += f"; handed over to {handed['to']}, waiting to be accepted" + (
                 f" (unsafe to leave: {handed['unsafe']})" if handed.get("unsafe") else "")
-        return _line(text, *cite(r))
+        return _line(text, *cite(r), at=said.get("at") if on_site else None)
     keep("In the field", sorted((r for r in live if r["stage"] == "field"), key=lambda r: (last(r) or {}).get("at") or "~"), in_field)
 
     def came_back(r) -> dict:
@@ -154,11 +176,15 @@ def facts(conn, start: datetime, end: datetime) -> dict:
         return _line(f"{r['title']}: {said['by']} reported {'done' if said['status'] == 'done' else 'could not do'}"
                      + (f" ({said['note']})" if said.get("note") else ""), *cite(r))
     back = sorted((r for r in live if r["stage"] == "back"), key=lambda r: (last(r) or {}).get("at") or "", reverse=True)
-    keep("Open permits", _permits(conn, end), lambda r: _line(r["text"], f"entity:{r['id']}"))
-    keep("Active bypasses", _bypasses(conn, end), lambda r: _line(r["text"], f"entity:{r['id']}"))
+    keep("Open permits", _permits(conn, end), lambda r: _line(r["text"], f"entity:{r['id']}", at=r.get("at")))
+    keep("Active bypasses", _bypasses(conn, end), lambda r: _line(r["text"], f"entity:{r['id']}", at=r.get("at")))
     from . import rounds
 
-    keep("Rounds", rounds.of_shift(conn, start, end), lambda r: _line(r["text"]))
+    # rounds done with nothing found are one line; a round that found something, or was partly done or missed, its own
+    ran = rounds.of_shift(conn, start, end)
+    clean = [r for r in ran if r["state"] == "done" and not r["text"].endswith("found something")]
+    keep("Rounds", ran if len(clean) < 2 else [r for r in ran if r not in clean]
+         + [{"text": f"{len(clean)} rounds done, nothing found"}], lambda r: _line(r["text"]))
     keep("Back from the field", back, came_back)
     keep("Escalated or overdue", conn.execute(
         """
@@ -171,16 +197,17 @@ def facts(conn, start: datetime, end: datetime) -> dict:
         order by coalesce(t.escalated_at, t.due_at)
         """, {"s": start, "e": end}).fetchall(),
         lambda r: _line(f"{r['step']} on {r['title']}, with {holder(r)}: "
-                        + (f"escalated {at(r['escalated_at'])}" if r["escalated_at"] else
-                           f"overdue since {at(r['due_at'])}"), f"case:{r['item_id']}"))
+                        + ("escalated {at}" if r["escalated_at"] else "overdue since {at}"), f"case:{r['item_id']}",
+                        at=r["escalated_at"] or r["due_at"]))
     keep("Dispatched", conn.execute(
         """
         select o.created_at, o.payload, o.ref from event_outbox o
         where o.topic = 'exception.dispatched' and o.created_at >= %(s)s and o.created_at < %(e)s order by o.id
         """, {"s": start, "e": end}).fetchall(),
-        lambda r: _line(f"{wording.say(r['payload'].get('title'))} sent to {_to(r['payload'].get('to'))}"
-                        f" at {at(r['created_at'])}" + (f" ({r['payload']['reason']})" if r["payload"].get("reason") else ""),
-                        r["ref"], f"case:{r['payload']['item_id']}" if r["payload"].get("item_id") else ""))
+        lambda r: _line(f"{wording.say(r['payload'].get('title'))} sent to {_to(r['payload'].get('to'))} {{at}}"
+                        + (f" ({r['payload']['reason']})" if r["payload"].get("reason") else ""),
+                        r["ref"], f"case:{r['payload']['item_id']}" if r["payload"].get("item_id") else "",
+                        at=r["created_at"]))
     keep("New exceptions", conn.execute(
         """
         select id, title, type, source, item_id, state from exception_record
@@ -198,15 +225,16 @@ def facts(conn, start: datetime, end: datetime) -> dict:
                           and x.state = 'cleared')
         order by w.closed_at desc, w.id
         """, {"s": start, "e": end, "h": CASE_TYPE, "src": alerts.TYPE}).fetchall(),
-        lambda r: _line(f"{r['title']}: {'done' if r['state'] == 'done' else 'cancelled'} {at(r['closed_at'])}",
-                        f"case:{r['id']}"))
+        lambda r: _line(f"{r['title']}: {'done' if r['state'] == 'done' else 'cancelled'} {{at}}",
+                        f"case:{r['id']}", at=r["closed_at"]))
     keep("Records to check", conn.execute(
         """
         select id, title, item_id, evidence->>'at' as at from exception_record
         where type = %s and state = 'open' and joined_to is null order by evidence->>'at' desc, id
         """, (RECORDS,)).fetchall(),
         lambda r: _line(r["title"], f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
-    return {"sections": sections, "more": more, "unknown": unknown}
+    return {"sections": sections, "more": more, "unknown": unknown,
+            "links": {k: v for k, v in LINKS.items() if sections.get(k)}}
 
 
 def _bypasses(conn, end: datetime) -> list[dict]:
@@ -223,10 +251,9 @@ def _bypasses(conn, end: datetime) -> list[dict]:
         until = safeguards._when(b["expires"])
         text = (f"{b['label']}: {what} ({b['safeguard']}) bypassed on {on}"
                 + (f", approved by {b['authorised_by']}" if b.get("authorised_by") else ", no approver on record")
-                + ((f", overdue since {until:%d %b %H:%M}" if b["overdue"] else f", expires {until:%d %b %H:%M}")
-                   if until else ", no expiry on record")
+                + ((", overdue since {at}" if b["overdue"] else ", expires {at}") if until else ", no expiry on record")
                 + (f", under {b['moc']}" if b.get("moc") else ""))
-        out.append({"id": b["id"], "text": text})
+        out.append({"id": b["id"], "text": text, "at": until})
     return out
 
 
@@ -262,12 +289,12 @@ def _permits(conn, end: datetime) -> list[dict]:
             continue
         waiting = [i for i in r["isolations"] if (i["state"] or "").lower() not in IN_PLACE]
         text = (f"{r['label']} {r['type'] or 'permit'} on {r['location'] or '?'}, {r['state']}"
-                + (f" to {r['valid_to']}" if r["valid_to"] else "")
+                + (" to {at}" if r["valid_to"] else "")
                 + (f"; {len(waiting)} of {len(r['isolations'])} isolations not in place ("
                    + ", ".join(f"{i['isolation']} {i['state'] or 'no state'}" for i in waiting) + ")" if waiting
                    else f"; {len(r['isolations'])} isolation{'s' if len(r['isolations']) > 1 else ''} in place"
                    if r["isolations"] else ""))
-        out.append({"id": r["id"], "text": text, "waiting": bool(waiting)})
+        out.append({"id": r["id"], "text": text, "waiting": bool(waiting), "at": r["valid_to"]})
     return sorted(out, key=lambda r: not r["waiting"])  # plant not yet isolated under a live permit leads
 
 

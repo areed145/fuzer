@@ -750,7 +750,9 @@ export interface BoardFilter {
 export interface Handover {
   id: number; shift_start: string; shift_end: string; state: "draft" | "acknowledged"; status: HandoverStatus;
   /** `unknown`: sections that can't be said, and why ("no bypass register loaded"): not sections with nothing. */
-  facts: { sections: Record<string, { text: string; cites: string[] }[]>; more?: Record<string, number>; unknown?: Record<string, string> };
+  /** A line's `at` is its time, written `{at}` in its text; `links` is the List filtered to a section's rows (P5.26i). */
+  facts: { sections: Record<string, { text: string; cites: string[]; at?: string }[]>; more?: Record<string, number>;
+    unknown?: Record<string, string>; links?: Record<string, string> };
   item_id: number | null; drafted_at: string; notes: string | null; notes_by: string | null; notes_at: string | null;
   acknowledged_by: string | null; acknowledged_at: string | null; acknowledged_note: string | null;
 }

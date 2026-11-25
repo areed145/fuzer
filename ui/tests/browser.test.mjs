@@ -4957,27 +4957,28 @@ test("the incoming lead finds the shift handover from My work, not the nav (#504
   await page.setViewportSize({ width: 1280, height: 800 });
 });
 
-test("a handover reads in a minute on a phone: what needs the lead first, five lines a section, the rest on ask", async () => {
+test("a handover reads in a minute on a phone: what needs the lead first, three lines a section, the rest linked or on ask", async () => {
   const row = { id: 8, shift_start: "2026-11-11T18:00:00Z", shift_end: "2026-11-12T06:00:00Z", state: "draft",
     status: "not acknowledged", acknowledged_by: null, acknowledged_at: null, item_id: 41, lines: 30 };
   await page.route("**/handovers", (route) => route.fulfill({ json: [row] }));
   const many = (word, n) => Array.from({ length: n }, (_, i) => ({ text: `${word} ${i + 1}`, cites: [`case:${i + 1}`] }));
   await page.route("**/handovers/8", (route) => route.fulfill({ json: { ...row, drafted_at: "2026-11-12T06:00:00Z",
     notes: null, acknowledged_note: null, facts: { sections: { "New exceptions": many("New case", 25), "In the field": [],
-      "Escalated or overdue": many("Escalated step", 2), "Active bypasses": [] }, more: { "New exceptions": 121 },
-      unknown: { "Active bypasses": "no bypass register loaded" } } } }));
+      "Back from the field": many("Back step", 5), "Active bypasses": [] }, more: { "New exceptions": 121 },
+      unknown: { "Active bypasses": "no bypass register loaded" }, links: { "Back from the field": "/list?stage=back" } } } }));
   await page.goto(`${url}/#/handover?id=8`);
-  await page.getByText("Escalated step 1").waitFor();
-  // the headline says what the incoming lead takes on first, in reading order (#11)
-  assert.equal(await page.locator(".handover-first").innerText(), "First: 2 escalated or overdue · 146 new exceptions");
+  await page.getByText("Back step 1").waitFor();
   const headings = await page.locator("main h3").allInnerTexts();
-  assert.ok(headings[0].startsWith("Escalated or overdue") && headings[1].startsWith("New exceptions"), headings.join(" | "));
-  assert.equal(await page.locator("main li", { hasText: /^New case/ }).count(), 5);
+  assert.ok(headings[0].startsWith("Back from the field") && headings[1].startsWith("New exceptions"), headings.join(" | "));
+  // P5.26i: three lines a section; the rest in the List filtered to them, where it can show them
+  assert.equal(await page.locator("main li", { hasText: /^Back step/ }).count(), 3);
+  assert.equal(await page.getByRole("link", { name: "2 more in All work" }).getAttribute("href"), "#/list?stage=back");
+  assert.equal(await page.locator("main li", { hasText: /^New case/ }).count(), 3);
   assert.ok(await page.getByText("Nothing in in the field.").count());
   // no bypass register: the section is unknown and why, never "nothing in active bypasses"
   assert.ok(await page.getByText("Active bypasses unknown: no bypass register loaded.").count());
   assert.doesNotMatch(await page.locator("main").innerText(), /nothing in [^.]*active bypasses/i);
-  await page.getByRole("button", { name: "Show all 146" }).click();
+  await page.getByRole("button", { name: "143 more" }).click();
   assert.equal(await page.locator("main li", { hasText: /^New case/ }).count(), 25);
   await page.getByText("and 121 more").waitFor();
   // the standing backlog is not listed: one link to All work for the rest (#1351)
@@ -4985,6 +4986,41 @@ test("a handover reads in a minute on a phone: what needs the lead first, five l
   // a past handover nobody acknowledged says so, never "draft" or "handed over"
   await page.getByRole("cell", { name: "not acknowledged" }).waitFor();
   assert.doesNotMatch(await page.locator("main").innerText(), /\bdraft\b(?! the)|handed over/i);
+});
+
+// P5.26i (#1371): a normal shift read on a phone was nine screens, 162 lines, and its times had no day. Each section shows
+// three lines, and every time says its day.
+test("a normal shift's handover is under three phone screens and every time carries its date (P5.26i)", async () => {
+  const row = { id: 10, shift_start: "2026-11-24T18:00:00Z", shift_end: "2026-11-25T06:00:00Z", state: "draft",
+    status: "not acknowledged", acknowledged_by: null, acknowledged_at: null, item_id: 43, lines: 120, notes_by: "bo" };
+  await page.route("**/handovers", (route) => route.fulfill({ json: [row] }));
+  const many = (word, n, timed = false) => Array.from({ length: n }, (_, i) => ({
+    text: `${word} ${i + 1} on 20-K-2300B, the lube oil skid, reported by the field` + (timed ? ": done {at}" : ""),
+    cites: [`case:${i + 1}`], ...(timed ? { at: `2026-11-24T2${i % 4}:10:00Z` } : {}) }));
+  await page.route("**/handovers/10", (route) => route.fulfill({ json: { ...row, drafted_at: "2026-11-25T06:00:00Z",
+    notes: "Compressor B on recycle overnight", notes_at: "2026-11-25T05:40:00Z", acknowledged_note: null,
+    facts: { sections: { "In the field": many("Gauge check", 17), "Open permits": many("PTW", 24), Rounds: many("Round", 6),
+      "Back from the field": many("Back", 6), "Escalated or overdue": many("Escalated", 4), Dispatched: many("Sent", 8, true),
+      "New exceptions": many("New", 30), Closed: many("Closed", 6, true), "Records to check": many("Gap", 2) },
+      more: { "New exceptions": 40 }, links: { "In the field": "/list?stage=field", "Back from the field": "/list?stage=back" } } } }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${url}/#/handover?id=10`);
+  await page.getByRole("button", { name: "I have read it: acknowledge" }).waitFor();
+  // the handover's card, Notes and Acknowledge first, under three screens
+  const card = page.locator("main .ui-card").first();
+  const box = await card.boundingBox();
+  assert.ok(box.y + box.height < 3 * 844, `the handover runs to ${Math.round(box.y + box.height)} px, more than three phone screens`);
+  assert.ok(await page.locator("main li").count() <= 30);
+  // a time says its day: never a bare "21:10" or "{at}"
+  const text = await card.innerText();
+  assert.doesNotMatch(text, /\{at\}/);
+  assert.match(text, /Closed 1 on 20-K-2300B[^\n]*: done Nov 24, \d+:10 [AP]M/);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.reload();
+  await page.getByRole("button", { name: "I have read it: acknowledge" }).waitFor();
+  const desk = await page.locator("main .ui-card").first().boundingBox();
+  assert.ok(desk.y + desk.height < 3 * 900, `on a desk it runs to ${Math.round(desk.y + desk.height)} px`);
 });
 
 // #1351: the banner opens the handover at the top, so Notes and Acknowledge sit in the first screen, on a phone too, however
