@@ -5,7 +5,7 @@ import { confirmDialog } from "../../ui";
 import { OpportunityPanel } from "./OpportunityPanel";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
-import { cap, say } from "../../wording";
+import { cap, say, workKind } from "../../wording";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { api, type CaseSource, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
 import { CaseQuestion } from "../Review";
@@ -144,7 +144,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
           {/* One line under the title: what it is, how late, what it is about, who opened it. The due time and the
               entity it is about each took a line of their own, and Watch sat between them. */}
           <Line small wrap>
-            <UIBadge>{it.type.replace(/_/g, " ")}</UIBadge>
+            <UIBadge>{workKind(it.type)}</UIBadge>
             <UIBadge tone={closed ? "ok" : "muted"}>{cap(it.state)}{it.outcome ? `: ${say(it.outcome)}` : ""}</UIBadge>
             {!closed && <Due at={it.due} />}
             {level && <span><PriorityBadge p={it.priority} type={it.type} low /> <Text muted>priority, {level.why}</Text></span>}

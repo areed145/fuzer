@@ -49,6 +49,23 @@ def types(conn) -> dict[str, ExceptionType]:
     return {**data, **TYPES}
 
 
+# The kinds of work no exception raises: cases a module opens itself (routing.open_task). Labelled here, once, beside
+# the exception types' own labels, so every page reads one name for each kind of work (#1358).
+CASE_LABELS = {"writeback": "Write-back", "sap_order": "SAP order", "shift_handover": "Shift handover",
+               "source_closeout": "Close-out for the source", "field_check": "Field check",
+               "source_correction": "Source correction", "recheck": "Did the fix hold", "task": "Task"}
+
+
+def work_labels(conn) -> dict[str, str]:
+    """Each kind of work's one label: the exception types' and the case types'."""
+    return {**CASE_LABELS, **{n: t.label for n, t in types(conn).items()}}
+
+
+def work_label(labels: dict[str, str], kind: str) -> str:
+    """A kind's label, or its name as words for a kind nothing labels."""
+    return labels.get(kind) or kind.replace("_", " ").capitalize()
+
+
 def _type(conn, name: str) -> ExceptionType:
     t = TYPES.get(name) or types(conn).get(name)
     if t is None:

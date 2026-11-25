@@ -1,7 +1,7 @@
 """Options with consequences on a case (P5.20, #1251): the realistic choices for one piece of field work, side by side
 on one scale, one of them recommended with the factor that decided it, carried out in one tap and recorded.
 
-    for_exception(conn, id)    the options for an event: dispatch now, ride along with the next visit to its area,
+    for_exception(conn, id)    the options for an event: dispatch now, ride along with the next visit to its equipment,
                                shelve, escalate; each with when it would be done, the production deferred until then
                                (bbl and $), the risk of waiting, readiness and clashes
     for_case(conn, item_id)    the same, for the event a case works
@@ -18,7 +18,8 @@ Read from what Fuzer already has, never from equipment type:
     what it puts at risk    for a condition not yet costing production: what is behind it if it trips, for the
                             risk line; never added to the deferred barrels, since the chance it trips is not known
     when it is done         dispatch now: the operator queue's time to respond (its SLA); the next visit: a plan item
-                            on the same area or assets starting within `options.window_days`; shelve: until the next
+                            on its equipment (its assets or what they are part of, short of the area) starting
+                            within `options.window_days`; shelve: until the next
                             turnaround or shutdown of the area, at most `exceptions.max_shelve_days`; escalate: the
                             engineer queue's SLA, then a dispatch
     readiness and clashes   readiness.check (crew, permit, spares, simultaneous operations, MOC) for dispatch now;
@@ -219,23 +220,30 @@ def _deferred(now: dict | None, hours: float, prices: dict) -> dict | None:
 # ---- the windows -------------------------------------------------------------------------------------------------
 
 def _visit(conn, row: dict, at: datetime, days: int) -> dict | None:
-    """The next planned visit to the event's area or assets that it could ride along with: a plan item scheduled or
-    under way, starting after now and within `days`, not this event's own."""
-    from .plan import ACTIVE, _area
+    """The next planned visit to the event's own equipment that it could ride along with: a plan item scheduled or
+    under way, starting after now and within `days`, not this event's own, on one of its assets or on what they are
+    part of short of an area (an instrument's exchanger, a well's tags). An area can be half a plant (Okan's
+    compression area holds half its tags), so a job elsewhere in it is not a visit to this one (#1358)."""
+    from .plan import ACTIVE
 
     subjects = list(row["subjects"] or [])
-    area = _area(conn, subjects)
-    if not area and not subjects:
+    if not subjects:
         return None
     r = conn.execute(
         """
-        select p.id, p.title, p.kind, p.start_at, p.end_at, p.crew, p.area_id, la.label as area
-        from plan_item p left join entity_label la on la.fuzer_id = p.area_id
+        with recursive up (fuzer_id, depth) as (
+            select s, 0 from unnest(%(s)s::text[]) s
+            union
+            select e.dst, up.depth + 1 from up join edge e on e.src = up.fuzer_id and e.rel = 'part_of'
+            join entity k on k.fuzer_id = e.dst and k.kind not in ('area', 'facility') where up.depth < 4),
+        mine as (select array_agg(fuzer_id) as ids from up)
+        select p.id, p.title, p.kind, p.start_at, p.end_at, p.crew from plan_item p, mine
         where p.status = any(%(active)s) and p.status <> 'proposed' and p.start_at > %(at)s
           and p.start_at <= %(until)s and p.exception_id is distinct from %(e)s
-          and ((%(area)s::text is not null and p.area_id = %(area)s) or p.subjects && %(s)s::text[])
+          and (p.subjects && mine.ids or exists (select 1 from edge x where x.src = any(p.subjects)
+                                                 and x.rel = 'part_of' and x.dst = any(mine.ids)))
         order by p.start_at, p.id limit 1
-        """, {"active": list(ACTIVE), "at": at, "until": at + timedelta(days=days), "e": row["id"], "area": area,
+        """, {"active": list(ACTIVE), "at": at, "until": at + timedelta(days=days), "e": row["id"],
               "s": subjects}).fetchone()
     return dict(r) if r else None
 
@@ -353,11 +361,10 @@ def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
             "deferred": _deferred(now, hours, prices), "risk": _risk(base, hours, crit, behind),
             "ready": not short, "blockers": short, "warnings": [],
             "clashes": _plan_clashes(conn, visit["id"], visit["start_at"], visit["end_at"]), "available": True,
-            "basis": f"{visit['kind'].replace('_', ' ')} on the plan" + (f" in {visit['area']}" if visit["area"] else "")
-                     + f", then {JOB_HOURS:g} h for the job"})
+            "basis": f"{visit['kind'].replace('_', ' ')} on the plan on its equipment, then {JOB_HOURS:g} h for the job"})
     else:
         options.append({"key": "window", "label": "Ride along with the next visit", "available": False,
-                        "unavailable": f"nothing scheduled on its area or assets in the next {days} days"})
+                        "unavailable": f"nothing scheduled on its equipment in the next {days} days"})
 
     # shelve
     longest = int(settings.get(conn, "exceptions.max_shelve_days"))

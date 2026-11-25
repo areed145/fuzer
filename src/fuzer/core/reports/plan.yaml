@@ -44,5 +44,8 @@ rows:
       - {id: planned-trend, type: trend, size: 2, title: Planned work and schedule compliance, measures: [work.planned_share, work.schedule_compliance]}
   - id: maintenance
     panels:
-      - {id: backlog-burn, type: view, view: backlog-burn, size: 2, phone: false}
-      - {id: accounts, type: view, view: accounts, size: 2, phone: false}
+      - {id: backlog-burn, type: view, view: backlog-burn, size: 4, phone: false}
+  # Its own row, the full width: half of it squeezed the monthly table into a 10,000 px column (#1358).
+  - id: against-the-accounts
+    panels:
+      - {id: accounts, type: view, view: accounts, size: 4, phone: false}

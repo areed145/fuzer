@@ -260,9 +260,11 @@ export interface WorkloadPerson {
 }
 
 /** A person's Inbox in one field (project), for the cross-field view (#497). */
-/** What changed on a person's work since they last looked at Home (P5.1). */
+/** What changed on a person's work lately (P5.1): the last day, or back to their last look at Home. */
 export interface WorkHome {
   person: string; seen_at: string | null;
+  /** Where its changes start: a day ago, or the last look when that was longer ago (#1358). */
+  since: string;
   changes: { id: number; item_id: number; kind: string; actor: string; at: string; data: Record<string, unknown>;
     title: string; type: string; state: string; subjects: string[]; watching: boolean }[];
   watching: string[];
@@ -1065,6 +1067,8 @@ export const workApi = {
   boardProject: (p: { title: string; by: string; owner?: string; due?: string; benefit_usd?: number; scope?: string }) =>
     request<unknown>("POST", "/board/projects", undefined, p),
   workNames: () => request<Record<string, string>>("GET", "/work/names"),
+  /** Each kind of work's one label (#1358), read once by the app shell into `workKind`. */
+  workKinds: () => request<Record<string, string>>("GET", "/work/kinds"),
   workPeople: () => request<{ name: string; roles: string[]; assigned_roles?: string[]; away_until?: string | null; delegate?: string | null; display_name?: string | null;
     /** Open cases and waiting steps they hold now. */ holding?: number }[]>("GET", "/work/people"),
   /** The demo account picks the human roles it acts as in this project; none is every role. */

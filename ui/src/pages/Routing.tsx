@@ -1,4 +1,4 @@
-import { person as personName } from "../wording";
+import { person as personName, workKind } from "../wording";
 import { when } from "../format";
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { api, type Route, type RouteExplanation, type RouteStep, type WorkRoleRow } from "../api";
@@ -83,7 +83,7 @@ function RouteDetail({ route }: { route: Route }) {
   const run = (e: FormEvent) => { e.preventDefault(); setAsked(form); };
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
   const x = plan.data;
-  return <Card title={<>{route.label} <Badge>{route.case_type.replace(/_/g, " ")}</Badge></>} className="route-detail">
+  return <Card title={<>{route.label} <Badge>{workKind(route.case_type)}</Badge></>} className="route-detail">
     {route.description && <Text as="p" small muted>{route.description}</Text>}
     <form className="row" onSubmit={run} aria-label="Try an intake">
       <Field label="Refs" hint="comma separated, e.g. tag:P-101"><Input value={form.refs} onChange={set("refs")} /></Field>

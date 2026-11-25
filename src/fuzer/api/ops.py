@@ -1091,6 +1091,14 @@ def exception_types(conn=Depends(get_conn)):
     return exceptions.type_listing(conn)
 
 
+@router.get("/work/kinds")
+def work_kinds(conn=Depends(get_conn)):
+    """Each kind of work's one label, by its name: what every page calls a case's or an event's kind (#1358)."""
+    from ..ops import exceptions
+    _loaded_types()
+    return exceptions.work_labels(conn)
+
+
 @router.get("/exceptions/refs")
 def exception_refs(conn=Depends(get_conn)):
     """The reference forms an exception's `refs` are matched by, each with an example from this register."""

@@ -12,7 +12,7 @@ import { money, whenDay } from "../format";
 import { holder as holderWords, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display } from "../entityRefs";
-import { person as personName, queue as queueWords, say } from "../wording";
+import { person as personName, queue as queueWords, say, workKind } from "../wording";
 import { EventRow, DispatchControls, ROW_HEADINGS, STAGE_WORDS, Suppressed, age, type Person, type RowPlace } from "./Exceptions";
 import { PriorityBadge, SampleTeam } from "./workflows/shared";
 import { NewWorkItem } from "./workflows/Cases";
@@ -119,7 +119,12 @@ function Presets({ board, filters, roles }: { board: boolean; filters: Filters; 
   const [error, setError] = useState<string | null>(null);
   const chosen = Object.fromEntries(Object.entries(filters).filter(([k, v]) => v && k !== "group")) as Record<string, string>;
   const same = (f: Record<string, string>) => JSON.stringify(Object.entries(f).sort()) === JSON.stringify(Object.entries(chosen).sort());
-  const current = WORK_PRESETS.find((p) => same(p.filters))?.key ?? views.find((v) => same(savedFilters(v.list, v.filters)))?.id;
+  const exact = WORK_PRESETS.find((p) => same(p.filters))?.key ?? views.find((v) => same(savedFilters(v.list, v.filters)))?.id;
+  // The box says what was chosen (#1358): a preset with a filter added on top still reads as that preset, and filters
+  // that are no preset read as Filtered, never as All open work.
+  const within = (f: Record<string, string>) => Object.entries(f).every(([k, v]) => chosen[k] === v);
+  const current = exact ?? WORK_PRESETS.find((p) => within(p.filters))?.key
+    ?? (Object.keys(chosen).length ? "filtered" : undefined);
   const forRole = role || roles[0] || "";
   const open = (key: string) => {
     if (!key) return location.assign(listHref(board, { group: filters.group }));
@@ -143,6 +148,7 @@ function Presets({ board, filters, roles }: { board: boolean; filters: Filters; 
     <div className="row wrap work-presets">
       <Select aria-label="Preset" value={current ? String(current) : ""} onChange={(e) => open(e.target.value)}>
         <option value="">All open work</option>
+        {current === "filtered" && <option value="filtered" disabled>Filtered</option>}
         {WORK_PRESETS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
         {views.length > 0 && <optgroup label="Saved for a role">
           {views.map((v) => <option key={v.id} value={v.id}>{v.name} ({v.role.replace(/_/g, " ")})</option>)}</optgroup>}
@@ -154,7 +160,7 @@ function Presets({ board, filters, roles }: { board: boolean; filters: Filters; 
           <option value="page:/performance">How the work is running</option>
         </optgroup>
       </Select>
-      {person && roles.length > 0 && Object.keys(chosen).length > 0 && !current && !naming &&
+      {person && roles.length > 0 && Object.keys(chosen).length > 0 && !exact && !naming &&
         <Button variant="link" className="work-views" onClick={() => setNaming(true)}>Save this view for a role</Button>}
       {naming && <>
         <Input aria-label="View name" placeholder="Name the view" value={name} onChange={(e) => setName(e.target.value)} />
@@ -176,8 +182,6 @@ function FilterBar({ board, filters, facets, labels, set }: {
   board: boolean; filters: Filters; facets?: WorkListResult["facets"]; labels: Record<string, string>; set: (f: Filters) => void;
 }) {
   const named = (none: string) => (v: string) => v === "none" ? none : labels[v] ?? v;
-  const kinds = useAsync(() => api.exceptionKinds(), []);
-  const kindLabel = Object.fromEntries((kinds.data ?? []).map((k) => [k.name, k.label]));
   const [text, setText] = useState(filters.q ?? "");
   const words = useDebounced(text);
   useEffect(() => { if ((words || undefined) !== filters.q) set({ q: words || undefined }); }, [words]);  // eslint-disable-line react-hooks/exhaustive-deps
@@ -202,7 +206,7 @@ function FilterBar({ board, filters, facets, labels, set }: {
       <Button className="work-filters-toggle" variant="secondary" aria-expanded={open} onClick={() => setOpen(!open)}>
         <span className="work-filters-phone">Filters{chosen ? ` (${chosen})` : ""}</span>
         <span className="work-filters-desk">{open ? "Fewer filters" : "More filters"}</span></Button>
-      {pick("kind", "Kind of work", facets?.kind, (v) => kindLabel[v] ?? v.replace(/_/g, " "), "Every kind")}
+      {pick("kind", "Kind of work", facets?.kind, workKind, "Every kind")}
       {pick("stage", "Stage", facets?.stage, (v) => STAGE_LABEL[v] ?? v, "Every stage")}
       {pick("holder", "Held by", facets?.holder, holderLabel, "Anyone")}
       {pick("queue", "Team", facets?.queue, teamLabel, "Every team")}
@@ -331,7 +335,7 @@ function Board({ data, group, person, people, queues, onChange }: {
 }) {
   const key = (r: WorkListRow) => String(r[group as keyof WorkListRow] ?? "none");
   const label = (v: string) => group === "stage" ? STAGE_LABEL[v] ?? v : group === "holder" ? holderLabel(v)
-    : group === "queue" ? teamLabel(v) : group === "kind" ? data.rows.find((r) => r.kind === v)?.kind_label ?? v
+    : group === "queue" ? teamLabel(v) : group === "kind" ? workKind(v)
     : PLACE_DIMS.has(group) ? (v === "none" ? `No ${group}` : data.labels?.[v] ?? v) : v;
   const values = group === "stage"
     ? STAGE_ORDER.filter((s) => s !== "closed" || data.rows.some((r) => r.stage === "closed"))

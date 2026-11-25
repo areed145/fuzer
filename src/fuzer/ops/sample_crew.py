@@ -207,10 +207,13 @@ def staff(conn) -> list[str]:
     if not conn.execute("select 1 from exception_kind where name = %s", (FIELD_REPORT,)).fetchone():
         from . import exceptions
 
-        exceptions.define(conn, FIELD_REPORT, "sample crew", "Field report (sample crew)", role="role:ops_lead",
+        exceptions.define(conn, FIELD_REPORT, "sample crew", "Field report", role="role:ops_lead",
                           audience=("ioc", "field"), joins=False,
                           description="Something a sample crew operator noticed on the way round, for the IOC to send "
                                       "someone to or close: synthetic, made by the demo's sample crew (#1073).")
+    # One name for the kind (#1358): its source already says sample crew, so the label no longer does.
+    conn.execute("update exception_kind set label = 'Field report' where name = %s "
+                 "and label = 'Field report (sample crew)'", (FIELD_REPORT,))
     return added
 
 

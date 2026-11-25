@@ -8,7 +8,7 @@ import { openReviews } from "../figures";
 import { count } from "../format";
 import { Status, afterMap, href, useAsync, useLive } from "../lib";
 import { Button, Card as UICard, PageHeader, Scroller, Stat } from "../ui";
-import { usePermission } from "../Auth";
+import { useConfigures, usePermission } from "../Auth";
 import { show } from "../analytics/Metric";
 import { LiveFigure } from "../analytics/LiveFigure";
 import type { HotspotSpec, Inset } from "../map/engine";
@@ -88,6 +88,7 @@ export function HomePage({ stats, inbox, figures, jobsHealth }: {
   jobsHealth: { data?: JobsHealth | null; error?: string };
 }) {
   const configure = usePermission("configure");
+  const configures = useConfigures();
   const roles = inbox.data?.roles ?? [];
   const seat = seatOf(roles);
   const dispatcher = roles.includes("ops_lead");
@@ -185,7 +186,7 @@ export function HomePage({ stats, inbox, figures, jobsHealth }: {
               frame={(body) => <UICard title={title} className="home-card">{body}</UICard>} />)}
           </div>}
         </div>
-        <NeedsYou inbox={inbox} figures={figures.data} jobsHealth={jobsHealth} ready={ready} exceptions={dispatcher ? (open.error ? [] : open.data ?? undefined) : null} steward={steward} configure={configure} onRing={setRing}
+        <NeedsYou inbox={inbox} figures={figures.data} jobsHealth={jobsHealth} ready={ready} exceptions={dispatcher ? (open.error ? [] : open.data ?? undefined) : null} steward={steward} configure={configures} onRing={setRing}
                   open={sheet} onToggle={toggleFeed}
                   top={chosen && <PlaceDetail place={chosen} onClose={close} />} />
       </div>

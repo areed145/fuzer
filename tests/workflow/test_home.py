@@ -1,4 +1,5 @@
-"""Home is my shift (P5.1a, #649): what others did on a person's work since they last looked."""
+"""Home is my shift (P5.1a, #649): what others did on a person's work lately: the last day, or
+back to their last look when that was longer ago (#1358)."""
 
 import os
 import tempfile
@@ -32,14 +33,21 @@ def test_home_says_what_others_did_on_my_work_since_i_last_looked(conn):
     assert first["seen_at"] is None
     assert {(c["item_id"], c["kind"]) for c in first["changes"]} == {(mine, "created")}
     conn.commit()
-    assert engine.home(conn, "ines")["changes"] == []  # nothing since she looked
+    # one look doesn't empty it (#1358): a change stays for a day, so she has the chance to act on it
+    again = engine.home(conn, "ines")
+    assert again["seen_at"] and {(c["item_id"], c["kind"]) for c in again["changes"]} == {(mine, "created")}
     engine.comment(conn, mine, "fred", "gland weeping")
     engine.comment(conn, other, "fred", "not hers")
     conn.commit()
     later = engine.home(conn, "ines")
-    assert later["seen_at"] and [(c["item_id"], c["kind"], c["data"]["text"]) for c in later["changes"]] == [
-        (mine, "commented", "gland weeping")]
-    conn.commit()
+    assert [(c["item_id"], c["kind"]) for c in later["changes"]] == [(mine, "commented"), (mine, "created")]
+    assert later["changes"][0]["data"]["text"] == "gland weeping"
+    # a change older than a day goes, unless her last look was longer ago still
+    conn.execute("update work_event set at = now() - interval '2 days' where item_id = %s and kind = 'created'", (mine,))
+    assert [c["kind"] for c in engine.home(conn, "ines")["changes"]] == ["commented"]
+    conn.execute("update work_home_seen set seen_at = now() - interval '3 days' where name = 'ines'")
+    assert [c["kind"] for c in engine.home(conn, "ines")["changes"]] == ["commented", "created"]
+    conn.rollback()
 
 
 def test_a_watched_asset_and_case_show_under_watching_and_are_not_assigned(conn):

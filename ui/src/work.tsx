@@ -1,7 +1,8 @@
 // Shared bits of the work pages (#97): who is acting, due dates, how history reads, evidence.
 
 import { Badge as UIBadge, Disclosure, ErrorText, Facts, List, Text } from "./ui";
-import { when } from "./format";
+import { money, when } from "./format";
+import { ATTENTION_TONE } from "./kinds";
 import { type ReactNode } from "react";
 import { type WorkEvent } from "./api";
 import { Markdown } from "./Markdown";
@@ -17,6 +18,29 @@ const HOUR = 3600_000;
 export function span(ms: number): string {
   const h = Math.abs(ms) / HOUR;
   return h < 1 ? `${Math.max(1, Math.round(h * 60))} min` : h < 48 ? `${Math.round(h)} h` : `${Math.round(h / 24)} d`;
+}
+
+export type PriorityLevel = { level: "High" | "Medium" | "Low"; tone: "danger" | "warn" | "info"; why: string };
+
+/** A priority as a person reads it (#1071): High, Medium or Low and why, whatever scale the source used. Priorities
+ * arrive on three scales: a 0–1 score (high from 0.8, medium from 0.5), an SAP notification's priority 1 (very high)
+ * to 4 (low), stored as 5 minus it so higher comes first, and a value in USD for work ranked by what is at stake. */
+export function priorityLevel(p: number | null | undefined, type?: string | null): PriorityLevel | null {
+  if (p == null || p <= 0) return null;
+  const level = (l: PriorityLevel["level"], why: string): PriorityLevel =>
+    ({ level: l, tone: ATTENTION_TONE[l === "High" ? "high" : l === "Medium" ? "medium" : "low"], why });
+  if ((type === "sap_notification" && p <= 4) || (p > 1 && p <= 4 && Number.isInteger(p))) {
+    const sap = 5 - Math.round(p);
+    return level(sap <= 2 ? "High" : sap === 3 ? "Medium" : "Low", `SAP priority ${sap}`);
+  }
+  if (p <= 1) return level(p >= 0.8 ? "High" : p >= 0.5 ? "Medium" : "Low", `scored ${p.toFixed(2)} of 1`);
+  return level(p >= 10000 ? "High" : p >= 1000 ? "Medium" : "Low", `${money(p)} at stake`);
+}
+
+/** A priority change as the history reads it (#1358): in the priority words, never "0.75 → 0.9". */
+function priorityChange(from: number | null | undefined, to: number | null | undefined): string {
+  const word = (p: number | null | undefined) => priorityLevel(p)?.level ?? "none";
+  return word(from) === word(to) ? `priority (still ${word(to)})` : `priority ${word(from)} → ${word(to)}`;
 }
 
 export function Due({ at, closed }: { at: string | null; closed?: boolean }) {
@@ -107,7 +131,7 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "adopted": return { text: <>now runs as the <strong>{d.process_key}</strong> process, still with {to(d.assignee ?? (d.role ? `role:${d.role}` : null))}</> };
     case "auto_assigned": return { text: <><strong>{step}</strong> went to {personName(d.to)} (the {d.role} role assigns automatically)</> };
     case "delegated": return { text: <><strong>{el ?? "a step"}</strong> went to {personName(d.to)} instead of {personName(d["for"])}, who is away</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
-    case "item_changed": return { text: <>changed {[d.priority && `priority ${d.priority.from ?? "–"} → ${d.priority.to}`, d.due && `due → ${when(d.due.to)}`].filter(Boolean).join(", ")}</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
+    case "item_changed": return { text: <>changed {[d.priority && priorityChange(d.priority.from, d.priority.to), d.due && `due → ${when(d.due.to)}`].filter(Boolean).join(", ")}</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
     case "checklist_added": return { text: <>added to the checklist</>, body: <List small>{(d.items ?? []).map((t: string, i: number) => <li key={i}>{t}</li>)}</List> };
     case "checked": return { text: <>{d.state === "done" ? "ticked off" : d.state === "skipped" ? "marked not needed" : "opened again"} <strong>{d.item}</strong></>,
       body: d.note && <Text as="p" small>{d.note}</Text> };

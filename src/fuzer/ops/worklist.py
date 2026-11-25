@@ -25,7 +25,8 @@ Filters, each optional, a comma list where it says so:
     at          places on Home's map (comma list; `unplaced` for none)
     facility    the facility it is at, by its id (comma list; `none`)
     area        the area it is in, by its id (comma list; `none`)
-    asset       the equipment, well or pipeline it is about, by its id (comma list; `none`)
+    asset       the well or pipeline it is about, else the tag (the position an instrument or equipment sits at:
+                the outermost tag it is part of or installed at), by its id (comma list; `none`)
     within      entities: only work about one of them or about something in one of them (comma list)
     source      what raised it (comma list)
     q           words in the title or key
@@ -41,7 +42,16 @@ from . import exceptions
 SORTS = ("value", "due", "opened", "updated", "title")
 STATES = ("open", "closed", "all")
 DIMENSIONS = ("kind", "stage", "holder", "queue", "source", "facility", "area", "asset")
-ASSET_KINDS = ("equipment", "well", "pipeline", "pipeline_segment")
+ASSET_KINDS = ("well", "pipeline", "pipeline_segment")
+
+
+def _asset(chain: list[dict]) -> dict | None:
+    """What a subject's work is filed under as its asset (#1358): the nearest well or pipeline, else the tag it sits
+    at, by the register tag people know (equipment is labelled by serial number, so a pump reads as its tag), else
+    untagged equipment."""
+    return (next((e for e in chain if e["kind"] in ASSET_KINDS), None)
+            or next((e for e in reversed(chain) if e["kind"] == "tag"), None)
+            or next((e for e in chain if e["kind"] == "equipment"), None))
 
 
 def _list(v) -> list[str]:
@@ -94,7 +104,7 @@ def _all(conn, state: str) -> list[dict]:
     item_ids = [e["item_id"] for e in events if e.get("item_id")]
     cases = _cases(conn, item_ids, state)
     kinds = exceptions.types(conn)
-    labels = {n: t.label for n, t in kinds.items()}
+    labels = exceptions.work_labels(conn)
 
     def team(kind: str, role: str | None) -> str:
         t = kinds.get(kind)
@@ -106,7 +116,7 @@ def _all(conn, state: str) -> list[dict]:
         c = cases.get(e["item_id"]) if e.get("item_id") else None
         due = c["due_at"] if c else None
         out.append({**e, "uid": f"e{e['id']}", "exception_id": e["id"], "kind": e["type"],
-                    "kind_label": labels.get(e["type"], e["type"].replace("_", " ").capitalize()),
+                    "kind_label": exceptions.work_label(labels, e["type"]),
                     "state": "open" if e["state"] == "open" else "closed",
                     "exception_state": e["state"], "holder": _holder(e.get("assignee"), e.get("role")),
                     "queue": team(e["type"], e.get("role")),
@@ -129,7 +139,7 @@ def _all(conn, state: str) -> list[dict]:
         due = c["due_at"]
         out.append({
             "uid": f"c{c['id']}", "id": None, "exception_id": None, "item_id": c["id"], "type": c["type"],
-            "kind": c["type"], "kind_label": labels.get(c["type"], c["type"].replace("_", " ").capitalize()),
+            "kind": c["type"], "kind_label": exceptions.work_label(labels, c["type"]),
             "key": None, "title": c["title"], "source": c["source"] or c["created_by"],
             "state": "closed" if closed else "open", "exception_state": None, "case_state": c["state"],
             "stage": stage, "priority": c["priority"], "value_usd": worth.get(c["id"]), "subjects": c["subjects"] or [],
@@ -166,8 +176,9 @@ def _place(conn, rows: list[dict]) -> dict[str, str]:
     for r in rows:
         chains = [up.get(s, []) for s in r.get("subjects") or []]
         r["_within"] = {e["id"] for c in chains for e in c}
-        for dim, kinds in (("facility", ("facility",)), ("area", ("area",)), ("asset", ASSET_KINDS)):
-            found = next((e for c in chains for e in c if e["kind"] in kinds), None)
+        for dim, kinds in (("facility", ("facility",)), ("area", ("area",)), ("asset", None)):
+            found = (next((a for c in chains if (a := _asset(c))), None) if kinds is None
+                     else next((e for c in chains for e in c if e["kind"] in kinds), None))
             r[dim] = found["id"] if found else "none"
             if found:
                 labels[found["id"]] = found["label"]
