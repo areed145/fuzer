@@ -122,11 +122,26 @@ def _tool(name: str, agent: str):
         entry = note("tool", agent=agent, tool=name, args={k: v for k, v in kwargs.items() if v is not None})
         started = time.perf_counter()
         try:
-            return _content(await asyncio.to_thread(fn, **kwargs))
+            result = await asyncio.to_thread(fn, **kwargs)
+            if said := unknown_in(name, result):
+                entry["undetermined"] = said
+            return _content(result)
         finally:
             entry["seconds"] = round(time.perf_counter() - started, 2)
 
     return tool(run, name=name, description=fn.__doc__, approval_mode="never_require")
+
+
+def unknown_in(tool: str, result) -> dict | None:
+    """A tool's result that says it can't be said (a measure whose source isn't loaded: `unknown` with its `note`),
+    as what the assistant couldn't determine (P6.6); None for anything else."""
+    from ..ops import undetermined
+
+    if not isinstance(result, dict) or not result.get("unknown") or not isinstance(result.get("note"), str):
+        return None
+    why = result["note"]
+    needed = why.removeprefix("no ").removesuffix(" loaded").removesuffix(" records").strip() or why
+    return undetermined.note(result.get("label") or tool, "no_data", "source", needed, why, tool)
 
 
 def _content(result):
@@ -406,5 +421,6 @@ async def ask(question: str, agent=None, session=None, trace: list | None = None
         await _forget_tasks(agent, session)
     return {"answer": final_text(response), "seconds": round(time.time() - started, 1), "usage": usage(trace),
             "specialists": sorted({t["agent"] for t in trace if t["kind"] == "tool" and t["agent"] != "orchestrator"}),
-            "tools": [{k: t[k] for k in ("agent", "tool", "args", "seconds") if k in t} for t in trace if t["kind"] == "tool"],
+            "tools": [{k: t[k] for k in ("agent", "tool", "args", "seconds", "undetermined") if k in t}
+                      for t in trace if t["kind"] == "tool"],
             "recalled": remembered["ids"] if remembered else [], "session": session}

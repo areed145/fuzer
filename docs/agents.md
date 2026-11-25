@@ -274,6 +274,17 @@ A skill **needs a change** when at least `MIN_RATED` (5) of its briefs and answe
 short. It is **earning its keep** under a quarter. Below it, a card gives each specialist's agent steps, the cases they
 were on and the spend per case, from the ledgers (P4.4).
 
+**What Fuzer couldn't determine** (P6.6, `ops/undetermined.py`, `GET /work/undetermined`) sits below it, beside the
+shortfalls. Where readiness, the Options card, a brief or the assistant can't settle something, a typed note is kept on
+the case as a `work_event` of kind `undetermined`: what was asked, who raised it, the reason (`no_data`, `no_tool`,
+`no_skill`, `conflicting_evidence`, `out_of_scope`, `low_confidence`), the reason in words, what would have answered it
+(a source, tool or skill, by name) and the value at stake on the case. They are raised where the code already knows,
+never by a model: parts with no stock source, an option's deferred production with no tested well behind it, a
+brief's methods with no measurement on the register, a case no pack briefs, a measure the assistant read as unknown.
+Viewing options or readiness keeps nothing; choosing an option, writing a brief and saving an answer do. The card
+groups them by what would answer them, the most cases and answers first, then the most at stake, with the cases.
+Where such a value shows (readiness, the Options card) it reads "unknown" with the reason, never ready or 0 in stock.
+
 ## Skills page
 
 Ops IQ › Skills (`#/skills`, `agents/skill_book.py`) is where the engineers who own the skills read and change them.

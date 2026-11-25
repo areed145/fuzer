@@ -906,6 +906,20 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
   });
 }
+test("an option whose parts can't be checked says unknown and why, not ready (P6.6)", async () => {
+  const said = "Parts readiness unknown: no stock source.";
+  const opts = caseOptions();
+  opts.options = opts.options.map((o) => o.key === "dispatch" ? { ...o, unknown: [said] } : o);
+  await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "20-K-2300B tripped", type: "machine_trip",
+    state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-22T12:00:00Z", events: [], processes: [],
+    payload: { exception_id: 7 } } }));
+  await page.route("**/work/items/21/options", (route) => route.fulfill({ json: opts }));
+  await page.goto(`${url}/#/cases/21`);
+  const dispatch = page.getByLabel("Options").locator(".case-option").filter({ hasText: "Dispatch now" }).first();
+  await dispatch.getByText(said, { exact: true }).waitFor();
+  await dispatch.getByText("unknown", { exact: true }).waitFor();
+  assert.equal(await dispatch.getByText("ready", { exact: true }).count(), 0);
+});
 
 test("an event to dispatch opens its options from its row on All work (P5.20)", async () => {
   const row = { id: 7, type: "machine_trip", key: "K-2300B", title: "20-K-2300B tripped", source: "sre", state: "open",
@@ -8584,6 +8598,18 @@ test("P7.4 Work performance shows by detector and by skill which earn their keep
   await page.getByText("5 of 7 fell short", { exact: true }).waitFor();
   assert.equal(await page.getByRole("link", { name: "Review change v2" }).getAttribute("href"), "#/cases/77");
   await page.getByText("Agent spend per specialist", { exact: true }).waitFor();
+  // What Fuzer couldn't determine, beside the shortfalls (P6.6): by what would answer it, linking its cases.
+  await page.route("**/work/undetermined", (route) => route.fulfill({ json: [
+    { needs: { kind: "source", name: "stock levels" }, count: 2, value_usd: 48000, reasons: { no_data: 2 },
+      asked: ["Are the parts for this job in stock?"], sources: ["readiness"], answers: 0, last_at: "2026-11-20T10:00:00Z",
+      cases: [{ id: 41, title: "20-K-2300B trip", type: "machine_trip", value_usd: 48000, detail: null },
+        { id: 42, title: "P-101 seal", type: "machine_health", value_usd: null, detail: null }] }] }));
+  await page.goto(`${url}/#/performance?by=detector`);
+  await page.goto(`${url}/#/performance?by=skill`);
+  const unknown = page.getByRole("region", { name: "What Fuzer couldn't determine" });
+  await unknown.getByText("stock levels", { exact: true }).waitFor();
+  assert.equal(await unknown.getByRole("link", { name: "20-K-2300B trip" }).getAttribute("href"), "#/cases/41");
+  await unknown.getByText("no data 2", { exact: true }).waitFor();
 });
 
 test("App search at the top left finds pages, tabs and entities, and sends a question to Ops IQ", async () => {

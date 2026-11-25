@@ -206,17 +206,25 @@ def _label(conn, fid: str) -> str:
     return r["label"] if r else fid
 
 
-def cannot_do(conn, pack: dict, assets) -> list[str]:
-    """One line per method `pack` cannot run on each of `assets` that is of its classes."""
+def cannot(conn, pack: dict, assets) -> list[dict]:
+    """Each method `pack` cannot run on each of `assets` that is of its classes: {method, asset, missing, line}, the
+    measurements missing by their labels."""
     from ..core import detectors, roles
 
     of_class = [a for a, c in detectors.classes_of(conn, assets).items() if c in set(pack["classes"])]
     out = []
     for a in of_class:
         for c in coverage(conn, pack, a)["cannot"]:
-            what = " or ".join(roles.ROLES[r].label.lower() if r in roles.ROLES else r for r in c["missing"])
-            out.append(f"{c['method']} on {_label(conn, a)}: no {what} measured there")
+            missing = [roles.ROLES[r].label.lower() if r in roles.ROLES else r for r in c["missing"]]
+            label = _label(conn, a)
+            out.append({"method": c["method"], "asset": label, "missing": missing,
+                        "line": f"{c['method']} on {label}: no {' or '.join(missing)} measured there"})
     return out
+
+
+def cannot_do(conn, pack: dict, assets) -> list[str]:
+    """One line per method `pack` cannot run on each of `assets` that is of its classes."""
+    return [c["line"] for c in cannot(conn, pack, assets)]
 
 
 def on_site(conn, path: str) -> dict:

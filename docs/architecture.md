@@ -436,6 +436,7 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `watch_spend`
     - `work_container`
     - `work_container_case`
+    - `work_event`
     - `work_item`
     - `work_plan_line`
     - `work_plan_match`

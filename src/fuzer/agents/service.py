@@ -12,6 +12,7 @@ import time
 import uuid
 
 from ..core import db, llm, settings
+from ..ops import undetermined
 from .capabilities import ASKER
 
 _team = None
@@ -118,6 +119,9 @@ def _save(job: dict, by: str) -> None:
              job.get("specialists") or [], json.dumps(job.get("tools") or []), json.dumps(job.get("usage") or {}),
              job.get("seconds"), by, job["images"], job.get("recalled") or []),
         )
+        for t in job.get("tools") or []:  # what a tool said can't be said, kept for what would answer it (P6.6)
+            if t.get("undetermined"):
+                undetermined.keep(conn, [t["undetermined"]], f"agent:{t['agent']}", answer=job["id"])
         conn.commit()
 
 

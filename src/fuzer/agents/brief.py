@@ -39,6 +39,7 @@ from psycopg.types.json import Jsonb
 
 from ..core import detectors, settings
 from ..graph import lessons as lessons_
+from ..ops import undetermined
 from . import ledger, packs
 
 STEP = "brief"
@@ -127,6 +128,15 @@ def _record(conn, item: dict, actor: str, entry: dict) -> dict:
     return entry
 
 
+def _undetermined(conn, item: dict, actor: str, notes: list[dict]) -> None:
+    """What the brief can't settle on the case, kept for what would answer it (P6.6), as its own unit of work."""
+    if not notes:
+        return
+    with conn.transaction():
+        undetermined.keep(conn, notes, actor, item_id=item["id"], value_usd=undetermined.at_stake(conn, item["id"]))
+    conn.commit()
+
+
 def latest(conn, item_id: int) -> dict | None:
     r = conn.execute("select data -> 'data' -> %s as entry from work_event where item_id = %s and kind = 'agent_result' "
                      "and element = %s order by id desc limit 1", (STEP, item_id, STEP)).fetchone()
@@ -144,8 +154,13 @@ def prepare(conn, item_id: int, ask=None, now: datetime | None = None) -> dict:
     when = {"due": due(item).isoformat(), "at": now.isoformat()}
     pack = owner(conn, item)
     if pack is None:
-        return _record(conn, item, "system", {"missing": f"no specialist pack briefs a {item['type']} case on these "
-                                                         "subjects' equipment classes", **when})
+        why = f"no specialist pack briefs a {item['type']} case on these subjects' equipment classes"
+        out = _record(conn, item, "system", {"missing": why, **when})
+        if item["type"] in briefed_types():  # a type some pack briefs, on equipment none covers
+            _undetermined(conn, item, "system", [undetermined.note(
+                f"Brief this {item['type'].replace('_', ' ')} case", "no_skill", "skill",
+                f"{item['type'].replace('_', ' ')} brief on this equipment", why, "brief")])
+        return out
     actor = f"agent:{pack['owner']}"
     cap = float(settings.get(conn, "agents.case_cap_usd") or 0)
     if cap and (spent := ledger.case_spend(conn, item_id)) >= cap:
@@ -153,7 +168,11 @@ def prepare(conn, item_id: int, ask=None, now: datetime | None = None) -> dict:
                                                       f"${cap:.2f} (setting agents.case_cap_usd)", **when})
     if ask is None:
         from . import ask_sync as ask
-    gaps = packs.cannot_do(conn, pack, item.get("subjects") or [])
+    cannot = packs.cannot(conn, pack, item.get("subjects") or [])
+    gaps = [c["line"] for c in cannot]
+    _undetermined(conn, item, actor, [undetermined.note(
+        f"{c['method']} on {c['asset']}", "no_data", "source", f"{' or '.join(c['missing'])} measurement", c["line"],
+        pack["path"]) for c in cannot])
     learned = lessons_.approved_for(conn, item.get("subjects") or [])
     conn.commit()
     try:

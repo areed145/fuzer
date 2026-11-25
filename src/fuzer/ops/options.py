@@ -343,7 +343,7 @@ def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
         "hours": respond, "by": (at + timedelta(hours=respond)).isoformat(),
         "deferred": _deferred(now, respond, prices), "risk": _risk(base, respond, crit, behind),
         "ready": ready["ready"], "blockers": [b for b in ready["blockers"] if b not in clashes],
-        "warnings": ready["warnings"], "unchecked": notes, "clashes": clashes, "available": True,
+        "warnings": ready["warnings"], "unchecked": notes, "unknown": ready["unknown"], "clashes": clashes, "available": True,
         "basis": f"the operator queue answers within {respond:g} h (its SLA)"})
 
     # ride along with the next visit
@@ -351,15 +351,15 @@ def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
     visit = _visit(conn, row, at, days)
     if visit:
         hours = (visit["start_at"] - at).total_seconds() / 3600 + JOB_HOURS
-        short = [b for b in readiness.spares(conn, list(row["subjects"] or []))["blockers"]
-                 if not _arrives_by(b, visit["start_at"])]
+        parts = readiness.spares(conn, list(row["subjects"] or []))
+        short = [b for b in parts["blockers"] if not _arrives_by(b, visit["start_at"])]
         options.append({
             "key": "window", "label": "Ride along with the next visit",
             "detail": f"{visit['title']}, {visit['start_at']:%a %d %b}", "plan_item": visit["id"],
             "start": visit["start_at"].isoformat(), "crew": visit["crew"],
             "hours": round(hours, 1), "by": (at + timedelta(hours=hours)).isoformat(),
             "deferred": _deferred(now, hours, prices), "risk": _risk(base, hours, crit, behind),
-            "ready": not short, "blockers": short, "warnings": [],
+            "ready": not short, "blockers": short, "warnings": [], "unknown": [parts["note"]] if parts.get("unknown") else [],
             "clashes": _plan_clashes(conn, visit["id"], visit["start_at"], visit["end_at"]), "available": True,
             "basis": f"{visit['kind'].replace('_', ' ')} on the plan on its equipment, then {JOB_HOURS:g} h for the job"})
     else:
@@ -399,7 +399,8 @@ def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
     return {**head, "applies": True, "why_not": None, "at": at.isoformat(), "loss": now, "if_it_trips": behind,
             "criticality": crit, "prices": {"oil_bbl": prices["oil_bbl"], "gas_mscf": prices["gas_mscf"],
                                             "source": prices["source"]},
-            "options": options, "recommended": key, "reason": reason, "unknown": unknown}
+            "options": options, "recommended": key, "reason": reason, "unknown": unknown,
+            "undetermined": undetermined_of(unknown, ready)}
 
 
 def _arrives_by(blocker: str, start: datetime) -> bool:
@@ -543,6 +544,11 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
         insert into option_choice (exception_id, item_id, type, chosen, recommended, accepted, reason, by, offered)
         values (%s, %s, %s, %s, %s, %s, %s, %s, %s) returning *
         """, (eid, row["item_id"], row["type"], option, rec, accepted, reason or None, by, Jsonb(kept))).fetchone()
+    if row["item_id"] and offered["undetermined"]:  # chosen without them: kept for what would have answered them
+        from . import undetermined
+
+        undetermined.keep(conn, offered["undetermined"], "system", item_id=row["item_id"],
+                            value_usd=undetermined.at_stake(conn, row["item_id"]) or (o.get("deferred") or {}).get("usd"))
     if row["item_id"]:
         cost = (o.get("deferred") or {}).get("usd")
         text = (f"Chose {o['label'].lower()}" + (f" ({o['detail']})" if o.get("detail") else "")
@@ -582,3 +588,19 @@ def acceptance(conn, days: int = 90) -> dict:
     taken = sum(r["accepted"] for r in out)
     return {"days": days, "decided": decided, "accepted": taken,
             "rate": round(taken / decided, 2) if decided else None, "types": out}
+
+
+def undetermined_of(unknown: list[str], ready: dict) -> list[dict]:
+    """What the options couldn't settle (P6.6), typed: readiness's own (parts with no stock source), and each line of
+    `unknown` with what would have answered it."""
+    from . import undetermined
+
+    out = list(ready.get("undetermined") or [])
+    for line in unknown:
+        if line.startswith("criticality"):
+            out.append(undetermined.note("How critical are its assets?", "no_data", "source", "criticality assessment",
+                                         line, "options"))
+        else:
+            out.append(undetermined.note("What production does it defer?", "no_data", "source",
+                                         "well tests and flow network", line, "options"))
+    return out

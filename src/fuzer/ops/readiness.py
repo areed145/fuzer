@@ -2,7 +2,8 @@
 its equipment type:
 
     spares   the BOM's parts (SAP `uses_part`) against stock, with open purchase orders and their delivery dates
-             (P5.5a): a part short is a blocker; one on order names the date it is due
+             (P5.5a): a part short is a blocker; one on order names the date it is due. A part with no stock level
+             is unknown, never 0 in stock: the check says why (no stock source) and what would answer it (P6.6)
     crew     the work center (SAP `arbpl`) that does the equipment's work orders, its crew size, and the jobs
              already sent to it and still open (P5.5b): a full crew is a blocker naming the jobs holding it. A work
              center with a crew resource on the plan is read from the plan's one capacity ledger instead: everyone
@@ -34,7 +35,7 @@ def spares(conn, subjects: list[str], today: date | None = None) -> dict:
         """
         select b.dst as material, l.label, gd.value #>> '{}' as description,
                max(coalesce((b.props->>'quantity')::numeric, 1)) as needed,
-               coalesce((gs.value #>> '{}')::numeric, 0) as stock,
+               (gs.value #>> '{}')::numeric as stock,
                (select coalesce(jsonb_agg(jsonb_build_object(
                          'po', pl.label, 'quantity', (pq.value #>> '{}')::numeric, 'due', pd.value #>> '{}')
                          order by pd.value #>> '{}'), '[]')
@@ -52,21 +53,42 @@ def spares(conn, subjects: list[str], today: date | None = None) -> dict:
         group by b.dst, l.label, gd.value, gs.value
         order by l.label
         """, (units,)).fetchall()
-    parts, blockers = [], []
+    parts, blockers, unstocked = [], [], []
     for r in rows:
-        needed, stock = float(r["needed"]), float(r["stock"])
-        short = max(0.0, needed - stock)
+        name = r["description"] or r["label"] or r["material"]
+        needed, stock = float(r["needed"]), None if r["stock"] is None else float(r["stock"])
+        short = None if stock is None else max(0.0, needed - stock)
         coming = [o for o in r["orders"] if o["due"]]
         part = {"material": r["material"], "label": r["label"], "description": r["description"], "needed": needed,
                 "stock": stock, "short": short, "orders": coming}
         parts.append(part)
-        if short:
-            name = r["description"] or r["label"] or r["material"]
+        if stock is None:  # unknown, never 0: no stock level to read it from
+            unstocked.append(name)
+        elif short:
             due = next((o for o in coming if (o["quantity"] or 0) >= short), coming[0] if coming else None)
             blockers.append(f"{name}: {_n(stock)} in stock, {_n(needed)} needed; "
                             + (f"on order ({due['po']}), due {due['due']}" if due else "nothing on order"))
-    return {"check": "spares", "label": "Spares", "ready": not blockers, "blockers": blockers, "parts": parts,
-            "checked": bool(rows), "note": None if rows else "No BOM for this equipment, so no parts to check."}
+    out = {"check": "spares", "label": "Spares", "ready": not blockers, "blockers": blockers, "parts": parts,
+           "checked": bool(rows), "note": None if rows else "No BOM for this equipment, so no parts to check."}
+    if unstocked:
+        return {**out, **_unstocked(conn, unstocked, len(rows))}
+    return out
+
+
+NO_STOCK = "no stock source"
+
+
+def _unstocked(conn, names: list[str], of: int) -> dict:
+    """Parts with no stock level: unknown with its reason, and what would answer it, never read as none in stock."""
+    from . import undetermined
+
+    loaded = conn.execute("select 1 from golden where field = 'stock' limit 1").fetchone() is not None
+    why = f"no stock level for {', '.join(names)}" if loaded else NO_STOCK
+    return {"checked": False, "unknown": why,
+            "note": f"Parts readiness unknown: {why}." if len(names) == of else
+                    f"Parts readiness unknown for {len(names)} of {of} parts: {why}.",
+            "undetermined": [undetermined.note("Are the parts for this job in stock?", "no_data", "source",
+                                               "stock levels", f"parts readiness unknown: {why}", "readiness")]}
 
 
 OPEN_ORDER = ("CRTD", "REL", "PCNF")  # SAP order statuses still to be done
@@ -395,11 +417,14 @@ CHECKS = (_spares, crew, permits, _simops, mocs)
 
 def check(conn, subjects: list[str], job: int | None = None) -> dict:
     """Every readiness check for a job on these subjects (`job`, the exception being sent, is not counted against
-    itself): ready, or each blocker by name."""
+    itself): ready, or each blocker by name. `unknown` says each check that can't be said and why (parts with no
+    stock source), and `undetermined` what would answer it (P6.6)."""
     results = [c(conn, subjects, job) for c in CHECKS]
     blockers = [b if b.startswith("blocked:") else f"{r['label']}: {b}" for r in results for b in r["blockers"]]
     warnings = [w for r in results for w in r.get("warnings") or []]  # said to whoever sends it, never holding it
-    return {"ready": not blockers, "blockers": blockers, "warnings": warnings, "checks": results}
+    return {"ready": not blockers, "blockers": blockers, "warnings": warnings, "checks": results,
+            "unknown": [r["note"] for r in results if r.get("unknown")],
+            "undetermined": [n for r in results for n in r.get("undetermined") or []]}
 
 
 def for_exception(conn, exception_id: int) -> dict:

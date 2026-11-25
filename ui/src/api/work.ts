@@ -323,6 +323,8 @@ export interface CaseOption {
   deferred?: { oil_bbl: number; gas_mscf: number; usd: number } | null;
   risk?: { level: "Low" | "Medium" | "High"; why: string };
   ready?: boolean; blockers?: string[]; warnings?: string[]; clashes?: string[]; basis?: string;
+  /** Readiness that can't be said, with why ("Parts readiness unknown: no stock source."): never read as ready. */
+  unknown?: string[];
   plan_item?: number; start?: string; crew?: string | null; until?: string; to?: string;
 }
 
@@ -349,8 +351,12 @@ export interface Readiness {
   ready: boolean; blockers: string[];
   /** What whoever sends the job should know that never holds it: an open MOC on the equipment, a permit to confirm. */
   warnings?: string[];
+  /** Each check that can't be said, with why ("Parts readiness unknown: no stock source."). */
+  unknown?: string[];
   checks: { check: string; label: string; ready: boolean; blockers: string[]; checked: boolean; note: string | null;
-    parts?: { material: string; label: string; description: string | null; needed: number; stock: number; short: number;
+    unknown?: string;
+    parts?: { material: string; label: string; description: string | null; needed: number; stock: number | null;
+      short: number | null;
       orders: { po: string; quantity: number; due: string }[] }[];
     centers?: { id: string; label: string; description: string | null; crew: number | null; busy: number;
       full: boolean; jobs: { id: number; title: string; assignee: string | null }[] }[];
@@ -1295,6 +1301,7 @@ export const workApi = {
   workPerformance: () => request<WorkPerformance>("GET", "/work/performance"),
   detectorPerformance: () => request<DetectorPerformance>("GET", "/work/performance/detectors"),
   skillPerformance: () => request<SkillPerformance>("GET", "/work/performance/skills"),
+  workUndetermined: () => request<Undetermined[]>("GET", "/work/undetermined"),
   workViews: (person: string) => request<SavedWorkView[]>("GET", "/work/views", { person }),
   saveWorkView: (person: string, role: string, name: string, list: string, filters: Record<string, string>) =>
     request<SavedWorkView>("POST", "/work/views", undefined, { person, role, name, list, filters }),
@@ -1407,6 +1414,14 @@ export interface SkillEarning {
   verdicts: number; short: number; verdict: "earning" | "needs_change" | "mixed" | "too_few";
   edits: { published: number; live_version: number | null; live_since: string | null; waiting: number | null;
     review_case: number | null };
+}
+
+/** What Fuzer couldn't determine (P6.6), grouped by the source, tool or skill that would have answered it: the most
+ * cases and answers first (`count`), then the value at stake on those cases. */
+export interface Undetermined {
+  needs: { kind: "source" | "tool" | "skill"; name: string }; count: number; value_usd: number | null;
+  reasons: Record<string, number>; asked: string[]; sources: string[]; answers: number; last_at: string;
+  cases: { id: number; title: string | null; type: string | null; value_usd: number | null; detail: string | null }[];
 }
 
 export interface SkillPerformance {
