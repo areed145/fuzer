@@ -795,3 +795,24 @@ def test_ten_thousand_open_items_list_and_filter_fast(conn):
     t0 = time.perf_counter()
     engine.my_work(conn, "person8", ["engineer"])
     assert time.perf_counter() - t0 < 0.25
+
+
+def test_history_collapses_repeats_and_drops_same_queue_hand_offs():
+    """#1372: a due pushed again and again for the same reason is one entry with its count and latest time, and a
+    hand-off from a queue to the same queue is dropped (with a reason, it stays, read as sent again)."""
+    def ev(i, kind, data, actor="riley", element=None):
+        return {"id": i, "kind": kind, "actor": actor, "element": element, "data": data, "at": f"2026-11-25T0{i}:00Z"}
+
+    pushed = [ev(i, "item_changed", {"due": {"from": f"d{i}", "to": f"d{i + 1}"}, "reason": "Triaged: not urgent"})
+              for i in range(1, 4)]
+    events = [ev(0, "created", {}), *pushed,
+              ev(4, "handed_off", {"from": "role:operator", "to": "role:operator", "reason": None}, element="field_check"),
+              ev(5, "handed_off", {"from": "operator", "to": "role:operator", "reason": "check the seal too"},
+                 element="field_check"),
+              ev(6, "item_changed", {"priority": {"from": 1, "to": 2}, "reason": "Triaged: not urgent"}),
+              ev(7, "commented", {"text": "a"}), ev(8, "commented", {"text": "b"})]
+    out = work_items.history(events)
+    assert [e["id"] for e in out] == [0, 3, 5, 6, 7, 8]
+    assert out[1]["count"] == 3 and out[1]["at"] == "2026-11-25T03:00Z" and out[1]["data"]["due"]["to"] == "d4"
+    assert out[2]["data"]["from"] == out[2]["data"]["to"] == "role:operator"
+    assert all("count" not in e for e in out if e["id"] != 3)

@@ -1294,6 +1294,77 @@ for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]
       await tabs.getByRole("link", { name: "My work" }).and(page.locator('[aria-current="page"]')).waitFor();
       await tabs.getByRole("link", { name: "List" }).waitFor();
     }
+    // the demo account acting as every role (tour B, finding 2): My work as well, from Tower and from a case
+    await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: {
+      id: "demo", actor: "user:demo", display_name: "Demo account", roles: ["operator", "ops_lead", "engineer", "data_steward"],
+      permissions: ["operate", "read"], inspect: true, owner: false, acting_here: [] } } }));
+    await page.unroute("**/work/inbox?*");
+    await page.route("**/work/inbox?*", route => route.fulfill({ json: { person: "user:demo",
+      roles: ["operator", "ops_lead", "engineer", "data_steward"], mine: [], queue: [], counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+    for (const from of ["/", "/list"]) {
+      await page.goto(`${url}/#${from}`);
+      const work = width < 900
+        ? page.getByRole("navigation", { name: "Quick" }).getByRole("link", { name: /^Work/ })
+        : page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /^Work/ });
+      await work.click();
+      await page.waitForURL(/#\/inbox$/);
+      await page.getByRole("heading", { level: 1, name: "My work" }).waitFor();
+    }
+    await page.unroute("**/auth/me");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
+
+// #1372: a case's history says a repeated entry once, with how many times, and on a phone the title folded into the
+// top bar never runs over Back or the account (tour A finding 22).
+const longCase = { id: 71, title: "Glycol contactor 20-V-2401 needs action: differential pressure high across the tower",
+  type: "upset", state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-09T09:00:00Z", processes: [],
+  events: [
+    { id: 1, kind: "created", actor: "agent:sre", element: null, data: {}, at: "2026-11-09T09:00:00Z" },
+    { id: 4, kind: "item_changed", actor: "riley", element: null, count: 3, at: "2026-11-09T12:00:00Z",
+      data: { due: { from: "2026-11-10T09:00:00Z", to: "2026-11-11T09:00:00Z" }, reason: "Triaged: not urgent" } },
+    { id: 5, kind: "handed_off", actor: "riley", element: "field_check", at: "2026-11-09T13:00:00Z",
+      data: { from: "role:operator", to: "role:operator", reason: "check the seal too" } },
+  ] };
+for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]]) {
+  test(`a case's history says a repeat once, and its title folds clear of Back (#1372, ${name})`, async () => {
+    await page.route("**/work/items/71", (route) => route.fulfill({ json: longCase }));
+    await page.setViewportSize({ width, height });
+    await page.goto(`${url}/?ios=1#/cases/71`);
+    const history = page.locator(".timeline");
+    await history.getByText("(3 times)", { exact: true }).waitFor();
+    assert.equal(await history.locator("li").count(), 3);
+    await history.getByText(/sent Field check again to the operator queue/).waitFor();
+    assert.equal(await history.getByText("from the operator queue to the operator queue", { exact: false }).count(), 0);
+    if (width < 900) {
+      await page.evaluate(() => {
+        const pad = document.createElement("div");
+        pad.style.height = "3000px";
+        document.querySelector("main").append(pad);
+        window.scrollTo(0, 800);
+      });
+      await page.waitForFunction(() => document.documentElement.classList.contains("ios-folded"));
+      const box = (sel) => page.locator(sel).first().evaluate((el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right }; });
+      const title = await box(".topbar-title"), back = await box(".topbar .back-button"), account = await box(".topbar .account-button");
+      assert.ok(title.right - title.left > 60, `the title has room (${JSON.stringify(title)})`);
+      assert.ok(title.left >= back.right, `title ${JSON.stringify(title)} clear of Back ${JSON.stringify(back)}`);
+      assert.ok(title.right <= account.left, `title ${JSON.stringify(title)} clear of the account ${JSON.stringify(account)}`);
+      // a wider right side (a sync note, Share) narrows the title on both sides, so it still stays clear of Back
+      await page.evaluate(() => {
+        const note = document.createElement("span");
+        note.className = "wide-note";
+        note.style.cssText = "display:inline-block;width:110px;height:10px";
+        document.querySelector(".topbar-end").prepend(note);
+        window.scrollTo(0, 810);
+      });
+      await page.waitForFunction(() => {
+        const t = document.querySelector(".topbar-title").getBoundingClientRect(), n = document.querySelector(".wide-note").getBoundingClientRect();
+        return t.right <= n.left;
+      });
+      const narrowed = await box(".topbar-title");
+      assert.ok(narrowed.left >= (await box(".topbar .back-button")).right, `title ${JSON.stringify(narrowed)} clear of Back`);
+      await page.evaluate(() => document.querySelector(".wide-note").remove());
+    }
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   });
 }
@@ -4499,6 +4570,38 @@ test("My work stays My work for a desk role, and a row waiting in your queue is 
   assert.equal(claims[0].by, "ivy");
   await row.getByRole("button", { name: "Take it" }).waitFor({ state: "detached" });
 });
+
+// #1372 (tour B, N16): a row back from the field shows Close and More; Take it, Options and Send again are behind More.
+for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]]) {
+  test(`a row back from the field offers Close and More, the rest behind More (#1372, ${name})`, async () => {
+    const exc = { id: 6, type: "machine_health", key: "k6", source: "screen", state: "open", priority: 0.6, value_usd: null,
+      subjects: [], unmatched: [], case_state: "open", role: "ops_lead", raised_count: 1, first_seen: "2026-11-25T06:00:00Z",
+      last_seen: "2026-11-25T07:00:00Z", item_id: 16, assignee: null, title: "20-GT-2000C exhaust temperature spread widened",
+      evidence: { field: [{ status: "done", by: "alex", at: "2026-11-25T17:45:00Z", note: "Checked with the IR gun" }] } };
+    await page.route("**/exceptions?*", (route) => route.fulfill({ json: [exc] }));
+    await page.route("**/cases?*", (route) => route.fulfill({ json: { total: 1, labels: {}, facets: {},
+      rows: [{ ...exc, uid: "e6", exception_id: 6, kind: "machine_health", kind_label: "Machine health", stage: "back",
+        holder: "role:ops_lead", queue: "ops_lead", due_at: null, overdue: false, opened: exc.first_seen, updated: exc.last_seen,
+        facility: "none", area: "none", asset: "none", take: 61 }] } }));
+    await page.setViewportSize({ width, height });
+    await page.goto(`${url}/#/list?stage=back`);
+    await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "ivy"));
+    await page.reload();
+    const row = page.locator("tr.work-row", { hasText: "exhaust temperature spread widened" });
+    await row.getByRole("link", { name: "Close", exact: true }).waitFor();
+    const buttons = await row.locator(".work-row-actions").getByRole("button").allInnerTexts();
+    assert.deepEqual(buttons, ["More"]);
+    await row.getByRole("button", { name: "More", exact: true }).click();
+    const more = page.getByRole("group", { name: "More actions" });
+    for (const label of ["Take it", "Options", "Send again", "Plan for a day", "Shelve until a date"])
+      await more.getByRole("button", { name: label, exact: true }).waitFor();
+    await more.getByRole("button", { name: "Send again", exact: true }).click();
+    await page.getByLabel("Dispatch to").waitFor();
+    assert.equal(await row.getByRole("button", { name: "More", exact: true }).getAttribute("aria-expanded"), "true");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+  });
+}
 
 test("the List filters and lays out work by facility, area and asset, named, and an entity's Work here opens what is in it", async () => {
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ivy"));

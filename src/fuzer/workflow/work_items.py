@@ -233,11 +233,45 @@ def item(conn, item_id: int) -> dict:
         mine = [s for s in steps if s["process_id"] == p["id"]]
         p["path"] = [s for s in mine if s["state"] == "done"]
         p["open"] = [s for s in mine if s["state"] in ("ready", "waiting")]
-    events = conn.execute("select id, kind, actor, element, data, at, process_id, token_id from work_event "
-                          "where item_id = %s order by id", (item_id,)).fetchall()
+    events = history(conn.execute("select id, kind, actor, element, data, at, process_id, token_id from work_event "
+                                  "where item_id = %s order by id", (item_id,)).fetchall())
     parent = conn.execute("select id, title, state, closed_at from work_item where id = %s",
                           (row["parent_id"],)).fetchone() if row.get("parent_id") else None
     return {**row, "processes": procs, "events": events, "checklist": checklist.items(conn, item_id), "parent": parent}
+
+def _queue(who) -> str:
+    return str(who or "").removeprefix("role:")
+
+
+def _same(a: dict, b: dict) -> bool:
+    """Two history entries that read the same: one kind, actor and step, and the same data. A change to a case's
+    priority or due reads the same each time it changes the same fields for the same reason, whatever the values."""
+    if (a["kind"], a["actor"], a["element"]) != (b["kind"], b["actor"], b["element"]):
+        return False
+    da, db = a["data"] or {}, b["data"] or {}
+    if a["kind"] == "item_changed":
+        return sorted(da) == sorted(db) and da.get("reason") == db.get("reason")
+    return da == db
+
+
+def history(events: list[dict]) -> list[dict]:
+    """A case's history as people read it (#1372): a hand-off that leaves the step where it was is dropped (with a
+    reason, it reads as sent again), and a run of entries that read the same is one entry, the latest, with
+    `count`. The stored events are not changed."""
+    out: list[dict] = []
+    for e in events:
+        d = e["data"] or {}
+        if e["kind"] == "handed_off" and _queue(d.get("from")) == _queue(d.get("to")):
+            if not d.get("reason"):
+                continue
+            e = {**e, "data": {**d, "from": d.get("to")}}
+        if out and _same(out[-1], e):
+            e = {**e, "count": out[-1].get("count", 1) + 1}
+            out[-1] = e
+        else:
+            out.append(e)
+    return out
+
 
 def process(conn, process_id: int) -> dict:
     row = conn.execute("select item_id from work_process where id = %s", (process_id,)).fetchone()

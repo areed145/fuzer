@@ -35,7 +35,18 @@ function foldTitle() {
   if (!bar || !slot) return;
   const text = title?.textContent?.trim() ?? "";
   if (slot.textContent !== text) slot.textContent = text;
-  const folded = !!title && title.getBoundingClientRect().bottom < bar.getBoundingClientRect().bottom + 4;
+  const box = bar.getBoundingClientRect();
+  const folded = !!title && title.getBoundingClientRect().bottom < box.bottom + 4;
+  if (folded) {
+    // Centred between what sits either side of it (Search and Back, a sync note, Share, the account), so it never
+    // runs over Back however many buttons each side has (#1372).
+    const sides = (sel: string) => Array.from(bar.querySelectorAll<HTMLElement>(`${sel} > *`))
+      .map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0);
+    const mid = box.left + box.width / 2;
+    const start = Math.max(box.left, ...sides(".topbar-start").map((r) => r.right));
+    const end = Math.min(box.right, ...sides(".topbar-end").map((r) => r.left));
+    slot.style.maxWidth = `${Math.max(0, 2 * Math.min(mid - start, end - mid) - 16)}px`;
+  }
   root.classList.toggle("ios-folded", folded);
   root.classList.toggle("ios-scrolled", window.scrollY > 2);
 }

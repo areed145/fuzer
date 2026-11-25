@@ -429,7 +429,8 @@ export function Timeline({ it, person, readOnly = false }: { it: WorkItem; perso
           const body = brief ? null : described.body;
           return (
             <li key={e.id} className={`ev-${e.kind}`}>
-              <Line small><Text muted mono>{when(e.at)}</Text> {e.kind !== "step_started" && <Actor who={e.actor} />} {t}</Line>
+              <Line small><Text muted mono>{when(e.at)}</Text> {e.kind !== "step_started" && <Actor who={e.actor} />} {t}
+                {e.count && e.count > 1 ? <Text muted>{" "}({e.count} times)</Text> : null}</Line>
               {body}
               {photosOf(e.data).length > 0 && <div className="field-photos">{photosOf(e.data).map((p) =>
                 <FieldPhoto key={p.photo_id} exceptionId={p.exception_id} photoId={p.photo_id} />)}</div>}

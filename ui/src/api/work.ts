@@ -594,6 +594,8 @@ export interface WorkEvent {
   at: string;
   process_id?: number | null;
   token_id?: number | null;
+  /** How many entries in a row read the same as this one, the latest of them (#1372); absent for one. */
+  count?: number;
 }
 
 export interface WorkStep {
