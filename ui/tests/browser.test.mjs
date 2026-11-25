@@ -10260,12 +10260,13 @@ test("Skills lists each skill by area, and a draft reads against the live playbo
     owner_label: "Maintenance & Integrity", agents: ["maintenance-integrity"], shared: false,
     purpose: "Compressor health", live: { version: 0, by: null, at: null },
     draft: { version: 2, by: "agent:maintenance-integrity", at: "2026-11-20T10:00:00+00:00", note: "strainer first", review_case: 41 },
-    shortfalls: 2, questions: 3, score: null, ...over });
+    shortfalls: 2, taken: { decided: 4, accepted: 3, rate: 0.75 }, questions: 3, score: null, ...over });
   const detail = { ...row(), agents: ["Maintenance & Integrity"], personas: ["Reliability Engineer"], data: "", output: "", boundary: "",
     playbook: "---\nname: compression\n---\n# Compression\nStart with `rotating_screen(at)`.\n", body: "# Compression\nStart with `rotating_screen(at)`.\n",
     pack: { classes: ["CO"], tools: ["rotating_screen"], methods: [], detectors: [], briefs: [] }, tools: ["rotating_screen"],
     named_tools: ["rotating_screen"], questions: [{ question: "Q1" }, { question: "Q2" }, { question: "Q3" }],
-    shortfalls: [{ kind: "brief", case: 41, title: "K-1 surge", followed: "no", note: "the strainer was blocked", by: "olga", at: "2026-11-19T10:00:00+00:00" }],
+    shortfalls: [{ kind: "brief", case: 41, title: "K-1 surge", followed: "no", note: "the strainer was blocked", by: "olga", at: "2026-11-19T10:00:00+00:00" },
+      { kind: "option", case: 42, title: "K-2 seal weep", chosen: "escalate", proposed: "dispatch", note: null, by: "olga", at: "2026-11-18T10:00:00+00:00" }],
     ai: { available: false, why: "AI is paused: this month's model spend has reached its budget." } };
   const versions = [
     { version: 2, status: "draft", playbook: "x", cases: [{ kind: "brief", case: 41 }], questions: [], note: "strainer first", created_by: "agent:maintenance-integrity", created_at: "2026-11-20T10:00:00+00:00", eval: {} },
@@ -10278,13 +10279,14 @@ test("Skills lists each skill by area, and a draft reads against the live playbo
   await page.route("**/auth/me", (route) => route.fulfill({ json: { mode: "microsoft", configured: true, user: {
     id: "u1", actor: "user:u1", display_name: "Olga", enabled: true, owner: false, permissions: ["read", "operate", "ai"], roles: ["engineer"] } } }));
   await page.route("**/work/skills", (route) => route.fulfill({ json: { skills: [row(), row({ skill: "shared/charts", name: "charts", title: "Charts",
-    area: "shared", area_label: "Shared by every agent", draft: null, shortfalls: 0 })], ai: detail.ai } }));
+    area: "shared", area_label: "Shared by every agent", draft: null, shortfalls: 0, taken: null })], ai: detail.ai } }));
   await page.route("**/work/skills/detail?*", (route) => route.fulfill({ json: detail }));
   await page.route("**/work/skills/versions?*", (route) => route.fulfill({ json: versions }));
   await page.route("**/work/skills/diff?*", (route) => route.fulfill({ json: { skill: detail.skill, version: 2, against: 0, added: 1, removed: 1, questions: 3, lines } }));
   await page.goto(`${url}/#/skills`);
   await page.getByRole("heading", { name: "Maintenance & Integrity", exact: true }).waitFor();
   await page.getByRole("heading", { name: "Shared by every agent", exact: true }).waitFor();
+  await page.getByRole("cell", { name: "75% of 4", exact: true }).waitFor();  // recommendations taken, per skill
   await page.getByRole("link", { name: "Draft waiting", exact: true }).click();
   await page.waitForURL(/#\/skills\?show=draft$/);
   await page.getByRole("link", { name: "Charts", exact: true }).waitFor({ state: "detached" });
@@ -10296,9 +10298,12 @@ test("Skills lists each skill by area, and a draft reads against the live playbo
   // AI is paused: Publish says why rather than failing after the click.
   assert.equal(await page.getByRole("button", { name: "Publish", exact: true }).isDisabled(), true);
   await page.getByText("AI is paused: this month's model spend has reached its budget.").waitFor();
-  await page.getByRole("link", { name: "Fell short (1)" }).click();
+  await page.getByRole("link", { name: "Fell short (2)" }).click();
   await page.getByRole("link", { name: "K-1 surge" }).waitFor();
   await page.getByText("brief not followed").waitFor();
+  await page.getByRole("link", { name: "K-2 seal weep" }).waitFor();
+  await page.getByText("recommended option not taken").waitFor();
+  await page.getByText("Recommendation taken 75% of 4").waitFor();
   await page.getByRole("link", { name: "Playbook", exact: true }).click();
   await page.getByRole("button", { name: "Edit playbook" }).click();
   const box = page.getByRole("textbox", { name: "Playbook" });

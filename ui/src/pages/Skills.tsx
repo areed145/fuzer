@@ -2,7 +2,7 @@
  * draft; it goes live when a person publishes it behind the skill's eval (agents/skill_gate), and one action rolls it
  * back. Every version stays in the skill's history. */
 import { useState } from "react";
-import { api, type SkillDetail, type SkillRow, type SkillVersion } from "../api";
+import { api, type RecommendationsTaken, type SkillDetail, type SkillRow, type SkillVersion } from "../api";
 import { percent, when } from "../format";
 import { Status, href, useAction, useAsync } from "../lib";
 import { Markdown } from "../Markdown";
@@ -41,7 +41,7 @@ function SkillList({ show }: { show: string }) {
       </Status>
       {areas.map((area) => <Card key={area} title={area}>
         <Table density="compact" variant="results" className="phone-rows skills-table">
-          <thead><tr><th>Skill</th><th>Live</th><th>Waiting</th><th>Fell short</th><th>Eval</th></tr></thead>
+          <thead><tr><th>Skill</th><th>Live</th><th>Waiting</th><th>Fell short</th><th>Recommendation taken</th><th>Eval</th></tr></thead>
           <tbody>{rows.filter((s) => s.area_label === area).map((s) => <SkillListRow key={s.skill} s={s} />)}</tbody>
         </Table>
       </Card>)}
@@ -57,6 +57,7 @@ function SkillListRow({ s }: { s: SkillRow }) {
     <td>{s.draft ? <a href={skillHref(s.skill, { tab: "versions", v: String(s.draft.version) })}>
       <Badge tone="warn">Draft v{s.draft.version}</Badge></a> : "–"}</td>
     <td>{s.shortfalls ? <a href={skillHref(s.skill, { tab: "short" })}>{s.shortfalls}</a> : "–"}</td>
+    <td>{takenText(s.taken)}</td>
     <td>{s.questions ? <>{s.questions} questions{s.score !== null && <Text small muted> · {percent(s.score)} at publish</Text>}</> : "No questions"}</td>
   </tr>;
 }
@@ -272,15 +273,20 @@ function Diff({ lines }: { lines: DiffLine[] }) {
   </div>;
 }
 
+/** A skill's recommendations taken, as the API counted them: the share and how many were decided on. */
+const takenText = (t: RecommendationsTaken | null | undefined) => (t ? `${percent(t.rate)} of ${t.decided}` : "–");
+
 function Shortfalls({ d }: { d: SkillDetail }) {
   if (!d.shortfalls.length) return <Empty>Nothing fell short since {d.live.version ? `v${d.live.version} went live` : "it shipped"}.</Empty>;
-  return <Card title={`Since ${d.live.version ? `v${d.live.version} went live` : "it shipped"}`}>
+  return <Card title={`Since ${d.live.version ? `v${d.live.version} went live` : "it shipped"}`}
+    detail={d.taken ? `Recommendation taken ${takenText(d.taken)}` : undefined}>
     <List plain>
       {d.shortfalls.map((s, i) => <li key={i} className="skill-shortfall">
-        {s.kind === "brief"
-          ? <><a href={href(`/cases/${s.case}`)}>{s.title ?? `Case ${s.case}`}</a>{" "}
-            <Badge tone="warn">brief {s.followed === "no" ? "not followed" : "partly followed"}</Badge></>
-          : <><strong>{s.question}</strong> <Badge tone="warn">answer rated not useful</Badge></>}
+        {s.kind === "answer"
+          ? <><strong>{s.question}</strong> <Badge tone="warn">answer rated not useful</Badge></>
+          : <><a href={href(`/cases/${s.case}`)}>{s.title ?? `Case ${s.case}`}</a>{" "}
+            <Badge tone="warn">{s.kind === "option" ? "recommended option not taken"
+              : `brief ${s.followed === "no" ? "not followed" : "partly followed"}`}</Badge></>}
         {s.note && <Text as="p" small>“{s.note}”</Text>}
         <Text as="div" small muted><Actor who={s.by} />, {when(s.at)}</Text>
       </li>)}

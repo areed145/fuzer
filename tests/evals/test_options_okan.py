@@ -107,3 +107,32 @@ def test_two_specialists_on_one_case_recommend_the_same_option_or_say_why_not(co
     assert a["unknowns_named"] and b["unknowns_named"], (offered["unknown"], a, b)
     bad = options_eval.answer(GUESS, offered)
     assert not bad["agrees_or_says_why"]
+
+
+def test_the_acceptance_rate_of_the_shared_skill_shows_where_its_shortfalls_do(conn, cases):
+    """Done when: acceptance rate is visible per skill. A choice other than the one recommended is a shortfall of the
+    shared skill, and the share of recommendations taken shows on the skills page beside it."""
+    from fuzer.agents import shortfalls, skill_book
+    from fuzer.core import exceptions as port
+
+    def counted() -> dict:
+        return next(r for r in skill_book.listing(conn)["skills"] if r["skill"] == shortfalls.OPTIONS)
+
+    before = counted()["taken"] or {"decided": 0, "accepted": 0}
+    # on assets none of the other cases is on, so a dispatch here is no clash for them
+    one = port.raise_exception(conn, "walkdown_check", "weep a", "Weeping fitting at 20-TT-2250B", "olga",
+                               refs=["tag:20-TT-2250B"], priority=0.3)["id"]
+    two = port.raise_exception(conn, "walkdown_check", "weep b", "Weeping flange at 20-E-2250B", "olga",
+                               refs=["tag:20-E-2250B"], priority=0.3)["id"]
+    conn.commit()
+    options.choose(conn, one, "riley", options.for_exception(conn, one)["recommended"])
+    other = next(k for k in ("escalate", "dispatch") if k != options.for_exception(conn, two)["recommended"])
+    options.choose(conn, two, "riley", other, reason="the pad is shut in for a tie-in")
+    conn.commit()
+    row = counted()
+    assert row["taken"]["decided"] == before["decided"] + 2 and row["taken"]["accepted"] == before["accepted"] + 1
+    assert row["shortfalls"] >= 1
+    d = skill_book.detail(conn, shortfalls.OPTIONS)
+    assert d["taken"] == row["taken"]
+    fell = next(x for x in d["shortfalls"] if x["kind"] == "option" and x["note"] == "the pad is shut in for a tie-in")
+    assert fell["chosen"] == other and fell["case"]

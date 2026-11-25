@@ -14,13 +14,18 @@ export interface SkillRow {
   agents: string[]; shared: boolean; purpose: string;
   live: { version: number; by: string | null; at: string | null };
   draft: { version: number; by: string; at: string; note: string | null; review_case: number | null } | null;
-  shortfalls: number; questions: number; score: number | null;
+  shortfalls: number; taken: RecommendationsTaken | null; questions: number; score: number | null;
 }
 
-/** Where a skill fell short since its live version (agents/shortfalls): a brief not followed, or an answer rated not useful. */
+/** How often a skill's recommendations were taken since its live version (agents/shortfalls.taken): briefs followed
+ * in full and recommended options chosen on a case. */
+export interface RecommendationsTaken { decided: number; accepted: number; rate: number }
+
+/** Where a skill fell short since its live version (agents/shortfalls): a brief not followed, an answer rated not
+ * useful, or another option chosen than the one recommended. */
 export interface SkillShortfall {
-  kind: "brief" | "answer"; at: string; by: string; note: string | null;
-  case?: number; title?: string; type?: string; followed?: string; proposed?: string;
+  kind: "brief" | "answer" | "option"; at: string; by: string; note: string | null;
+  case?: number; title?: string; type?: string; followed?: string; proposed?: string; chosen?: string;
   answer?: string; question?: string;
 }
 
@@ -31,7 +36,8 @@ export interface SkillDetail {
   live: { version: number; by: string | null; at: string | null };
   playbook: string; body: string;
   pack: { classes: string[]; tools: string[]; methods: string[]; detectors: string[]; briefs: string[] } | null;
-  tools: string[]; named_tools: string[]; questions: EvalQuestion[]; shortfalls: SkillShortfall[]; ai: AiAvailability;
+  tools: string[]; named_tools: string[]; questions: EvalQuestion[]; shortfalls: SkillShortfall[];
+  taken: RecommendationsTaken | null; ai: AiAvailability;
 }
 
 /** The scores the eval gate kept on a version it published (agents/skill_gate.evaluate). */
