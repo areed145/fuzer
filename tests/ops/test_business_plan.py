@@ -85,3 +85,20 @@ def test_planned_hours_to_date_count_the_part_of_each_line_in_the_window():
     q3 = {"period_start": date(2026, 7, 1), "period_end": date(2026, 9, 30)}
     assert _in_window(q3, before) == pytest.approx(56 / 92) and _in_window(q4, before) == 0
     assert _in_window({"period_start": None, "period_end": None}, q) == 1.0
+
+
+def test_actual_hours_read_the_window_the_planned_hours_read():
+    """#1396 (tour D, A9): Planned hours read the quarter to date (458.5 h, prorated) while Actual hours counted every
+    job in full (672 h), and the lines table showed whole estimates (740 h). Actual hours count each job for the days of
+    its dates in the window, as each estimate counts for the days of its period."""
+    from fuzer.core import metrics, windows
+    from fuzer.ops.metrics import _hours_in_window
+
+    q = metrics.Query(None, windows.span("qtd", date(2026, 11, 25)))  # 1 Oct to 25 Nov
+    job = lambda start, end, hours: {"start_at": datetime(*start, 6, tzinfo=UTC), "end_at": datetime(*end, 18, tzinfo=UTC),
+                                     "crew_hours": hours, "duration_hours": None}
+    line = {"cases": [1], "jobs": [job((2026, 11, 1), (2026, 11, 2), 16),     # inside: all 16 h
+                                   job((2026, 11, 24), (2026, 11, 27), 40),   # 2 of its 4 days inside: 20 h
+                                   job((2026, 12, 10), (2026, 12, 11), 30)]}  # after the window: none
+    assert _hours_in_window(line, q) == pytest.approx(36)
+    assert _hours_in_window({"cases": [], "jobs": []}, q) is None  # no case matched: not 0 hours

@@ -102,7 +102,7 @@ def facts(conn, pack, day: str) -> dict:
         parts = eff.get("parts") or {}
         sections["Production and deferment"].append(_f(
             "Production efficiency {eff}% on {day}: {oil} bbl of the {cap} bbl the facility could deliver ({standard})",
-            eff["refs"], eff=eff["value"], day=day, oil=parts.get("allocated_bbl"), cap=parts.get("capacity_bbl"),
+            eff["refs"], eff=eff["value"], day=day, oil=parts.get("value"), cap=parts.get("of"),
             standard=eff["standard"]))
     if prev:
         p_oil = num(prev.get("oil_bbl"))

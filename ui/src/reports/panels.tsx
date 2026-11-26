@@ -53,6 +53,8 @@ function StatPanel(props: PanelProps) {
   return <PanelFrame title={props.panel.title ?? d?.title ?? ""} result={d} loading={r} className="report-stat">
     {d && <>
       <strong className={`report-stat-value${good === false ? " report-off-target" : ""}`}>{d.unknown ? "Unknown" : show(d.value, d.unit)}</strong>
+      {!d.unknown && d.parts && <Text as="div" small>
+        {show(d.parts.value, d.parts.unit)} of the {show(d.parts.of, d.parts.unit)} {d.parts.of_what}</Text>}
       <Text as="div" small muted>
         {[d.target != null && `target ${d.better === "lower" ? "≤" : "≥"} ${show(d.target, d.unit)}`,
           d.previous_unknown ? "no history the period before"

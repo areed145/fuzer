@@ -140,9 +140,9 @@ A **scoped** metric answers for any entity (`?scope=<id>`) and rolls up everythi
 
 ## plan.actual_hours
 
-**Actual hours.** The hours worked and still booked on the jobs of the cases matched to the plan's lines.
+**Actual hours.** The hours worked and still booked on the jobs of the cases matched to the plan's lines, each job's spread evenly over its dates, for the part of them in the window (the window the planned hours are read for).
 
-- **Formula:** sum(hours done + hours booked) over the matched cases' jobs
+- **Formula:** sum(job hours x days of the job in the window / days of the job) over the matched cases' jobs
 - **Unit:** h (neither better nor worse)
 - **Records:** business plan lines (estimates, period, assets) and the cases matched to them, their jobs and orders
 - **Cut by:** program
@@ -631,4 +631,4 @@ A row set is a registered list with fixed columns, each row opening its case or 
 | `downtime.open` Still down | Stops in progress at the window's end (now, for a window ending today), the longest down first. | On, Down since, Cause, Oil lost so far | 1d |
 | `incidents` Incidents | Incidents that started in the window, newest first. | Start, Unit, What happened, Oil lost | 30d |
 | `permits.open` Permits in date | Permits to work whose validity covers the window's end, the soonest to lapse first. | Permit, Type, State, Covers, Valid to | 1d |
-| `plan.lines` Plan lines | The business plan's open lines whose period meets the window, each estimate against its actuals. | Program, Line, Planned hours, Actual hours, Hours variance, Planned cost, Actual cost, Cost variance, Cases | qtd |
+| `plan.lines` Plan lines | The business plan's open lines whose period meets the window, each estimate against its actuals, both for the part in the window, as Planned hours and Actual hours read them. | Program, Line, Planned hours, Actual hours, Hours variance, Planned cost, Actual cost, Cost variance, Cases | qtd |

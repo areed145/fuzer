@@ -39,7 +39,9 @@ Write what the people who read this report (named in `for`) need to take from th
 A panel with `unknown: true` has no value because what it is read from isn't loaded: say it is unknown and why, in its
 note's words (no bypass register loaded); never read it as zero, none or nothing to report. A panel with
 `previous_unknown: true`, or with no `previous`, has nothing to compare against for the window before (no history yet):
-never say it rose, fell or changed from anything.
+never say it rose, fell or changed from anything. A cases panel lists the first rows of a longer list, its `shown`
+saying how many of how many ("6 of 41 shown"): say a share of its rows only that way ("6 of 41 shown are overdue"),
+never "all" of the list.
 Say numbers exactly as given, with their units; never add, subtract, round or work out a new number. Name entities by
 their labels. Never advise how to operate the plant. If the panels show nothing of note, say so in the headline and give
 one point at most. In the text, name a measure by its panel's title, never by its key. For each point list in `cites`
@@ -125,6 +127,8 @@ def facts(conn, pack, key: str, scope: str | None, window: str, at: date, asked:
             result.pop("figure", None)  # the rows carry the same numbers
         if p["type"] == "cases":  # a live list's count moves by the minute: the panel says it, the note never does
             result = {k: v for k, v in result.items() if k not in ("total", "overdue")}
+            # but it is a list's first rows, and says so: "all six cases in the field" was 6 of 41 (#1396)
+            result["shown"] = f"{len(r.get('cases') or [])} of {r.get('total', 0)} shown"
         panels.append({"id": p["id"], "type": p["type"], "title": r.get("title") or p.get("title"),
                        "measures": _measures(p), "result": _small(result)})
     out = {"report": key, "title": defn.get("title"), "for": defn.get("for") or [], "scope": scope_ref,

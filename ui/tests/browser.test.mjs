@@ -454,6 +454,33 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
   await page.setViewportSize({ width: 1440, height: 900 });
 });
 
+// P5.28h (#1396, tour D A8): the efficiency tile read a bare 100% beside oil figures it did not seem to match; it names
+// the volumes it is the ratio of.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.28h the efficiency tile names the volumes it is the ratio of (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    const win = { key: "1d", at: "2026-11-25", start: "2026-11-25", end: "2026-11-25", days: 1, label: "25 Nov 2026",
+      previous: { start: "2026-11-24", end: "2026-11-24" } };
+    const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
+    const view = { scope, window: win, repeats: {}, scopes: [scope], unknown: [],
+      definition: { schema: 1, key: "operations", title: "Daily operations", version: 1, for: [], scope: { kinds: ["facility"] },
+        window: { default: "1d", options: ["1d"] }, source: "platform",
+        rows: [{ id: "headline", panels: [{ id: "efficiency", type: "stat", size: 1, measure: "production.efficiency" }] }] } };
+    await page.route("**/reports/operations?*", (route) => route.fulfill({ json: view }));
+    await page.route("**/reports/operations", (route) => route.fulfill({ json: view }));
+    await page.route("**/reports/operations/panels/**", (route) => route.fulfill({ json: { id: "efficiency", type: "stat",
+      title: "Production efficiency", measure: "production.efficiency", value: 100, unknown: false, unit: "%", target: 95,
+      better: "higher", previous: 100, history: [], as_of: "2026-11-25", source: "production days", note: null, scoped: true,
+      refs: [], href: "/metrics/production.efficiency", scope, window: win,
+      parts: { value: 46997, of: 46999, unit: "bbl", of_what: "the facility could deliver" } } }));
+    await page.goto(`${url}/#/reports/operations`);
+    const tile = page.locator(".report-type-stat", { hasText: "Production efficiency" });
+    await tile.getByText("46,997 bbl of the 46,999 bbl the facility could deliver").waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}
+
 test("a report's AI note cites what it rests on by name and keeps a note that fails its checks from readers; a note shows its live values and adds for the period", async () => {
   const win = { key: "7d", at: "2026-11-24", start: "2026-11-18", end: "2026-11-24", days: 7, label: "7 days to 24 Nov 2026",
     previous: { start: "2026-11-11", end: "2026-11-17" } };

@@ -48,7 +48,8 @@ def production_efficiency(conn, pack, q) -> dict:
     # the volumes it is the ratio of, so a page that states it states them too (#1386): 100% read against "46,997 of
     # 47,086 bbl" (the reported potential), when the binding capacity that day was 46,999 bbl
     return {"value": round(100 * alloc / top, 1) if top else None, "rows": _rows(rows) if q.grain else [],
-            "refs": [r[0] for r in rows], "parts": {"allocated_bbl": round(alloc), "capacity_bbl": round(top)}}
+            "refs": [r[0] for r in rows],
+            "parts": {"value": round(alloc), "of": round(top), "unit": "bbl", "of_what": "the facility could deliver"}}
 
 
 PE_BLOCK = 14  # days read at a time: the analysis reads a long window far slower than its blocks
@@ -628,11 +629,30 @@ def _lines(conn, q) -> list[dict]:
             "where l.status = 'open' order by l.id")]
         for r in rows:
             r["actual"] = business_plan._actuals(conn, list(r["cases"]))
+            r["jobs"] = business_plan.jobs(conn, list(r["cases"]))
         q.cache["lines"] = rows
     lo, hi = q.span.start.date(), q.span.at
     return [r for r in q.cache["lines"]
             if (r["period_start"] is None or r["period_start"] <= hi) and (r["period_end"] is None or r["period_end"] >= lo)
             and (q.within(r["subjects"]) if q.scope else True)]
+
+
+def _days_inside(start, end, q) -> float:
+    """The share of the days from `start` to `end` (dates, both counted) inside the window."""
+    inside = (min(end, q.span.at) - max(start, q.span.start.date())).days + 1
+    return max(0, inside) / ((end - start).days + 1)
+
+
+def _hours_in_window(line: dict, q) -> float | None:
+    """The hours worked and booked on a line's jobs, each job's for the part of its dates inside the window, the window
+    its estimate is read for (#1396): Planned hours read the quarter to date while Actual hours counted every job in
+    full, 458.5 h against 672 h. None for a line with no case matched."""
+    from . import business_plan
+
+    if not line["cases"]:
+        return None
+    return sum(business_plan._hours(j) * _days_inside(j["start_at"].date(), j["end_at"].date(), q)
+               for j in line["jobs"])
 
 
 def _in_window(line: dict, q) -> float:
@@ -642,15 +662,17 @@ def _in_window(line: dict, q) -> float:
     start, end = line["period_start"], line["period_end"]
     if start is None or end is None:
         return 1.0
-    inside = (min(end, q.span.at) - max(start, q.span.start.date())).days + 1
-    return max(0, inside) / ((end - start).days + 1)
+    return _days_inside(start, end, q)
 
 
 def _plan_measure(key: str, label: str, unit: str, definition: str, formula: str, read, better: str = "none",
-                  estimate: bool = False):
+                  estimate: bool = False, windowed: bool = False):
+    """`read(line)` is a line's figure; `estimate` spreads it over the line's period, and a `windowed` read takes the
+    query too and says the window's part itself (the hours on jobs inside it)."""
     @metric(key, label, unit=unit, better=better, definition=definition, formula=formula,
             period="plan lines whose period meets the window (the quarter to date by default)"
-                   + (", each for the part of its period in the window" if estimate else ""), **PLAN)
+                   + (", each for the part of its period in the window" if estimate else "")
+                   + (", each job for the part of its dates in the window" if windowed else ""), **PLAN)
     def compute(conn, pack, q) -> dict:
         from . import business_plan
 
@@ -661,7 +683,8 @@ def _plan_measure(key: str, label: str, unit: str, definition: str, formula: str
             return {"note": "no business plan line " + ("on this scope " if q.scope else "") + "in the window"}
 
         def total(ls):
-            vals = [v * (_in_window(x, q) if estimate else 1) for v in (read(x) for x in ls) if v is not None]
+            got = ((x, read(x, q) if windowed else read(x)) for x in ls)
+            vals = [v * (_in_window(x, q) if estimate else 1) for x, v in got if v is not None]
             return round(sum(vals), 1) if vals else None
         groups: dict[str, list] = {}
         for x in lines:
@@ -679,8 +702,10 @@ _plan_measure("plan.estimate_hours", "Planned hours", "h", "The hours the busine
               "sum(estimate_hours x days of the line's period in the window / days in its period) over plan lines",
               lambda x: x["estimate_hours"], estimate=True)
 _plan_measure("plan.actual_hours", "Actual hours", "h", "The hours worked and still booked on the jobs of the cases "
-              "matched to the plan's lines.", "sum(hours done + hours booked) over the matched cases' jobs",
-              lambda x: x["actual"]["hours_done"] + x["actual"]["hours_booked"] if x["cases"] else None)
+              "matched to the plan's lines, each job's spread evenly over its dates, for the part of them in the window "
+              "(the window the planned hours are read for).",
+              "sum(job hours x days of the job in the window / days of the job) over the matched cases' jobs",
+              _hours_in_window, windowed=True)
 _plan_measure("plan.estimate_cost", "Planned cost", "USD", "The cost the business plan's lines estimate for their work, "
               "each line's estimate spread evenly over its period, for the part of it in the window.",
               "sum(estimate_cost x days of the line's period in the window / days in its period) over plan lines",
@@ -749,7 +774,8 @@ def open_cases(conn, pack, q) -> dict:
 
 
 @row_set("plan.lines", "Plan lines", scoped=True, windowed=True, default_window="qtd",
-         definition="The business plan's open lines whose period meets the window, each estimate against its actuals.",
+         definition="The business plan's open lines whose period meets the window, each estimate against its actuals, "
+                    "both for the part in the window, as Planned hours and Actual hours read them.",
          columns=[{"key": "program", "label": "Program"}, {"key": "line", "label": "Line"},
                   {"key": "est_h", "label": "Planned hours", "unit": "h", "align": "end"},
                   {"key": "act_h", "label": "Actual hours", "unit": "h", "align": "end"},
@@ -766,12 +792,18 @@ def plan_lines(conn, pack, q) -> dict:
         return {"rows": [], "note": business_plan.MISSING, "unknown": True}
     rows = []
     for x in lines:
-        v = business_plan.variance(x, x["actual"])
+        # each line for the window, as the headline reads it (#1396): its estimate for the part of its period in the
+        # window and the hours on its jobs in it, so the lines add up to Planned hours and Actual hours above them
+        share = _in_window(x, q)
+        est_h = round(x["estimate_hours"] * share, 1) if x["estimate_hours"] is not None else None
+        est_cost = round(x["estimate_cost"] * share, 1) if x["estimate_cost"] is not None else None
+        act_h = round(_hours_in_window(x, q) or 0, 1)
+        cost = x["actual"]["cost"]
         rows.append({"key": f"line:{x['id']}", "href": f"/cases/{x['cases'][0]}" if len(x["cases"]) == 1 else None,
-                     "cells": {"program": x["program"], "line": x["title"], "est_h": x["estimate_hours"],
-                               "act_h": round(x["actual"]["hours_done"] + x["actual"]["hours_booked"], 1),
-                               "var_h": v["hours_variance"], "est_cost": x["estimate_cost"],
-                               "act_cost": x["actual"]["cost"], "var_cost": v["cost_variance"],
+                     "cells": {"program": x["program"], "line": x["title"], "est_h": est_h, "act_h": act_h,
+                               "var_h": round(act_h - est_h, 1) if est_h is not None else None, "est_cost": est_cost,
+                               "act_cost": cost,
+                               "var_cost": round(cost - est_cost, 2) if cost is not None and est_cost is not None else None,
                                "cases": len(x["cases"])}})
     return {"rows": rows,
             "note": None if lines else "no business plan line " + ("on this scope " if q.scope else "") + "in the window"}

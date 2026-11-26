@@ -70,6 +70,11 @@ def test_daily_operations_ends_on_the_last_production_day_and_draws_its_daily_re
         assert view["window"]["at"] == day and view["window"]["asked"] and view["window"]["key"] == "1d"
         oil = client.get("/reports/operations/panels/oil").json()
         assert oil["window"]["at"] == day and str(oil["as_of"])[:10] == day
+        # the efficiency tile names the volumes it is the ratio of, never a bare 100% (#1396)
+        eff = client.get("/reports/operations/panels/efficiency").json()
+        if eff["value"] is not None:
+            p = eff["parts"]
+            assert p["unit"] == "bbl" and p["of"] > 0 and abs(100 * p["value"] / p["of"] - eff["value"]) <= 0.1, eff
         story = client.get("/reports/operations/panels/narrative").json()
         assert story["day"] == day and story["type"] == "narrative"
         # a day not closed says so, and who closes it, never a developer command (tour D6)

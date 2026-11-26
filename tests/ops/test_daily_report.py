@@ -67,7 +67,7 @@ def test_efficiency_is_the_registered_metric_for_the_report_day(conn):
     assert len(eff) == 1 and eff[0]["values"]["eff"] == reg["value"] and eff[0]["cites"] == reg["refs"], eff
     # with the volumes it is the ratio of (#1386), which agree with it
     v = eff[0]["values"]
-    assert v["oil"] == reg["parts"]["allocated_bbl"] and v["cap"] == reg["parts"]["capacity_bbl"]
+    assert v["oil"] == reg["parts"]["value"] and v["cap"] == reg["parts"]["of"] and reg["parts"]["unit"] == "bbl"
     assert round(100 * v["oil"] / v["cap"], 1) == pytest.approx(reg["value"], abs=0.1)
     assert f"{v['oil']:,} bbl of the {v['cap']:,} bbl the facility could deliver" in eff[0]["text"]
     assert "against a potential of" in lines[0]["text"] and "%" not in lines[0]["text"]

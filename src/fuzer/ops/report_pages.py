@@ -238,6 +238,8 @@ def stat(conn, pack, d, panel, scope, w) -> dict:
         previous = past[-2]["value"]
     return {"title": m["label"], "measure": m["key"], "value": m["value"], "unknown": m["unknown"], "unit": m["unit"],
             "target": m["target"], "better": m["better"], "previous": previous,
+            # the volumes a ratio is of, where the measure says them: the tile states them under a bare 100% (#1396)
+            "parts": m.get("parts"),
             "previous_unknown": before_unknown or None, "history": past, "as_of": m.get("as_of"),
             "source": source(m["records"]), "note": _note(scope, m), "scoped": _scoped(scope, m), "refs": m["refs"],
             "href": f"/metrics/{m['key']}"}
