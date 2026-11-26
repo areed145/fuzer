@@ -13,8 +13,7 @@ domain operations, as people would, every work tick:
                               note; between jobs they take from the operator queue, and they walk this shift's rounds
     field reports              a few times a shift an operator reports something they noticed on their way round (a
                               weeping flange, an odd noise), raised as a `field_report` (labelled "sample crew"), so
-                              new field work keeps arriving after the starting backlog is worked off: the demo's own
-                              data is historical and raises little that is new (#1085 rolls it forward)
+                              new field work keeps arriving after the starting backlog is worked off
 
 Each piece of work takes its own path, picked from its id so a run is repeatable and the mix holds: about one in ten
 is left as nobody's for two to four days, so a few cases are genuinely overdue and the demo account finds work to take. Nothing is

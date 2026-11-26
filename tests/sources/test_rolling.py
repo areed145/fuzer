@@ -1,17 +1,20 @@
 """A generated facility that rolls forward (#1085): its project names the day its exports were written as today
 (`rolls_from`), and every whole date read from them moves on by the days since, so Okan's latest data day is always
 yesterday. Identifiers and free text stay as written, a re-dated record keeps no daily history, and the work that
-follows the register (the daily report, the plan's SAP maintenance plans) treats the move as a move, not new work."""
+follows the register (the daily report, the plan's SAP maintenance plans) treats the move as a move, not new work. The
+historian joins up across midnight, nothing is dated later than yesterday, the SRE scan moves on a day at a time, and
+the day close closes yesterday."""
 
 import csv
 import json
 import shutil
 from datetime import date, datetime, timedelta
+from itertools import pairwise
 
 import pytest
 
 from fuzer.core.pack import load_pack
-from fuzer.ops import daily_report, pipeline
+from fuzer.ops import daily_report, pipeline, sre
 from fuzer.sources import ingest, instruments, process_model, relative_dates
 from fuzer.sources.relative_dates import place, roll
 
@@ -72,6 +75,26 @@ def test_the_process_model_and_instrument_faults_move_on(monkeypatch, okan_data)
     assert instruments.load(okan_data).touches(point, a, a + timedelta(minutes=10))
 
 
+def test_the_historian_runs_on_across_midnight_without_a_step(monkeypatch, okan_data):
+    """Read before midnight and after it (a day further on), the trend joins up: the last value of the day and the
+    first of the next differ by no more than the values move every five minutes either side."""
+    midnight = datetime.combine(TODAY + timedelta(days=1), datetime.min.time())
+    window = (midnight - timedelta(hours=6), midnight + timedelta(hours=6))
+    on(monkeypatch, TODAY)
+    before = process_model.ProcessModel(process_model.read(okan_data))
+    on(monkeypatch, TODAY + timedelta(days=1))
+    after = process_model.ProcessModel(process_model.read(okan_data))
+    steps = []
+    for point in before.points:
+        if not before.covers(point):
+            continue
+        a = [v for _, v in before.values(point, *window, 5)][:72]  # to 23:55, read before midnight
+        b = [v for _, v in after.values(point, *window, 5)][72:144]  # from 00:00, read after it
+        if len(a) == len(b) == 72 and (usual := max(abs(x - y) for s in (a, b) for x, y in pairwise(s))):
+            steps.append((abs(b[0] - a[-1]) / usual, point))
+    assert len(steps) > 800 and max(steps)[0] <= 1.5, sorted(steps)[-5:]
+
+
 @pytest.fixture(scope="module")
 def okan(okan_db, tmp_path_factory):
     """Its own copy of the exports, so the fingerprints it records are its own."""
@@ -100,8 +123,28 @@ def test_read_today_the_latest_data_day_is_yesterday(okan, monkeypatch):
                           "and payload->>'state' = 'issued' limit 1").fetchone()["v"]
     assert permit[:10] == (TODAY - timedelta(days=1)).isoformat()  # written relative to today: not moved again
     assert ingest.ingest(conn, data)["updated"] == 0  # read again the same day: nothing to do
+    for source, rtype, field in (("dcs", "alarm_event", "timestamp"), ("oplog", "entry", "timestamp"),
+                                 ("ec", "downtime", "start")):  # nothing has happened later than yesterday
+        latest = conn.execute(f"select max(payload->>'{field}') as t from source_record where source = %s "
+                              "and record_type = %s", (source, rtype)).fetchone()["t"]
+        assert latest and latest[:10] <= "2026-11-13", (source, latest)
     pipeline.rebuild(conn, PACK)
     pipeline.follow_register(conn, PACK)
+    conn.commit()
+
+
+def _upsets_on(conn, unit: str) -> list[dict]:
+    return [u for u in sre.upsets(conn, limit=200) if u["first_unit"] == unit]
+
+
+def test_the_scan_reads_the_latest_day(okan, monkeypatch):
+    conn, data = okan
+    on(monkeypatch, TODAY)
+    monkeypatch.setenv("FUZER_DATA_DIR", str(data))
+    out = sre.scan(conn, PACK)
+    assert (out["since"], out["until"]) == ("2026-11-13T00:00", "2026-11-14T00:00")  # the first scan: yesterday
+    lube = _upsets_on(conn, "20-GT-2000A")  # train A's lube oil filter plugs from 12:10 on the latest day
+    assert [(u["start"][:10], u["end"]) for u in lube] == [("2026-11-13", None)], lube
     conn.commit()
 
 
@@ -119,3 +162,28 @@ def test_read_the_next_day_every_date_moves_on_without_daily_history(okan, monke
     assert planned["added"] == planned["rolled_forward"] == 0  # a plan's due date moving with the data isn't new work
     assert conn.execute("select count(*) as n from plan_item where source = 'sap_plan'").fetchone()["n"] == plans
     conn.commit()
+
+
+def test_the_next_scan_moves_on_and_what_was_going_ends(okan, monkeypatch):
+    """A day on, yesterday's story is the day before's: the scan carries on from where it reached, the upset it left
+    going ends where it was last seen, and the story's latest day is found again on the new latest day."""
+    conn, data = okan
+    on(monkeypatch, TODAY + timedelta(days=1))
+    monkeypatch.setenv("FUZER_DATA_DIR", str(data))
+    out = sre.scan(conn, PACK)
+    assert (out["since"], out["until"]) == ("2026-11-13T23:00", "2026-11-15T00:00")  # the watermark, less an hour
+    lube = sorted(_upsets_on(conn, "20-GT-2000A"), key=lambda u: u["start"])
+    assert [u["start"][:10] for u in lube] == ["2026-11-13", "2026-11-14"] and lube[0]["end"] and not lube[1]["end"]
+    assert conn.execute('select count(*) as n from detection where "end" is null and last_run < %s',
+                        (out["run"],)).fetchone()["n"] == 0  # what this scan did not find going on has ended
+    conn.commit()
+
+
+def test_the_day_close_closes_yesterday(okan, okan_db, monkeypatch):
+    from fuzer.ops import jobs
+
+    conn, data = okan
+    on(monkeypatch, TODAY + timedelta(days=1))
+    assert jobs.day_close.execute_in_process(
+        resources={"fuzer": jobs.Fuzer(data_dir=str(data), database_url=okan_db.url)}).success
+    assert [r["day"] for r in conn.execute("select distinct day from daily_ops_report")] == [TODAY]

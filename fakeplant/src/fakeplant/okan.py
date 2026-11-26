@@ -174,8 +174,9 @@ DAMAGE = {"P": ["D01", "D02", "D03", "D05"], "K": ["D01", "D04", "D09", "D06"], 
           "E": ["D04", "D08"], "V": ["D07", "D08", "D02"], "XV": ["D03", "D08"], "FT": ["D07"], "PT": ["D07"]}
 MOTORS = {"P": ("260", "1.15")}  # electric motor drivers: rated kW and service factor (NEMA MG 1), per function
 FAILURE_RATE = {"P": 0.8, "K": 1.2, "GT": 0.9, "E": 0.3, "V": 0.2}
-# The alarm journal's span (#859): the last four months of the history.
-JOURNAL_FROM, JOURNAL_TO = datetime(2025, 9, 1), datetime(2026, 1, 1)
+# The alarm journal's span (#859): the last four months of the history, to the end of the latest data day (30
+# December), so read on a later day (#1085) nothing in it is later than now.
+JOURNAL_FROM, JOURNAL_TO = datetime(2025, 9, 1), datetime(2025, 12, 31)
 CONSOLES = {"10": "PP", "20": "GGCP", "30": "ST1", "40": "ST2", "50": "NWP"}
 
 

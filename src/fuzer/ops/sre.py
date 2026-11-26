@@ -18,7 +18,8 @@ name, `key` what was found on it, `end` None while it is still going at the wind
 
 `scan` runs them over the time since the last run (with an hour's overlap so nothing spanning the
 boundary is split), stores detections in `detection` and extends the ones still going instead of raising
-them again.
+them again. A facility that rolls forward (relative_dates, #1085) re-dates its earlier days each day, so a detection
+going at the last scan that this one does not find going on has ended where it was last seen.
 """
 
 import re
@@ -494,6 +495,11 @@ def scan(conn, pack, since: str | None = None, until: str | None = None, src=Non
             conn.execute("update sre_run set reached = %s, detections = %s where id = %s", (b, totals["new"], run_id))
             conn.commit()
             a = b
+        from ..sources import relative_dates
+
+        if relative_dates.offset():  # a rolling facility's earlier days are re-dated each day (#1085): what was
+            # going at the last scan and is not found going on now has ended where it was last seen
+            conn.execute('update detection set "end" = seen_until where "end" is null and last_run < %s', (run_id,))
         totals["upsets"] = regroup(conn, start)["upsets"]
         for d in detectors.window():  # each detector's run, or why it did not run here
             if d.name in off:
