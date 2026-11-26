@@ -1,0 +1,14 @@
+# The pipeline integrity specialist pack (P4.7): in-line inspection anomalies against MOP on modified ASME B31G with
+# their growth between pig runs, and a leak alarm read against the line balance. SKILL.md is its playbook; this file
+# names what the playbook relies on, so a missing or renamed piece fails the pack conformance test
+# (tests/agents/test_specialist_packs.py) instead of an answer on a case.
+title: Pipeline integrity
+owner: pipelines-commercial           # the agent that loads this pack
+classes: [pipeline, pipeline_segment, pipeline_feature]   # a line, its segments and its features are units of their own kind
+tools: [ili_anomalies, measurements, pipeline_segments, plot_ili_anomalies, plot_trend]
+charts: [plot_ili_anomalies, plot_trend]
+methods: [ili_strength]               # run by its own tool, ili_anomalies
+detectors: [ili_anomalies]
+briefs: [ili_anomaly]                 # the work types it briefs, on a subject of its classes (P4.3)
+roles: [pressure, flow]
+eval: pipeline-integrity              # each bundle's answer keys: evals/pipeline-integrity.yaml in the bundle

@@ -12,9 +12,10 @@ are also supported):
 - **Orchestrator.** Answers simple lookups and routes domain work to specialists as MAF
   *background agents*, which may run at the same time. It synthesizes cited findings using its
   `answering` skill and never gives plant-operating instructions.
-- **Seven domain specialists.** Production & Surveillance; Wells & Subsurface; Field Operations &
+- **Eight domain specialists.** Production & Surveillance; Wells & Subsurface; Field Operations &
   Facilities; Maintenance & Integrity; Work Management & Supply Chain; HSE & Incident Management;
-  Asset Performance & Reporting. The complete persona-to-domain, skill ownership, tool, evidence
+  Asset Performance & Reporting; Pipelines & Commercial (a line's integrity and hydraulics, its customers'
+  contracts and what an outage costs them, P4.7). The complete persona-to-domain, skill ownership, tool, evidence
   prerequisite, output, limitation and human-decision matrix is generated in
   [capabilities](capabilities.md) from the central registry.
 

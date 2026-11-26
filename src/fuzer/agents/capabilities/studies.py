@@ -23,10 +23,7 @@ def process_values(ref: str, at: str | None = None, hours_before: int = 48, hour
     return _plain(out)
 
 
-@capability(
-    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
-    kind="query"
-)
+@capability("production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity", "pipelines-commercial", kind="query")
 def limits(ref: str, at: str | None = None) -> dict[str, Any]:
     """Operating limits on a PI point, or on every point of a unit (tag, equipment, well): the alarm limits
     that count (hihi / hi / lo / lolo, from the DCS or PI AF), integrity operating windows (IOWs: class,
@@ -136,10 +133,7 @@ def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliabili
             return {"error": str(e), **e.refusal()}
 
 
-@capability(
-    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
-    "hse-incident-management", kind="calc"
-)
+@capability("production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity", "hse-incident-management", "pipelines-commercial", kind="calc")
 def detect_changes(ref: str, since: str | None = None, until: str | None = None, limit: int = 40) -> dict[str, Any]:
     """Where a PI point (or each point on a unit) stepped (a trip, a choke move), drifted (fouling, wear)
     or changed its jitter (a transmitter starting to hunt), with when it started, the value before and
@@ -183,7 +177,7 @@ def alarm_analysis(since: str, until: str, scope: str | None = None) -> dict[str
         return _plain(alarms.alarm_analysis(conn, mcp_server.PACK, sc, since, until))
 
 
-@capability("field-operations-facilities", "maintenance-integrity", "hse-incident-management", kind="calc")
+@capability("field-operations-facilities", "maintenance-integrity", "hse-incident-management", "pipelines-commercial", kind="calc")
 def trip_analysis(since: str, until: str, scope: str | None = None) -> dict[str, Any]:
     """Stops (trips), starts and failed starts per unit with a run signal over a window, with the days between
     stops and the share of time running. scope: a unit or area (default: everything)."""

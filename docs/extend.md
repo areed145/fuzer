@@ -408,7 +408,7 @@ Sources: the card lists what it added on each page, linked there.
 
 ## Add an agent skill
 
-The operations assistant is an orchestrator and seven domain specialists
+The operations assistant is an orchestrator and eight domain specialists
 ([agents and capabilities](agents.md)). A **skill** is a method a specialist follows (which tools to call,
 in what order, and what it may and may not conclude), written as Markdown and registered in a catalog. A
 **tool** is a read-only function over the graph, declared once with `@capability`.

@@ -31,3 +31,6 @@ operating_model:
     value: "07:00,19:00"
     reason: Kestrel's crews hand over at 07:00 and 19:00 local (the shift supervisor's log), not the standard 06:00 and 18:00
     owner: ops_lead
+packs_not_applicable:  # specialist packs that can't apply to this asset (#826)
+  - {pack: pipelines-commercial/pipeline-integrity, reason: its lines have no in-line inspection runs or route segments}
+  - {pack: pipelines-commercial/outage-planning, reason: it loads no customer and contract register}

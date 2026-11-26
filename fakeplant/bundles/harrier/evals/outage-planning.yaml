@@ -1,0 +1,13 @@
+# Answer keys for the outage planning specialist pack's eval on this bundle (P4.7, with P5.22), in the shape of the
+# assistant eval (fuzer.evals.evaluate). The mainline pig run outage (HR-PIG-2027) takes the origin and receipt meters
+# down and hits both shippers' transportation contracts; the origin's relief valve bench test hits them again sixteen
+# days apart; the marine loading contract HR-TML-201 starts after the pig run.
+- question: Which customers does the mainline pig run outage hit, and what does it cost them?
+  must_mention: [Northgate Crude Marketing, Prairie Basin Producers, [HR-TSA-101, HR-TSA-102], ["$", dollars, USD]]
+  specialists: [pipelines-commercial]
+- question: Is any shipper hit by more than one outage in the next three months?
+  must_mention: [[Prairie Basin Producers, Northgate Crude Marketing], [relief valve, Relief valve bench test], [pig run, HR-PIG-2027, mainline outage]]
+  specialists: [pipelines-commercial]
+- question: Does the marine loading contract lose anything in the pig run outage?
+  must_mention: [HR-TML-201, [not running, starts after, not yet started, hasn't started, does not start]]
+  specialists: [pipelines-commercial]

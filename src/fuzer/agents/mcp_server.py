@@ -245,6 +245,7 @@ from .capabilities import (  # noqa: F401
     maintenance,
     metrics,
     operations,
+    pipelines,
     plots,
     production,
     sources,

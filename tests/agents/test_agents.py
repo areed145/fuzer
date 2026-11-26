@@ -436,8 +436,8 @@ def test_skills_are_valid():
         assert provider is not None
     found = sorted(p.parent.name for p in agents.SKILLS.glob("*/*/SKILL.md"))
     assert found == ["alarms-and-instruments", "analysis", "answering", "back-pressure", "charts",
-                     "compression", "constraint-management", "gas-lift", "gas-treating", "incident-evidence", "integrated-planning", "integrity", "job-readiness",
-                     "metering-and-balances", "operations-summary", "options-and-tradeoffs", "production-efficiency", "production-engineering",
+                     "compression", "constraint-management", "gas-lift", "gas-treating", "hydraulics-and-linepack", "incident-evidence", "integrated-planning", "integrity", "job-readiness",
+                     "metering-and-balances", "nominations-and-contracts", "operations-summary", "options-and-tradeoffs", "outage-planning", "pipeline-integrity", "production-efficiency", "production-engineering",
                      "production-surveillance", "pumps-and-drivers", "reliability", "safety-systems", "shift-handover", "static-equipment", "troubleshooting", "turnarounds", "upset-correlation",
                      "well-review", "wells-and-lift", "work-orders"]
     for t in {t for tools in agents.TOOLS.values() for t in tools}:

@@ -62,3 +62,15 @@ def test_the_recorded_run_keeps_scores_not_answers_and_shows_in_eval_results(tmp
     monkeypatch.setattr(runs, "load", lambda: [json.loads(path.read_text())])
     page = reference.eval_results_md()
     assert "## Specialist packs" in page and f"| 2026-11-13 | okan | `{COMPRESSION}` |" in page
+
+
+def test_the_pipelines_packs_are_asked_and_scored_on_harrier_like_the_others():
+    """P4.7: the pipeline integrity and outage planning packs hold answer keys for Harrier, routed to the Pipelines &
+    Commercial specialist, and score through the same mechanics; Okan and Kestrel mark them not applicable."""
+    paths = ["pipelines-commercial/pipeline-integrity", "pipelines-commercial/outage-planning"]
+    res = packs_eval.score("harrier", paths, ask=answering(every_fact))
+    assert res["asked"] == res["passed"] == 2 and res["not_applicable"] == {}
+    assert all(r["routed"] == 1.0 for r in res["packs"].values())
+    res = packs_eval.score("harrier", paths, ask=answering(lambda c: "I could not tell."))
+    assert res["passed"] == 0
+    assert set(packs_eval.score("okan", paths, ask=answering(every_fact))["not_applicable"]) == set(paths)

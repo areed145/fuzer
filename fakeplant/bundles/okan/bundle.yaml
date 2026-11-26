@@ -17,3 +17,6 @@ source_packs: [packs/healthwatch.yaml]
 roster: roster.yaml
 schedules: [schedules/OK-TAR-2026.yaml]  # the 2026 turnaround as its planner first laid it out (P5.18)
 operating_model: {name: standard, version: 1}
+packs_not_applicable:  # specialist packs that can't apply to this asset (#826)
+  - {pack: pipelines-commercial/pipeline-integrity, reason: its lines have no in-line inspection runs or route segments}
+  - {pack: pipelines-commercial/outage-planning, reason: it loads no customer and contract register}

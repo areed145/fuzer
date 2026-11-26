@@ -106,6 +106,9 @@ OPERATIONS_REPORTER = "Operations Reporter"
 ACCOUNTING_SPECIALIST = "Commercial / Production Accounting Specialist"
 DATA_SCIENTIST = "Data Scientist / Operations Research Analyst"
 DATA_STEWARD = "Data Steward / Platform Administrator"
+PIPELINE_CONTROLLER = "Pipeline Controller"
+PIPELINE_ENGINEER = "Pipeline Integrity & Hydraulics Engineer"
+OIL_MOVEMENTS = "Oil Movements & Commercial Scheduler"
 
 AGENT_CATALOG = (
     AgentDefinition(
@@ -204,6 +207,25 @@ AGENT_CATALOG = (
         ("Commercial and accounting reconciliation is unavailable without authoritative accounting and cost sources.",),
         ("Asset trade-offs and external/commercial reporting require human validation and approval.",),
     ),
+    AgentDefinition(
+        "pipelines-commercial", "Pipelines & Commercial",
+        "A pipeline's integrity (in-line inspection anomalies, MAOP derates, pig runs, leak alarms), its pressures, "
+        "flows and pump station trips, its customers' contracts and delivery points, and what an outage costs them "
+        "in volume and dollars.",
+        "You are the pipelines and commercial specialist. Read a line's segments, stations, meters, pig runs and its "
+        "customers' contracts from Fuzer's tools.",
+        "A pump or compressor's own condition (Maintenance & Integrity); a meter's allocation factor or drift "
+        "(Production & Surveillance); a schedule's critical path and crews (Work Management & Supply Chain).",
+        (PIPELINE_CONTROLLER, PIPELINE_ENGINEER, OIL_MOVEMENTS),
+        ("Pipelines and their route segments, in-line inspection runs, the flow network's meters, process values on "
+         "the line's transmitters, the plan's outages and the customer and contract register where one is loaded.",),
+        ("Anomalies screened against MOP, line balances and pressures with their windows, and each outage's hits "
+         "on customers in bbl and $, with what could not be checked.",),
+        ("No hydraulic or linepack model, CPM leak detection or nominations are loaded: contract volumes stand in "
+         "for nominations, and the answer says so.",),
+        ("Pressure derates, digs and repairs, shutdowns and restarts, outage windows and customer and regulatory "
+         "notices are the accountable engineer's, controller's and planner's.",),
+    ),
 )
 AGENTS = tuple(agent.id for agent in AGENT_CATALOG)
 AGENT_BY_ID = {agent.id: agent for agent in AGENT_CATALOG}
@@ -211,6 +233,7 @@ AGENT_BY_ID = {agent.id: agent for agent in AGENT_CATALOG}
 _PROD, _WELLS, _FIELD = "production-surveillance", "wells-subsurface", "field-operations-facilities"
 _MAINT, _WORK, _HSE, _ASSET = ("maintenance-integrity", "work-management-supply-chain", "hse-incident-management",
                                "asset-performance-reporting")
+_PIPE = "pipelines-commercial"
 _OPERATE = "Recommend checks and decisions to the accountable operator or engineer; never give operating instructions."
 _APPROVE = "Findings inform people who approve priorities, schedules and commitments; nothing here commits anything."
 
@@ -402,6 +425,39 @@ SKILL_CATALOG = (
         "Dated cross-domain KPIs, trade-offs and opportunities with units, windows and unknowns.",
         "Internal evidence only: not an approved decision, an external report or accounting reconciliation."),
     SkillDefinition(
+        f"{_PIPE}/pipeline-integrity", (_PIPE,),
+        (PIPELINE_ENGINEER, PIPELINE_CONTROLLER),
+        "In-line inspection runs and their metal loss features, route segments (wall, grade, class location), the "
+        "line's MOP, and the flow and pressure at each end of the line.",
+        "Each anomaly over the screen with its segment, station, ERF now and at its growth, the derate or dig to "
+        "weigh, and for a leak alarm the balance between the meters at each end.",
+        "Advises; fitness for service, a MOP derate, a dig and confirming or clearing a leak are the integrity "
+        "engineer's and controller's decisions."),
+    SkillDefinition(
+        f"{_PIPE}/hydraulics-and-linepack", (_PIPE,),
+        (PIPELINE_CONTROLLER, PIPELINE_ENGINEER),
+        "Pressure and flow at the stations and the meters at each end of the line, pump run signals and trips, and "
+        "the operating limits on those points.",
+        "Which pressure or flow left its band and when, the pump station trips behind it, the line balance over the "
+        "window, and what can't be said without a hydraulic model.",
+        "No hydraulic or linepack model: capacity with a segment down is unknown, not estimated. " + _OPERATE),
+    SkillDefinition(
+        f"{_PIPE}/nominations-and-contracts", (_PIPE,),
+        (OIL_MOVEMENTS,),
+        "The customer and contract register (customer, delivery point, daily volume, rate, dates) and the flow at "
+        "each delivery point's meter.",
+        "Each contract's daily volume against the flow measured at its delivery point, and what an outage costs each "
+        "customer in bbl and $.",
+        "Contract volumes are not nominations; no shipper balance, invoice or tariff is settled here."),
+    SkillDefinition(
+        f"{_PIPE}/outage-planning", (_PIPE,),
+        (OIL_MOVEMENTS, PIPELINE_CONTROLLER),
+        "The plan's outages, their schedules and crews, the contracts each hits, and similar past outages.",
+        "Each outage's customers hit and what they lose, the window that costs least and why, the crews and rules it "
+        "keeps, and the notices it needs.",
+        "Advises; the planner picks and approves the window, and a person sends each customer's and regulator's "
+        "notice. " + _APPROVE),
+    SkillDefinition(
         "shared/charts", AGENTS, (), "Whichever records each plot tool reads.",
         "Interactive figures with their markers and a sentence on what each shows.",
         "Says when a chart rests on synthetic data; an agent calls only the plot tools in its own list.", shared=True),
@@ -456,6 +512,15 @@ UNAVAILABLE = (
      "Accountable people; the permit register's conditions are set beside the recorded values with owners and due dates "
      "(permit_conditions), and none is judged."),
     (_HSE, "Emergency response procedures", "Approved emergency response plans; the assistant only supports with information."),
+    (_PIPE, "Transient hydraulics, linepack, and a line's capacity with a segment or pump station down",
+     "A hydraulic model of the line; pressures, flows and pump stops are read as measured (measurements, plot_trend, "
+     "trip_analysis)."),
+    (_PIPE, "Leak detection (CPM) alarms",
+     "The leak detection system's alarm export; the balance between the meters at each end of the line is read "
+     "instead (pipeline_segments, measurements)."),
+    (_PIPE, "Nominations and shipper balances",
+     "The scheduling system's nominations; each contract's daily volume and the flow at its delivery point stand in "
+     "(customer_contracts, outage_impact)."),
     (_ASSET, "Commercial reconciliation: sales, nominations, liftings and entitlements",
      "The commercial system's sales and nomination records; production accounting volumes and the cost ledger are "
      "reconciled (accounting_reconciliation, unit_cost)."),

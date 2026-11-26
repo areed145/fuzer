@@ -48,7 +48,7 @@ PERSON_ROLES = {"engineer", "ops_lead", "production_engineer", "data_steward", "
                 "workflow_admin"}
 AGENT_ROLES = {"sre", "reporter", "production-surveillance", "wells-subsurface", "field-operations-facilities",
                "maintenance-integrity", "work-management-supply-chain", "hse-incident-management",
-               "asset-performance-reporting", "troubleshooter", "production", "maintenance"}
+               "asset-performance-reporting", "pipelines-commercial", "troubleshooter", "production", "maintenance"}
 RETIRED_AGENT_ROLES = {"troubleshooter", "production", "maintenance"}  # steps in flight finish; new work can't pick them
 ROLE_SLA: dict[str, str] = {}  # a role's default SLA (work_role, loaded by roles.refresh): a step without one uses it
 

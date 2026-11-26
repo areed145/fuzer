@@ -77,6 +77,7 @@ A result names its method, and a method that cannot answer refuses by name inste
 | [`proof_test`](#proof_test) A safeguard's last proof test against its proof test interval | IEC 61511-1 16.3 | Proof test interval on the safeguard register (months); Last proof test (date) | A proof test interval on the register; a safeguard with one and no test on file is overdue. |
 | [`demand_rate`](#demand_rate) A safeguard's demands over the last year against the demand rate it was designed for | IEC 61511-1 16.2.9 | The site's demand log (when (demands); Designed demand rate on the safeguard register (per year) | At least one demand in the window; with no designed rate on the register, the IEC 61508 low demand boundary. |
 | [`flare_relief`](#flare_relief) The equipment relieving into the flare during an episode, and the devices it relieved through | Engineering practice | Piping into the flare system (P&IDs and the line list) (lines); Pressure of each relieved item (its own) | A flare flow point, the piping into the flare's area and a pressure point on the relieved item. |
+| [`outage_impact`](#outage_impact) What a planned outage costs the customers whose contracts it hits | Engineering practice | Contract daily volume (bbl/d); Contract rate ($/bbl); Outage start and finish on the plan (h) | The register; with none loaded, outages are listed and hit no one, and the cost is unknown. |
 
 ## Refusals
 
@@ -748,3 +749,12 @@ A result names its method, and a method that cannot answer refuses by name inste
 - **Threshold `rise`:** A relieved item's pressure up this share over the hours before the episode names it a likely source. (5 %)
 - **Threshold `before`:** The hours before the episode its pressure is taken over. (6 h)
 - **Worked example:** `tests/evals/test_flare_kestrel.py::test_the_flare_names_the_item_relieving_into_it_and_its_devices`, on the fake plant
+
+## outage_impact
+
+**What a planned outage costs the customers whose contracts it hits.** Engineering practice. A contract is hit when the outage takes its delivery point down, or leaves the point with no feed on the flow network, while the contract runs; it loses its daily volume for the hours hit, at its own rate. Where two outages hit one contract at once, the hours are counted once, and a customer hit at two or more separate times is flagged. Contract volumes stand in for nominations; no tariff, penalty or rerouting is modelled.
+
+- **Valid for:** Outages on the plan at a site with a customer and contract register whose delivery points are on the flow network.
+- **Needs:** The register; with none loaded, outages are listed and hit no one, and the cost is unknown.
+- **Run by:** `outage_impact`
+- **Worked example:** `tests/evals/test_outages_harrier.py::test_harrier_outages_know_the_contracts_and_delivery_points_they_hit`, on the fake plant

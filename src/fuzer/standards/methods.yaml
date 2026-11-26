@@ -785,3 +785,12 @@ flare_relief:
     rise: {value: 5, unit: "%", means: "A relieved item's pressure up this share over the hours before the episode names it a likely source.", code: "fuzer.analysis.flare:RISE", scale: 100}
     before: {value: 6, unit: h, means: "The hours before the episode its pressure is taken over."}
   vectors: [{worked: "tests/evals/test_flare_kestrel.py::test_the_flare_names_the_item_relieving_into_it_and_its_devices"}]
+
+outage_impact:
+  title: What a planned outage costs the customers whose contracts it hits
+  practice: "A contract is hit when the outage takes its delivery point down, or leaves the point with no feed on the flow network, while the contract runs; it loses its daily volume for the hours hit, at its own rate. Where two outages hit one contract at once, the hours are counted once, and a customer hit at two or more separate times is flagged. Contract volumes stand in for nominations; no tariff, penalty or rerouting is modelled."
+  tool: outage_impact
+  inputs: [{name: Contract daily volume, unit: bbl/d}, {name: Contract rate, unit: "$/bbl"}, {name: Outage start and finish on the plan, unit: h}]
+  valid: Outages on the plan at a site with a customer and contract register whose delivery points are on the flow network.
+  needs: The register; with none loaded, outages are listed and hit no one, and the cost is unknown.
+  vectors: [{worked: "tests/evals/test_outages_harrier.py::test_harrier_outages_know_the_contracts_and_delivery_points_they_hit"}]

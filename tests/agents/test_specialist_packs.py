@@ -149,3 +149,24 @@ def test_the_orchestrator_routes_by_the_packs_each_specialist_holds():
     assert packs.summary("production-surveillance/metering-and-balances").startswith("Metering and balances - ")
     assert "spare" in packs.summary("maintenance-integrity/reliability")
     assert "covers is that specialist's" in agents.ORCHESTRATOR
+
+
+def test_the_pipelines_specialist_is_data_and_skills_that_name_no_facility():
+    """P4.7: the specialist's packs, skills and tools hold no bundle's name or facility code; what is particular to a
+    line or its customers is in the bundle (its register and answer keys)."""
+    from pathlib import Path
+
+    import yaml
+
+    from fuzer import resources
+    from fuzer.agents.capabilities import pipelines
+    from fuzer.core import bundles
+
+    names = set()
+    for b in bundles.shipped():
+        names |= {b.lower(), str(yaml.safe_load((resources.BUNDLES / b / "pack.yaml").read_text())["facility"]).lower()}
+    files = [*(packs.SKILLS / "pipelines-commercial").rglob("*.*"), pipelines.__file__]
+    said = {str(f): [n for n in names if n in Path(f).read_text().lower()] for f in files}
+    assert {f: n for f, n in said.items() if n} == {}
+    assert {p for p in packs.shipped() if p.startswith("pipelines-commercial/")} == {
+        "pipelines-commercial/pipeline-integrity", "pipelines-commercial/outage-planning"}
