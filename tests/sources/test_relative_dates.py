@@ -57,6 +57,23 @@ def test_kestrel_trip_is_placed_relative_to_today():
     assert max(pd) > 60 and min(pd) < 35
 
 
+def test_kestrel_and_harrier_records_and_process_models_roll_forward():
+    """Every dated record and process event of the hand-written facilities is written relative to the day it is read
+    (#1085), so read on any day their latest records are yesterday's and nothing of theirs is left behind."""
+    import csv
+
+    for exports in (KESTREL, KESTREL.parents[1] / "harrier" / "exports"):
+        for name, column in (("oplogs", "timestamp"), ("dcs_alarm_journal", "timestamp"), ("ec_downtime", "start"),
+                             ("sap_notifications", "created"), ("sap_work_orders", "start"), ("ptw_permits", "valid_from")):
+            values = [r[column] for r in csv.DictReader((exports / f"{name}.csv").open())]
+            assert values and all(v.startswith("today") for v in values if v), (exports.parent.name, name)
+        latest = max(relative_dates.resolve(r["created"], DAY)
+                     for r in csv.DictReader((exports / "sap_notifications.csv").open()))
+        assert latest == "2026-11-08", exports.parent.name
+        spec = json.loads((exports / "process_model.json").read_text())  # its events relative, and new ones daily
+        assert spec.get("live") and not relative_dates.ISO.search(json.dumps([spec["units"], spec["events"]]))
+
+
 def test_kestrel_trip_reaches_the_rest_of_the_plant():
     """Yesterday's compressor trip, read across the expanded plant: the inlet gas goes to flare and the custody meter
     reads nothing while B1-K-2001 is down, the dew point plant warms without gas, and the amine contactor foams when
