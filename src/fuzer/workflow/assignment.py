@@ -281,6 +281,10 @@ def _agent_failed(conn, token_id, worker, error, now, max_attempts, backoff) -> 
     run.flush()
     return out
 
+# A case whose event the IOC shelved is off every queue until the shelf's date (#1390): the work tick puts it back.
+NOT_SHELVED = ("not exists (select 1 from exception_record x where x.item_id = i.id and x.state = 'open' "
+               "and x.shelved_until > %(now)s)")
+
 _TASKS = """
     select t.id as task_id, t.element, t.name, t.kind, t.role, t.assignee, t.requires_human, t.due_at, t.escalated_at,
            t.error, t.created_at, t.due_at < %(now)s as overdue, t.claimed_by, t.lease_until,
@@ -289,7 +293,7 @@ _TASKS = """
            i.id as item_id, i.type, i.title, i.priority, i.subjects, p.id as process_id, p.process_key, p.definition_id,
            {checklist}
     from work_token t join work_process p on p.id = t.process_id join work_item i on i.id = t.item_id
-    where t.state = 'waiting' and t.kind = any(%(kinds)s) and {who}
+    where t.state = 'waiting' and t.kind = any(%(kinds)s) and {who} and """ + NOT_SHELVED + """
     order by i.priority desc nulls last, t.due_at nulls last, t.id limit %(limit)s
 """
 
@@ -302,6 +306,7 @@ _ITEMS = """
            null::bigint as process_id, null as process_key, null::bigint as definition_id, {checklist}
     from work_item i
     where i.closed_at is null and {who} and not exists (select 1 from work_process p where p.item_id = i.id)
+      and """ + NOT_SHELVED + """
     order by i.priority desc nulls last, i.due nulls last, i.id limit %(limit)s
 """
 

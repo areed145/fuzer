@@ -333,6 +333,8 @@ export interface CaseOption {
   /** Readiness that can't be said, with why ("Parts readiness unknown: no stock source."): never read as ready. */
   unknown?: string[];
   plan_item?: number; start?: string; crew?: string | null; until?: string; to?: string;
+  /** A ride along: who takes it on the visit (the operator queue when null). */
+  operator?: string | null;
 }
 
 export interface OptionDecision { id: number; chosen: CaseOption["key"]; recommended: CaseOption["key"]; accepted: boolean;

@@ -172,6 +172,9 @@ def test_contained_with_a_follow_up_planned_sends_the_follow_up(conn):
     step = conn.execute("select role, assignee from work_token where item_id = %s and state = 'waiting' and kind = 'user'",
                         (after,)).fetchone()
     assert step == {"role": "maintenance_planner", "assignee": None}
+    # #1390 (D5): the close-out's note is what the follow-up asks, shown as its ask (the case page's `summary`)
+    payload = conn.execute("select payload from work_item where id = %s", (after,)).fetchone()["payload"]
+    assert (payload.get("start") or payload).get("summary") == "clamped, seal change due", payload
     assert disposition.form(conn, PACK, case)["follow_up"] == after
     said = [e["data"]["text"] for e in conn.execute(
         "select data from work_event where item_id = %s and kind = 'commented'", (case,))]
@@ -181,3 +184,23 @@ def test_contained_with_a_follow_up_planned_sends_the_follow_up(conn):
                                follow_up_to="role:maintenance_planner")
     assert again["follow_up"] == after
     conn.commit()
+
+
+def test_after_the_field_said_done_the_outcome_is_filled_in_as_fixed(conn):
+    """#1390 (D18): after a field Done "Gland refitted, cover bolt replaced" the close-out's Outcome read Not known."""
+    from psycopg.types.json import Jsonb
+
+    from fuzer.core import exceptions
+
+    conn.execute("insert into entity (fuzer_id, kind) values ('fz-pt2100', 'equipment') on conflict do nothing")
+    x = exceptions.raise_exception(conn, "drawing_disagreement", "pid:pt2100:gland", "20-P-2100 vibration high on the drive end",
+                                   "stewardship", refs=["fz-pt2100"])
+    item = conn.execute("select item_id from exception_record where id = %s", (x["id"],)).fetchone()["item_id"]
+    before = disposition.suggest(conn, PACK, item)
+    assert before.get("disposition") == "real" and "outcome" not in before, before
+    field = [{"status": "on_site", "by": "sam"}, {"status": "done", "by": "sam", "note": "Gland refitted"},
+             {"status": "note", "by": "sam", "note": "Area tidied"}]
+    conn.execute("update exception_record set evidence = evidence || %s where id = %s",
+                 (Jsonb({"field": field}), x["id"]))
+    assert disposition.suggest(conn, PACK, item)["outcome"] == "fixed"
+    conn.rollback()

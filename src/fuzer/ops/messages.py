@@ -66,9 +66,16 @@ LOG_ONLY = "log only: it says what was done and asks for nothing"
 OVER = re.compile(r"\b(closed again|(is |are )?back (to normal|in service|online|on line)|returned to normal|"
                   r"cleared( again)?|reset (and|ok)|recovered|restored|normal again|stable again|for info(rmation)?|"
                   r"fyi|no action (needed|required))\b", re.IGNORECASE)
-ASKS = re.compile(r"\?|\b(please|can (you|someone|we|anyone)|could (you|someone)|needs?|needed|check|look at|"
+# What asks for work, or says something is still wrong: a message with any of it is never information only.
+WORK = re.compile(r"\b(please|can (you|someone|we|anyone)|could (you|someone)|needs?|needed|check|look at|"
                   r"have a look|urgent|asap|help|still|keeps?|leak\w*|weep\w*|drip\w*|smell\w*|"
                   r"fire|smoke|h2s)\b", re.IGNORECASE)
+# A question that asks to be told something ("Anyone know why train C tripped last night?"), not for work in the field.
+QUESTION = re.compile(r"^(?=.*\?\s*$).*\b(any ?one know|do we know|who knows|any idea|why (did|was|is|has))\b",
+                      re.IGNORECASE | re.DOTALL)
+# A notice passed on for information: a vendor's service bulletin, an advisory, a service letter.
+NOTICE = re.compile(r"\b(service |technical |safety )?(bulletin|advisory|service letter|product notice)\b",
+                    re.IGNORECASE)
 GREETING = re.compile(r"^((good )?(morning|afternoon|evening)|hi|hello|hey|dear)\b[^,.:;!]{0,30}[,.:;!]\s*",
                       re.IGNORECASE)
 
@@ -99,10 +106,20 @@ def _log_only(text: str, subject: str | None) -> bool:
     return bool(DONE.search(text)) and not CONCERN.search(f"{subject or ''} {text}")
 
 
-def info_only(text: str) -> bool:
-    """Whether a message only says what happened and that it is over ("bypass opened during the restart, closed again
-    at 09:10"), asking for nothing: no field work to dispatch, though it opened a case (#1381)."""
-    return bool(OVER.search(text)) and not ASKS.search(text)
+def info_only(text: str) -> str | None:
+    """Why a message asks for no field work, though it opened a case; None when it may. It only says what happened and
+    that it is over ("bypass opened during the restart, closed again at 09:10", #1381), it asks a question to be
+    answered ("Anyone know why train C tripped?"), or it passes on a notice (a vendor's service bulletin) (#1390). A
+    message that also asks for work or says something is still wrong is none of these."""
+    if WORK.search(text):
+        return None
+    if QUESTION.search(text):
+        return "the message asks a question, not for field work"
+    if NOTICE.search(text):
+        return "the message passes on a notice for information"
+    if OVER.search(text) and "?" not in text:
+        return "the message says what happened and that it is over"
+    return None
 
 
 def text_of(conn, exception_id: int) -> str | None:

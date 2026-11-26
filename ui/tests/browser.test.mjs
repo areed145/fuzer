@@ -863,10 +863,47 @@ test("another option than the recommended one takes an optional why, which goes 
   assert.equal(await go.getAttribute("title"), null, "no reason hidden in a hover tooltip");
   await card.getByLabel("Why (optional, kept on the case)").fill("crew already on OKJ-01 that day");
   await go.click();
-  await page.getByRole("status").filter({ hasText: "Added to the visit. The choice and why are on the case." }).waitFor();
+  await page.getByRole("status").filter({ hasText: "Added to the visit for the operator queue. The choice and why are on the case." }).waitFor();
   assert.deepEqual(chosen, [{ by: "riley", option: "window", reason: "crew already on OKJ-01 that day" }]);
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
+
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.28b a ride along says whose field step it is, and no risk word shows without a basis (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    const chosen = [];
+    const base = caseOptions();
+    // no criticality on record: no risk on any option; the ride along goes to the visit's operator, sam
+    const options = caseOptions({
+      criticality: null, recommended: "window", reason: "The visit on Wed 25 Nov does it with nothing deferred while it waits.",
+      options: base.options.map(({ risk, ...o }) => (o.key === "window" ? { ...o, operator: "sam" } : o)),
+    });
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "20-K-2300B tripped", type: "machine_trip",
+      state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-22T12:00:00Z", events: [], processes: [],
+      payload: { exception_id: 7 } } }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: options }));
+    await page.route("**/exceptions/7/options/choose", (route) => {
+      chosen.push(route.request().postDataJSON());
+      return route.fulfill({ json: { choice: { id: 4, chosen: "window", recommended: "window", accepted: true },
+        event: { id: 7, item_id: 21, stage: "field", state: "open" } } });
+    });
+    await page.goto(`${url}/#/cases/21`);
+    await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    await page.reload();
+    const card = page.getByLabel("Options");
+    await card.getByText("Recommended", { exact: true }).waitFor();
+    assert.equal(await card.getByText(/^Risk/).count(), 0, "no risk word without a basis");
+    await card.getByRole("button", { name: "Add to the visit", exact: true }).click();
+    await page.getByRole("status")
+      .filter({ hasText: "Added to the visit for sam, as recommended. The choice and why are on the case." }).waitFor();
+    assert.deepEqual(chosen, [{ by: "riley", option: "window" }]);
+    if (size === "phone") {
+      const width = await page.evaluate(() => document.documentElement.scrollWidth);
+      assert.ok(width <= 390, `no sideways scroll (${width})`);
+    }
+    await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+  });
+}
 
 for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
   test(`P5.26h after Escalate the case reads again once its workflow has moved on, and waits for its options to draw (${size})`, async () => {

@@ -75,11 +75,24 @@ def suggest(conn, pack: Pack, item_id: int) -> dict:
     modes = [m for m in failure_modes_in(text, pack) if m not in ("OTH", "UNK")]
     if modes and "disposition" not in out:
         out |= {"disposition": "real", "failure_mode": modes[0]}
+    if out.get("disposition") == "real" and _field_done(conn, item_id):
+        out["outcome"] = "fixed"  # the field said Done: what they did fixed it, unless the person says otherwise (#1390)
     for code, pat in ACTION_WORDS:
         if re.search(pat, text, re.IGNORECASE):
             out["activity"] = code
             break
     return out
+
+
+def _field_done(conn, item_id: int) -> bool:
+    """Whether the field's last report on the case (a note after it changes nothing) was Done."""
+    row = conn.execute(
+        """
+        select (select f.r->>'status' from jsonb_array_elements(x.evidence->'field') with ordinality f(r, n)
+                where f.r->>'status' <> 'note' order by f.n desc limit 1) as last
+        from exception_record x where x.item_id = %s and jsonb_typeof(x.evidence->'field') = 'array'
+        """, (item_id,)).fetchall()
+    return any(r["last"] == "done" for r in row)
 
 
 FIELDS = ("disposition", "failure_mode", "mechanism", "cause", "activity", "outcome", "note", "duplicate_of")
@@ -214,22 +227,23 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
     else:
         work.comment(conn, item_id, by, f"Close-out: {said}")
     offer_feedback(conn, item_id, row, by)
-    return {**row, "follow_up": _send_follow_up(conn, item, by, follow_up_to) if follow_up_to else follow_up(conn, item_id)}
+    return {**row, "follow_up": (_send_follow_up(conn, item, by, follow_up_to, row["note"]) if follow_up_to
+                                 else follow_up(conn, item_id))}
 
 
 FOLLOW_UP = "follow_up_of"  # what a follow-up case carries: the case it follows up
 
 
-def _send_follow_up(conn, item: dict, by: str, to: str) -> int:
+def _send_follow_up(conn, item: dict, by: str, to: str, note: str | None = None) -> int:
     """The follow-up a contained close-out planned, as a case for `to`: one per case, linked both ways on the
-    history."""
+    history. The close-out's note is what it asks (#1390): it says what is left to do."""
     if have := follow_up(conn, item["id"]):
         return have
     queue = to.startswith("role:")
     subjects = conn.execute("select subjects from work_item where id = %s", (item["id"],)).fetchone()["subjects"]
     case = routing.open_task(conn, "task", f"Follow-up: {item['title']}", by, key=f"follow-up:{item['id']}",
                              role=to if queue else None, assignee=None if queue else to,
-                             data={FOLLOW_UP: item["id"]}, subjects=list(subjects or []), source=f"case:{item['id']}")
+                             data={FOLLOW_UP: item["id"], **({"summary": note} if note else {})}, subjects=list(subjects or []), source=f"case:{item['id']}")
     work.comment(conn, item["id"], by, f"Follow-up sent to {to.removeprefix('role:').replace('_', ' ')}"
                  f"{' queue' if queue else ''}: case {case['id']}")
     work.comment(conn, case["id"], by, f"Follows up case {item['id']}, contained when it closed")

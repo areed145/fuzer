@@ -29,15 +29,19 @@ Read from what Fuzer already has, never from equipment type:
                             or a leak with production behind it (#1381); escalate: the engineer queue's SLA (the ops
                             lead's for a gas test or permit), then a dispatch, never to a role the reader acts as
     what the field is asked the IOC's words, else the message the case came from, else ASK (#1381)
+    carrying one out        dispatch: to whom it is sent; ride along: a field step for the visit's operator (the
+                            person on it, else the operator queue) on the visit's day, asking the same (#1390);
+                            shelve: off every queue until its date; escalate: to that queue
     readiness and clashes   readiness.check (the field's last report, crew, permit, spares, simultaneous operations,
                             MOC) for dispatch now, less the visit it can ride along with: someone already at the
                             asset is the ride along, not a clash; the visit's own clashes on the plan for riding along
     price                   the pack's value config (oil per bbl, gas per Mscf)
 
-The recommendation is a rule, the same on every case, so two people reading one case get one answer: the cheapest
-option that is ready and does not leave a high risk waiting, where a separate trip (`options.trip_usd`) has to save
-more than it costs. It names the factor that decided it (`deciding`, one of FACTORS). Every open option carries the
-same fields (YARDSTICK), so options read on one scale whoever reads them: the shared skill
+The recommendation is a rule, the same on every case, so two people reading one case get one answer: riding along
+when it is ready and does not leave a high risk waiting, where a separate trip (`options.trip_usd`) has to save more
+than it costs, else dispatch now, else escalate. Shelve is offered but never recommended (#1390). It names the factor
+that decided it (`deciding`, one of FACTORS). Every open option carries the same fields (YARDSTICK), so options read
+on one scale whoever reads them: the shared skill
 `shared/options-and-tradeoffs` (P4.8) tells every specialist to answer from them. Anything not known is named, not
 guessed.
 """
@@ -332,6 +336,7 @@ def _visit(conn, row: dict, at: datetime, days: int) -> dict | None:
     event's own, on one of its assets or on what they are part of short of an area (an instrument's exchanger, a
     well's tags), never a field job that came back done or could not do (#1381). An area can be half a plant (one
     demo field's compression area holds half its tags), so a job elsewhere in it is not a visit to this one (#1358)."""
+    from . import exceptions
     from .plan import ACTIVE
 
     subjects = list(row["subjects"] or [])
@@ -347,7 +352,10 @@ def _visit(conn, row: dict, at: datetime, days: int) -> dict | None:
             select e.dst, up.depth + 1 from up join edge e on e.src = up.fuzer_id and e.rel = 'part_of'
             join entity k on k.fuzer_id = e.dst and k.kind not in ('area', 'facility') where up.depth < 4),
         mine as (select array_agg(fuzer_id) as ids from up)
-        select p.id, p.title, p.kind, p.start_at, p.end_at, p.crew from plan_item p, mine
+        select p.id, p.title, p.kind, p.start_at, p.end_at, p.crew,
+               (select w.assignee from exception_record v join work_item w on w.id = v.item_id
+                where v.id = p.exception_id and w.closed_at is null) as held_by
+        from plan_item p, mine
         where p.status = any(%(active)s) and p.status <> 'proposed' and p.end_at > %(at)s
           and p.start_at <= %(until)s and p.exception_id is distinct from %(e)s
           and not exists (select 1 from exception_record v  -- a field job that came back (a note after changes nothing)
@@ -360,7 +368,13 @@ def _visit(conn, row: dict, at: datetime, days: int) -> dict | None:
         order by p.start_at, p.id limit 1
         """, {"active": list(ACTIVE), "at": at, "until": at + timedelta(days=days), "e": row["id"],
               "s": subjects}).fetchone()
-    return {**r, "start_at": max(r["start_at"], at)} if r else None  # under way: it is there now
+    if not r:
+        return None
+    # who goes on the visit: the person it is booked to, else whoever holds the field job it is (a dispatch's bar)
+    crew = r["crew"] if r["crew"] and not r["crew"].startswith("role:") else None
+    held = r.pop("held_by")
+    return {**r, "start_at": max(r["start_at"], at),  # under way: it is there now
+            "operator": crew or (held if held in exceptions.operators(conn) else None)}
 
 
 def _beside(ready: dict, visit: dict | None) -> dict:
@@ -449,8 +463,10 @@ def _applies(conn, row: dict) -> str | None:
         return "the field has it" if row["stage"] == "field" else f"it is {row['stage']}"
     if row["stage"] == "back" and _last_report(row) == "done":
         return "the field reported it done: close it out"
-    if (text := messages.text_of(conn, row["id"])) and messages.info_only(text):
-        return "the message says what happened and that it is over: close it out"
+    if row.get("shelved_until") and row["shelved_until"] > datetime.now(row["shelved_until"].tzinfo):
+        return f"it is shelved until {row['shelved_until']:%a %d %b}"
+    if (text := messages.text_of(conn, row["id"])) and (why := messages.info_only(text)):
+        return f"{why}: close it out"
     return None
 
 
@@ -520,6 +536,7 @@ def for_exception(conn, exception_id: int, at: datetime | None = None, viewer: l
             "ready": not short, "blockers": short, "warnings": [], "unknown": [parts["note"]] if parts.get("unknown") else [],
             "clashes": _plan_clashes(conn, visit["id"], visit["start_at"], visit["end_at"]), "available": True,
             "person": visit.get("person"), "with_exception": visit.get("exception"),
+            "operator": visit.get("person") or visit.get("operator"),
             "basis": visit.get("basis") or f"{visit['kind'].replace('_', ' ')} on the plan on its equipment, then "
                                            f"{JOB_HOURS:g} h for the job"})
     else:
@@ -584,10 +601,12 @@ def _safety_types(conn) -> set[str]:
 
 
 def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[str | None, str, str]:
-    """One option, by one rule, the reason and the factor that decided it (one of FACTORS). Waiting is preferred while
-    it leaves no high risk and defers less than a separate trip costs; dispatch now when waiting costs more, or the
-    risk of waiting is high or not known; escalate when it should go now and can't. When it can't go now and an
-    escalation would come back to whoever reads it, none: the blocker is theirs to clear."""
+    """One option, by one rule, the reason and the factor that decided it (one of FACTORS). Riding along with the next
+    visit is preferred while it leaves no high risk and defers less than a separate trip costs; dispatch now when
+    waiting costs more or leaves the risk high; escalate when it should go now and can't. Shelve is never recommended
+    (#1390): a person may choose it, but a shelf leaves the work undone, and no rule on the record can say a defect is
+    safe to leave. When it can't go now and an escalation would come back to whoever reads it, none: the blocker is
+    theirs to clear."""
     from ..core.wording import money
 
     by = {o["key"]: o for o in options if o.get("available")}
@@ -595,25 +614,16 @@ def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[s
     usd = lambda o: (o.get("deferred") or {}).get("usd") or 0
     level = lambda o: (o.get("risk") or {}).get("level")
     waiting = [o for o in (by.get("window"), by.get("shelve")) if o]
-    # a shelf is only recommended on a risk the record backs; riding along with a visit already going there is not
-    # a wait anyone needs a criticality to judge
-    waits = [o for o in waiting if o["ready"] and level(o) != "High" and (level(o) or o["key"] == "window")]
-    cheapest = min(waits, key=lambda o: (usd(o), o["hours"])) if waits else None
-    saved = usd(cheapest) - usd(d) if cheapest else None
-    if cheapest and saved <= trip_usd:
-        risk = (f"waiting leaves the risk {level(cheapest).lower()}" if level(cheapest)
+    # riding along with a visit already going there is not a wait anyone needs a criticality to judge
+    w = by.get("window")
+    if w and w["ready"] and level(w) != "High" and (saved := usd(w) - usd(d)) <= trip_usd:
+        risk = (f"waiting leaves the risk {level(w).lower()}" if level(w)
                 else "the risk of waiting is not known (no criticality on record)")
-        if cheapest["key"] == "window":
-            cost = (f"{_money(saved)} more deferred than going now, less than a separate trip "
-                    f"({money(trip_usd)})" if now and saved > 0 else "nothing deferred while it waits")
-            if cheapest.get("person"):
-                return ("window", f"{cheapest['person']} is already there: riding along does it with {cost}; {risk}.",
-                        "readiness")
-            return ("window", f"The visit on {cheapest['detail'].rsplit(', ', 1)[-1]} does it with {cost}; {risk}.",
-                    "deferred")
-        cost = (f"Waiting defers {_bbl(cheapest)} ({_money(usd(cheapest))}), less than a separate trip "
-                f"({money(trip_usd)})" if now and usd(cheapest) else "Nothing is deferred while it waits")
-        return "shelve", f"{cost}; {risk}.", "deferred"
+        cost = (f"{_money(saved)} more deferred than going now, less than a separate trip "
+                f"({money(trip_usd)})" if now and saved > 0 else "nothing deferred while it waits")
+        if w.get("person"):
+            return "window", f"{w['person']} is already there: riding along does it with {cost}; {risk}.", "readiness"
+        return "window", f"The visit on {w['detail'].rsplit(', ', 1)[-1]} does it with {cost}; {risk}.", "deferred"
     alt = min(waiting, key=lambda o: (usd(o), o["hours"])) if waiting else None
     if d["ready"]:
         why, deciding = [], None
@@ -627,7 +637,7 @@ def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[s
         if any(level(o) == "High" for o in waiting):
             why.append("waiting leaves the risk high" if why else "Waiting leaves the risk high")
             deciding = deciding or "risk"
-        if not deciding and not any(level(o) for o in waiting):
+        if not deciding and d.get("risk") is None:  # a risk word shows beside it only when the record backs one
             why.append("The risk of waiting is not known (no criticality on record)")
             deciding = "risk"
         why.append("nothing blocks it")
@@ -710,22 +720,28 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
             work.set_due(conn, row["item_id"], by, due, "wanted back by then when dispatched")
         if row["item_id"] and priority is not None:
             work.set_priority(conn, row["item_id"], by, priority, "set when dispatched")
-    elif option == "window" and o.get("person"):  # someone already at the asset takes it with them
+    elif option == "window":
+        # A field step for whoever goes on the visit, asking what was reported (#1390): someone already at the asset
+        # takes it with them now; a visit on the plan takes it on its day, booked to its operator, else the operator
+        # queue. Never only a bar on the plan with the case left at the desk.
         said = _ask(conn, eid)
         told = (ask or "").strip() or f"While you are there: {said[0].lower()}{said[1:]}"
-        row = exceptions.dispatch(conn, eid, by, o["person"], told)
-    elif option == "window":
-        from ..core.plan import PlanError
+        to = o.get("operator") or f"role:{exceptions.OPERATOR_ROLE}"
+        if o.get("person"):
+            row = exceptions.dispatch(conn, eid, by, to, told)
+        else:
+            from ..core.plan import PlanError
 
-        start = datetime.fromisoformat(o["start"])
-        try:
-            plan.plan_exception(conn, eid, by, start, start + timedelta(hours=JOB_HOURS), crew=o.get("crew"),
-                                notes=f"Rides along with {o['detail']}. Why: {why}")
-        except PlanError as e:
-            raise OptionsError(str(e)) from e
-        row = _event(conn, eid)
-        if row["item_id"]:
-            work.set_due(conn, row["item_id"], by, start + timedelta(hours=JOB_HOURS), f"rides along with {o['detail']}")
+            start = datetime.fromisoformat(o["start"])
+            try:
+                plan.plan_exception(conn, eid, by, start, start + timedelta(hours=JOB_HOURS), crew=to,
+                                    notes=f"Rides along with {o['detail']}. Why: {why}")
+            except PlanError as e:
+                raise OptionsError(str(e)) from e
+            row = exceptions.dispatch(conn, eid, by, to, told, planned=True)
+            if row["item_id"]:
+                work.set_due(conn, row["item_id"], by, start + timedelta(hours=JOB_HOURS),
+                             f"rides along with {o['detail']}")
     elif option == "shelve":
         row = exceptions.shelve(conn, eid, by, why, o["until"])
     else:

@@ -63,7 +63,9 @@ function OptionsView({ d, person, readOnly, onChosen }: {
   const choose = (opt: CaseOption, c: Choice = {}, name?: string) => {
     setActed(opt.key);
     return a.run(DOING[opt.key], () => api.chooseOption(d.exception_id!, person, opt.key, c), () => {
-      const to = opt.key === "dispatch" ? ` to ${c.to && !c.to.startsWith("role:") ? name ?? personName(c.to) : `the ${queue(c.to ?? "operator")}`}` : "";
+      // who it went to: a dispatch's pick, or the visit's operator a ride along adds a field step for (#1390)
+      const who = opt.key === "dispatch" ? c.to : opt.key === "window" ? opt.operator ?? undefined : null;
+      const to = who === null ? "" : ` ${opt.key === "window" ? "for" : "to"} ${who && !who.startsWith("role:") ? name ?? personName(who) : `the ${queue(who ?? "operator")}`}`;
       onChosen(`${DONE[opt.key]}${to}${opt.key === d.recommended ? ", as recommended" : ""}. The choice and why are on the case.`);
     });
   };
