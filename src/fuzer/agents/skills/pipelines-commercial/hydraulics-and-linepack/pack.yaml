@@ -1,0 +1,14 @@
+# The hydraulics and linepack specialist pack (P4.7a): a line's pressures and flows against their band, the pump
+# station trips behind a change and the line balance between its end meters. SKILL.md is its playbook; this file names
+# what the playbook relies on, so a missing or renamed piece fails the pack conformance test
+# (tests/agents/test_specialist_packs.py) instead of an answer on a case.
+title: Hydraulics and linepack
+owner: pipelines-commercial           # the agent that loads this pack
+classes: [pipeline]                   # a line; a pump at its origin station is on it (agents/brief.owner)
+tools: [calc, detect_changes, limits, measurements, pipeline_segments, plot_trend, trip_analysis]
+charts: [plot_trend]
+methods: [compressor_trip]            # the one trip diagnosis, any train
+detectors: [pump_trips]
+briefs: [machine_trip]                # a trip of the pump that drives the line (P4.3)
+roles: [pressure, flow, power, vibration, bearing_temperature]
+eval: hydraulics-and-linepack         # each bundle's answer keys: evals/hydraulics-and-linepack.yaml in the bundle

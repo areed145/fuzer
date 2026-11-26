@@ -1,0 +1,10 @@
+# Answer keys for the hydraulics and linepack specialist pack's eval on this bundle (P4.7a), in the shape of the
+# assistant eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# Mainline pump A at the origin station shook for hours and tripped on high vibration; the line runs from the origin
+# meter A1-FT-1010 to the receipt meter D1-FT-4002, and Fuzer holds no hydraulic model of it.
+- question: Mainline pump A at the origin station tripped yesterday. What tripped it and what should we check on the line?
+  must_mention: [A1-P-1003A, vibration, [A1-FT-1010, D1-FT-4002, line balance], [hydraulic model, linepack]]
+  specialists: [pipelines-commercial]
+- question: How much can the mainline move with the midline pump station down?
+  must_mention: [[unknown, cannot, can't, not estimated], [hydraulic model, design capacity]]
+  specialists: [pipelines-commercial]

@@ -169,4 +169,5 @@ def test_the_pipelines_specialist_is_data_and_skills_that_name_no_facility():
     said = {str(f): [n for n in names if n in Path(f).read_text().lower()] for f in files}
     assert {f: n for f, n in said.items() if n} == {}
     assert {p for p in packs.shipped() if p.startswith("pipelines-commercial/")} == {
-        "pipelines-commercial/pipeline-integrity", "pipelines-commercial/outage-planning"}
+        "pipelines-commercial/pipeline-integrity", "pipelines-commercial/outage-planning",
+        "pipelines-commercial/hydraulics-and-linepack"}
