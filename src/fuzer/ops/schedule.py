@@ -9,6 +9,9 @@ with durations, links between them and the shared resources they need.
     apply(conn, code, by)              write the levelled dates onto the plan items (P6's "schedule")
     add_activity / change_activity / remove_activity / link / unlink   what a planner edits on Plan
     set_demand / set_resource          the resources an activity needs, and what a resource has
+    resource_load(conn, ...)           every source's demand on each shared resource, day by day, against capacity
+    constraints(conn, start, days)     the constraint check: each overload on every resource, the jobs causing it
+                                       and the capacity windows (weather, leave, a vessel in dock) that lowered it
 
 The activities are ordinary plan items (kind turnaround, project or campaign) with a project, an activity code and a
 duration, so clashes, bundling, parts readiness and SIMOPS read them like any other planned job, and a crew's other
@@ -341,6 +344,11 @@ def import_template(conn, doc: dict, by: str, replace: bool = False) -> dict:
         set_resource(conn, r["code"], by, name=r.get("name"), kind=r.get("kind", "crew"), unit=r.get("unit"),
                      capacity=r.get("capacity"), work_center=r.get("work_center"), keep=True,
                      counts=r.get("counts"), routine=r.get("routine"))
+    for w in doc.get("windows") or []:  # a capacity for a while: a weather window, a vessel in dock
+        a, b = plan._when(resolve(w["start"])) + roll, plan._when(resolve(w["end"])) + roll
+        if not conn.execute("select 1 from plan_resource_capacity where resource = %s and start_at = %s and end_at = %s",
+                            (w["resource"], a, b)).fetchone():
+            set_capacity_window(conn, w["resource"], a, b, float(w.get("capacity") or 0), by, w.get("reason"))
     calendar = Calendar(start, cal.get("hours_per_day", 24), cal.get("days_per_week", 7))
     ids, summaries = {}, {}
     for a in doc.get("activities") or []:
@@ -872,7 +880,7 @@ def _crew_trips(conn, crews: list[str]) -> list[dict]:
     names = {r["code"]: r["name"] for r in conn.execute("select code, name from plan_resource where code = any(%s)", (crews,))}
     jobs = conn.execute(
         """
-        select d.resource, i.project, i.start_at, i.end_at, d.quantity
+        select d.resource, i.id, i.code, i.title, i.project, i.start_at, i.end_at, d.quantity
         from plan_demand d join plan_item i on i.id = d.item_id
         where d.resource = any(%s) and i.status = any(%s) and i.project is not null and i.source = 'schedule'
           and d.quantity > 0
@@ -894,16 +902,20 @@ def _crew_trips(conn, crews: list[str]) -> list[dict]:
 
 def _crew_moves(conn, crews: list[str], start: datetime, end: datetime) -> list[dict]:
     """Each of `crews` travelling for a schedule: out at its peak size the day its first job starts, back the day
-    its last job finishes. One row per crew, schedule and direction, lasting that day."""
+    its last job finishes. One row per crew, schedule and direction, lasting that day, with the job it travels for
+    (`travels_for`: the first job out, the last one back), the job that moves the trip when it moves."""
     moves = []
     for t in _crew_trips(conn, crews):
-        for way, at in (("flies out", t["first"]), ("flies back", t["last"])):
+        first = min(t["jobs"], key=lambda j: (j["start_at"], j["id"]))
+        last = max(t["jobs"], key=lambda j: (j["end_at"], j["id"]))
+        for way, at, job in (("flies out", t["first"], first), ("flies back", t["last"], last)):
             day = at.replace(hour=0, minute=0, second=0, microsecond=0)
             if day < end and day + timedelta(days=1) > start:
                 moves.append({"crew": t["crew"], "id": None, "title": f"{t['name']} {way}", "kind": "crew_change",
                               "project": t["project"], "code": None, "source": "crew change", "source_key": None,
                               "start_at": day, "end_at": day + timedelta(days=1), "status": "scheduled",
-                              "quantity": t["peak"], "way": "out" if way == "flies out" else "back"})
+                              "quantity": t["peak"], "way": "out" if way == "flies out" else "back",
+                              "travels_for": {"item_id": job["id"], "code": job["code"], "title": job["title"]}})
     return moves
 
 
@@ -1004,12 +1016,15 @@ def _source(row) -> str:
     return row["project"] or {"maintenance": "SAP orders"}.get(row["kind"], row["kind"].replace("_", " "))
 
 
-def resource_load(conn, resource: str | None = None, start: datetime | None = None, days: int = 42) -> dict:
+def resource_load(conn, resource: str | None = None, start: datetime | None = None, days: int = 42,
+                  moves: bool = True) -> dict:
     """What every source on the plan asks of each shared resource, day by day, against its capacity: per resource
     and day the peak hour's demand split by source (each schedule, SAP orders on the work center, campaigns, other
-    work) and the least capacity that day, then each run of hours over capacity with the jobs in it and the move
+    work) and the least capacity that day, then each run of hours over capacity (`overloads`) with the jobs in it,
+    the capacity windows that lowered it then (`limited_by`: a weather window, leave, a vessel in dock) and the move
     that clears it at the least cost (the job with the most float, or work with no schedule logic behind it,
-    slipped to the end of the run). `resource` narrows it to one; times are wall-clock hours."""
+    slipped to the end of the run). `resource` narrows it to one; `moves` false leaves the moves out (they read each
+    schedule's float); times are wall-clock hours."""
     start = (start or clock.now()).replace(hour=0, minute=0, second=0, microsecond=0)
     if start.tzinfo is None:  # the page sends a day, and clock.now() is wall clock: both are the plant's time
         start = start.replace(tzinfo=clock.zone())
@@ -1035,7 +1050,7 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
     h_of = lambda t: (t - start).total_seconds() / 3600
     # float per schedule activity, from each schedule's own analysis, so a move can say what it costs
     floats: dict[int, float] = {}
-    for p in {r["project"] for r in rows if r["project"] and r["source"] == "schedule"}:
+    for p in {r["project"] for r in rows if r["project"] and r["source"] == "schedule"} if moves else ():
         try:
             for a in analyse(conn, p)["activities"]:
                 floats[a["id"]] = a["float_hours"]
@@ -1091,26 +1106,31 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
                     h += 1
                 in_run = {x["id"] or (x["title"], x["project"]): x for hh in range(a, h) for x in jobs[hh]}
                 over = max(total[hh] - cap[hh] for hh in range(a, h))
-                moves = []
-                for x in in_run.values():
+                ways = []
+                for x in in_run.values() if moves else ():
                     if x["status"] == "in_progress" or x["quantity"] + EPS < over or x["id"] is None:
                         continue  # started work stays; moving a job too small to clear the run doesn't clear it
                     shift = h_of(start + timedelta(hours=h)) - h_of(x["start_at"])
                     fl = floats.get(x["id"])
                     late = max(0.0, shift - fl) if fl is not None else None
-                    moves.append({"item_id": x["id"], "title": x["title"], "source": _source(x), "code": x["code"],
+                    ways.append({"item_id": x["id"], "title": x["title"], "source": _source(x), "code": x["code"],
                                   "order": x["source_key"] if x["source"] != "schedule" else None,
                                   "slip_hours": round(shift, 1), "float_hours": fl,
                                   "finish_later_days": round(late / 24, 1) if late is not None else None,
                                   "new_start": start + timedelta(hours=h),
                                   "new_end": x["end_at"] + timedelta(hours=shift)})
-                moves.sort(key=lambda m: (m["finish_later_days"] if m["finish_later_days"] is not None else 0.5,
-                                          m["slip_hours"], m["item_id"]))
-                runs.append({"from": start + timedelta(hours=a), "to": start + timedelta(hours=h),
+                ways.sort(key=lambda m: (m["finish_later_days"] if m["finish_later_days"] is not None else 0.5,
+                                         m["slip_hours"], m["item_id"]))
+                at, to = start + timedelta(hours=a), start + timedelta(hours=h)
+                runs.append({"key": f"{code}@{at.isoformat()}", "from": at, "to": to,
                              "peak": round(max(total[a:h]), 2), "capacity": min(cap[a:h]), "over_by": round(over, 2),
+                             "limited_by": [{"id": w["id"], "start": w["start_at"], "end": w["end_at"],
+                                             "capacity": w["capacity"], "reason": w["reason"]} for w in windows[code]
+                                            if w["start_at"] < to and w["end_at"] > at and w["capacity"] < r["capacity"]],
                              "jobs": [{"item_id": x["id"], "title": x["title"], "source": _source(x), "code": x["code"],
-                                       "quantity": x["quantity"]} for x in in_run.values()],
-                             "moves": moves[:3]})
+                                       "quantity": x["quantity"], **({"travels_for": x["travels_for"]} if x.get("travels_for") else {})}
+                                      for x in in_run.values()],
+                             "moves": ways[:3]})
             else:
                 h += 1
         out.append({"code": code, "name": r["name"], "kind": r["kind"], "unit": r["unit"], "capacity": r["capacity"],
@@ -1120,6 +1140,34 @@ def resource_load(conn, resource: str | None = None, start: datetime | None = No
                                           "capacity": w["capacity"], "reason": w["reason"]} for w in windows[code]]})
     return {"start": start, "end": end, "days": days, "resources": out,
             "basis": "every active planned job's resource needs, at its planned dates, against each resource's capacity"}
+
+
+def constraints(conn, start: datetime | None = None, days: int = 42, moves: bool = True) -> dict:
+    """The constraint check: every overload on every shared resource (crews, beds, seats, vessels, cranes, deck
+    space, production capacity) from `start` for `days`, first to last. Each names the resource, the hours it is
+    over, the need against the capacity, the capacity windows that lowered it (a weather window, leave, a vessel in
+    dock), the jobs causing it (`jobs`; a crew change names the job it `travels_for`) and the moves that clear it.
+    `key` (resource@start) names an overload for a proposal that clears it. Read from `resource_load`."""
+    load = resource_load(conn, None, start, days, moves=moves)
+    rows = [{"resource": r["code"], "name": r["name"], "kind": r["kind"], "unit": r["unit"], **o}
+            for r in load["resources"] for o in r["overloads"]]
+    return {"start": load["start"], "end": load["end"], "days": days,
+            "overloads": sorted(rows, key=lambda o: (o["from"], o["resource"])), "basis": load["basis"]}
+
+
+def over_capacity(conn, start: datetime, end: datetime) -> dict[int, list[dict]]:
+    """Per plan item, the overloads it is in from `start` to `end` (the constraint check, without moves): as a job
+    using the resource, or as the job a crew travels for."""
+    days = max(1, min(366, -(-(end - start) // timedelta(days=1)) + 1))
+    out: dict[int, list[dict]] = defaultdict(list)
+    for o in constraints(conn, start, days, moves=False)["overloads"]:
+        brief = {k: o[k] for k in ("key", "resource", "name", "kind", "unit", "from", "to", "peak", "capacity", "over_by")}
+        brief["limited_by"] = [w["reason"] for w in o["limited_by"] if w["reason"]]
+        for j in o["jobs"]:
+            i = j["item_id"] or (j.get("travels_for") or {}).get("item_id")
+            if i and all(x["key"] != o["key"] for x in out[i]):
+                out[i].append(brief)
+    return dict(out)
 
 
 def set_capacity_window(conn, resource: str, start: datetime, end: datetime, capacity: float, by: str,

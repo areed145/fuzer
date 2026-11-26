@@ -24,6 +24,8 @@ def test_a_template_holds_together(path):
     assert len(codes) == len(set(codes)) and doc["code"] and doc["start"] and doc["finish_by"]
     resources = {r["code"] for r in doc["resources"]}
     assert all(set(r.get("counts") or []) <= resources for r in doc["resources"])
+    for w in doc.get("windows") or []:  # a capacity for a while (a weather window) on a declared resource
+        assert w["resource"] in resources and w["end"] > w["start"] and w.get("capacity", 0) >= 0 and w.get("reason"), w
     for a in doc["activities"]:
         assert a["hours"] >= 0 and set(a.get("needs") or {}) <= resources, a["code"]
         assert all(str(link).split()[0] in codes for link in a.get("after") or []), a["code"]

@@ -1,7 +1,7 @@
 """The built-in integrated plan behind fuzer.core.plan: plan_item rows from every source on one timeline.
 
     propose / update             the contract (core/plan.py)
-    items(conn, start, end)      the plan in a window, each item with its clashes and bundling chances
+    items(conn, start, end)      the plan in a window, each item with its clashes, bundling chances and overloads
     sync_work_orders(conn)       open SAP work orders with dates in the register, as plan items
     sync_maintenance_plans(conn) the next due date of each SAP maintenance and inspection plan, as plan items
     plan_exception(conn, id, ...)  an exception the IOC chose to plan rather than work now
@@ -185,13 +185,14 @@ def _clashes(rows: list[dict]) -> dict[int, list[dict]]:
 
 def items(conn, start=None, end=None, area: str | None = None, status: str | None = None,
           subject: str | None = None, crew: str | None = None, within: str | None = None,
-          active: bool = False) -> list[dict]:
+          active: bool = False, over_capacity: bool = False) -> list[dict]:
     """The plan between start and end (default: from a week ago to eight weeks ahead), in start order, each item
     with its subjects' and area's labels, its clashes and bundling chances. Items just outside the window that
     touch the same areas are compared too, so a clash at its edge still shows. `within` keeps the items about an
     entity or anything beneath it (an entity page's Schedule); `active` keeps the work still to do (Plan's timeline:
     a job that is done or cancelled is no longer on the day). A job whose case is open is booked to whoever has the
-    case now."""
+    case now. `over_capacity` adds the constraint check's overloads each item is in (schedule.over_capacity), as
+    Plan's timeline flags them."""
     now = datetime.now(UTC)
     inside = None
     if within:
@@ -228,8 +229,12 @@ def items(conn, start=None, end=None, area: str | None = None, status: str | Non
     shown = [r for r in rows if r["start_at"] < end and r["end_at"] > start and (status is None or r["status"] == status)
              and (crew is None or r["crew"] == crew) and (not active or r["status"] in ACTIVE)]
     short = _parts_short(conn, shown, now)
-    return [{**r, "clashes": clashes[r["id"]], "parts_short": short.get(r["id"], []), "stage": job_stage(r)}
-            for r in shown]
+    over = {}
+    if over_capacity:
+        from . import schedule
+        over = schedule.over_capacity(conn, start, end)
+    return [{**r, "clashes": clashes[r["id"]], "parts_short": short.get(r["id"], []), "stage": job_stage(r),
+             **({"over_capacity": over.get(r["id"], [])} if over_capacity else {})} for r in shown]
 
 
 JOB_STAGES = ("planned", "scheduled", "released", "in_progress", "done", "cancelled")

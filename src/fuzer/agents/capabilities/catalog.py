@@ -368,8 +368,10 @@ SKILL_CATALOG = (
         "Schedules on the integrated plan: activities, durations, links and the shared resources they need, beside "
         "other planned work on the same resources.",
         "The critical path, the schedule levelled against crews and other shared resources, what drives the finish "
-        "against the window, the overloads and a Gantt.",
-        "Weather, permits and logistics count only where the plan holds them as resources. " + _APPROVE),
+        "against the window, the overloads and a Gantt, and the constraint check: every shared resource's overloads "
+        "with the jobs causing them.",
+        "Weather counts only as a resource's capacity window; permits and logistics only where the plan holds them as "
+        "resources. " + _APPROVE),
     SkillDefinition(
         f"{_WORK}/job-readiness", (_WORK,),
         (WORK_PLANNER, WORK_SCHEDULER, SUPPLY_CHAIN_SPECIALIST, LOGISTICS_COORDINATOR),

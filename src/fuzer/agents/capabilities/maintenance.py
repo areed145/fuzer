@@ -404,6 +404,30 @@ def logistics_plan(start: str | None = None, days: int = 14) -> dict[str, Any]:
             return {"error": str(e)}
 
 
+@capability("work-management-supply-chain", "orchestrator", kind="calc")
+def plan_constraints(start: str | None = None, days: int = 42) -> dict[str, Any]:
+    """The constraint check on the integrated plan from `start` (a date; default today) for `days`: every overload on
+    every shared resource (crews, beds, helicopter or boat seats, vessels, cranes, deck space, production capacity),
+    first to last. Each gives the resource, the hours it is over (`from`, `to`), the need against the capacity
+    (`peak`, `capacity`, `over_by`, `unit`), the capacity windows that lowered it (`limited_by`: a weather window,
+    leave, a vessel in dock, with its reason), the jobs causing it (`jobs`; a crew change names the job it
+    `travels_for`) and up to three moves that clear it (`moves`: slip a job, with what it costs the schedule's
+    finish). It reads the plan's dates and resource needs; it moves and books nothing."""
+    from datetime import datetime
+
+    from ...core.plan import PlanError
+    from ...ops import schedule
+    try:
+        at = datetime.fromisoformat(start) if start else None
+    except ValueError:
+        return {"error": f"start must be a date such as 2027-02-23, not {start!r}"}
+    with db.connect() as conn:
+        try:
+            return _plain(schedule.constraints(conn, at, max(1, min(days, 180))))
+        except PlanError as e:
+            return {"error": str(e)}
+
+
 @capability("work-management-supply-chain", "maintenance-integrity", "orchestrator", kind="plot")
 def plot_gantt(project: str | None = None, levelled: bool = True) -> dict[str, Any]:
     """Chart a schedule on the integrated plan as a Gantt: a bar per activity at its levelled dates (early dates with

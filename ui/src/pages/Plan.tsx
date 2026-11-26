@@ -2,7 +2,7 @@
  * turnaround work, inspections and the exceptions the IOC chose to plan sit side by side, so two jobs on one asset,
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
 import { acronyms, detectorName, person as personName, queue, say } from "../wording";
-import { money, whenDay, whenHour, estimate } from "../format";
+import { money, when, whenDay, whenHour, estimate } from "../format";
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem, type ResourceLoad } from "../api";
 import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field, confirmDialog, promptDialog } from "../ui";
@@ -104,7 +104,7 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
   }, []);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   // the work still to do: a job that is done or cancelled leaves the timeline (tour E, E11)
-  const plan = useAsync(() => api.plan({ start: from, end: to, within, active: true }), [from, to, within]);
+  const plan = useAsync(() => api.plan({ start: from, end: to, within, active: true, overCapacity: !within }), [from, to, within]);
   const { busy, error, run } = useAction();
   const [open, setOpen] = useState<number | null>(() => Number(query.get("item")) || null);
   const askedItem = Number(query.get("item")) || null, askedFrom = query.get("from");
@@ -138,6 +138,7 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
   const clashes = plan.data.filter((i) => i.clashes.some((c) => c.kind !== "bundle")).length;
   const bundles = plan.data.filter((i) => i.clashes.some((c) => c.kind === "bundle")).length;
   const waiting = plan.data.filter((i) => i.parts_short?.length).length;
+  const overloaded = plan.data.filter((i) => i.over_capacity?.length).length;
   const today = pos(new Date().toISOString());
   // Lines on every track and a time axis above them (#1078): every three hours on a day, every day over two weeks or
   // less, every Monday beyond.
@@ -166,6 +167,7 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
       {i.place === "desk" && <Badge>desk</Badge>}
       {i.stage === "released" && <Badge tone="ok">released</Badge>}
       {!!i.parts_short?.length && <Badge tone="warn">parts short</Badge>}
+      {!!i.over_capacity?.length && <Badge tone="danger">over capacity</Badge>}
     </button>
     <div className="plan-track" aria-hidden="true">
       {taWindow && <span className="plan-window" style={{ left: `${taWindow.left}%`, width: `${Math.max(0.8, taWindow.right - taWindow.left)}%` }} />}
@@ -201,6 +203,7 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
         {clashes > 0 && <Badge tone="danger">{clashes} with a clash</Badge>}
         {bundles > 0 && <Badge tone="ok">{bundles} could ride along with a shutdown</Badge>}
         {waiting > 0 && <Badge tone="warn">{waiting} waiting on parts</Badge>}
+        {overloaded > 0 && <Badge tone="danger">{overloaded} over capacity</Badge>}
       </Line>
       {busy && <p role="status">{busy}…</p>}
       <ErrorText>{error}</ErrorText>
@@ -227,6 +230,7 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
                 <Text small muted> {entry.length} exceptions · {short(first.start_at)}–{short(ends[ends.length - 1])}</Text>
                 {entry.some((i) => i.clashes.some((c) => c.kind !== "bundle")) && <Badge tone="danger">clash</Badge>}
                 {entry.some((i) => i.parts_short?.length) && <Badge tone="warn">parts short</Badge>}
+                {entry.some((i) => i.over_capacity?.length) && <Badge tone="danger">over capacity</Badge>}
               </Button>
               <div className="plan-track" aria-hidden="true">
                 {today > 0 && today < 100 && <span className="plan-today" />}
@@ -304,6 +308,11 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
       </Text>}
       {item.clashes.map((c, n) => <p key={n} className={`small ${c.kind === "bundle" ? "" : "error"}`}>
         {c.kind === "bundle" ? "Bundle: " : c.kind === "simops" ? "Simultaneous operations: " : "Clash: "}{say(c.say)}</p>)}
+      {/* the constraint check: each shared resource this job is over on, with the weather or leave behind it */}
+      {item.over_capacity?.map((o) => <Text as="p" small key={o.key}>
+        <Badge tone="danger">over capacity</Badge> {o.name} needs {num(o.peak)} against {num(o.capacity)}{o.unit ? ` ${o.unit}` : ""}, {when(o.from)} to {when(o.to)}
+        {o.limited_by.length ? ` (${o.limited_by.join("; ")})` : ""}.{" "}
+        <a href={`#/plan?resources=1&resource=${encodeURIComponent(o.resource)}`}>Resources</a></Text>)}
       {/* by name, as every page names entities: equipment by the tag it is installed at, not "S/N 72852" */}
       {item.assets.length > 0 && <Text as="p" small><EntityLinks ids={item.assets.map((a) => a.fuzer_id)} /></Text>}
       {item.item_id != null ? <Text as="p" small><a href={href(`/cases/${item.item_id}`)}>Open its case</a></Text>

@@ -1,6 +1,6 @@
 ---
 name: integrated-planning
-description: Integrated planning - the critical path of a turnaround, project or campaign, its schedule levelled against shared resources (crews, cranes, beds, seats, vessels, deck space, capacity), what drives the finish, a Gantt, and each day's logistics (crews to jobs, travel, seats, beds, lifts).
+description: Integrated planning - the critical path of a turnaround, project or campaign, its schedule levelled against shared resources (crews, cranes, beds, seats, vessels, deck space, capacity), what drives the finish, a Gantt, each day's logistics (crews to jobs, travel, seats, beds, lifts), and the constraint check (every overload and the jobs causing it).
 ---
 
 # Integrated planning
@@ -33,12 +33,18 @@ on Plan, beside SAP orders and other planned work, so one schedule answers both 
    jobs that start that day with what covers each. Lead with any day that is `over` and say what it is short of,
    then any material that is `late` or not on order. A crew travels only when a seats or beds resource counts it.
    These are the plan's needs, not bookings.
+9. **Constraint check.** `plan_constraints(start, days)` lists every overload on every shared resource across the
+   whole plan, not one schedule: the resource, the hours, the need against the capacity, the jobs causing it, and
+   `limited_by` when a capacity window lowered it (a weather window, leave, a vessel in dock). Name each overload
+   with its resource, dates, need against capacity and the jobs, give the reason of any window behind it, then the
+   first of its `moves`. A crew change names the job it `travels_for`: moving that job moves the trip.
 
 **Report:** the critical path, the unconstrained and levelled finish against the window, what drives the levelled
 finish, the overloads with options, then the Gantt.
 
-**Unknown here.** Weather windows, permits and isolations, and logistics (beds, seats and vessels) count only when
-the plan holds them as resources with needs. Otherwise say they are not modelled. Never state that work is
+**Unknown here.** Weather counts only where a resource has a capacity window for it (seats grounded by fog, a
+crane stood down for wind); permits, isolations and logistics (beds, seats and vessels) only where the plan holds
+them as resources with needs. Otherwise say they are not modelled. Never state that work is
 scheduled or committed: the planner applies a schedule on Plan.
 
 **Production capacity.** A resource of kind capacity is the most the system can handle online at once, in BOE/d.

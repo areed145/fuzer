@@ -93,8 +93,12 @@ function Overload({ o, unit, person, onChange }: { o: ResourceOverload; unit: st
   return (
     <li>
       <strong>{when(o.from)} to {when(o.to)}</strong>{" "}
-      <span>needs {num(o.peak)} against {num(o.capacity)}{unit ? ` ${unit}` : ""}</span> <Badge tone="danger">{num(o.over_by)} over</Badge>
-      <Text as="p" small>In use by {o.jobs.map((j) => `${j.code ?? ""}${j.code ? " " : ""}${acronyms(j.title)} (${num(j.quantity)})`).join("; ")}.</Text>
+      <span>needs {num(o.peak)} against {num(o.capacity)}{unit ? ` ${unit}` : ""}
+        {/* the capacity window behind it: a weather window, leave, a vessel in dock */}
+        {o.limited_by.some((w) => w.reason) ? ` (${o.limited_by.filter((w) => w.reason).map((w) => w.reason).join("; ")})` : ""}</span>{" "}
+      <Badge tone="danger">{num(o.over_by)} over</Badge>
+      <Text as="p" small>In use by {o.jobs.map((j) => `${j.code ?? ""}${j.code ? " " : ""}${acronyms(j.title)}`
+        + `${j.travels_for ? ` for ${j.travels_for.code ?? acronyms(j.travels_for.title)}` : ""} (${num(j.quantity)})`).join("; ")}.</Text>
       {o.moves.length ? <List plain>{o.moves.map((m) => <li key={m.item_id} className="small load-move">
         Slip {m.code ? `${m.code} ` : ""}{acronyms(m.title)} {num(m.slip_hours)} h to {when(m.new_start)}
         {m.finish_later_days == null ? ", no schedule logic behind it" : m.finish_later_days > 0
