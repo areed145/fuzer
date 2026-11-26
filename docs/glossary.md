@@ -185,6 +185,11 @@ maintenance planner (**Plan change to review**): the jobs it holds and until whe
 each move with the constraint behind it, the work worth pulling forward while a machine is down anyway, and the finish,
 deferred oil and overloads before and after.
 
+**Plan rule.** A rule a planner types in words on Plan, read without a model into one of five forms (deadline,
+duration, gap, overlap, sequence) and said back as read. While it is on, each job breaking it is marked **breaks a
+rule** on Plan, with how; switched off, it stays and marks nothing. Not a constraint (that is typed on a plan change
+to work it out again).
+
 **Plan line.** One line of the business plan: the work a program means to do on a facility or area over a period,
 with the hours and cost it estimates, read against the cases matched to it (plan against actual). Written by a planner or
 brought by the business plan export. Its **variance** is the actual less the estimate; above 0 is over the plan.

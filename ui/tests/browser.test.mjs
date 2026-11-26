@@ -12501,3 +12501,72 @@ for (const [size, viewport] of PHONE_DESK) {
     assert.deepEqual(errors, []);
   });
 }
+
+// ---- P5.23a (#1420): a rule typed in words on Plan marks the jobs breaking it -----------------------------------------
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.23a a rule typed in words is said back, marks the tiles breaking it, and switches off (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "pat"));
+    const hour = (h) => new Date(Date.now() + h * 3_600_000).toISOString();
+    const base = { source: "schedule", area_id: "fz-area-0123456789ab", area_label: "GGCP", crew: null, crew_hours: null, deferment_usd: null,
+      notes: null, status: "proposed", needs_shutdown: false, clashes: [], parts_short: [], exception_id: null, subjects: [], assets: [],
+      over_capacity: [] };
+    const late = { rule: 1, rule_say: "A0130 done by Wed 15 Apr 00:00", say: "finishes Thu 16 Apr 06:00, after Wed 15 Apr 00:00" };
+    const rule = { id: 1, text: "A0130 done by 14 Apr", form: "deadline", say: late.rule_say, on: true, created_by: "pat",
+      created_at: hour(0), breaks: [{ item_id: 47, title: "Box up, align and couple 20-K-2200B", code: "A0130", start: hour(2),
+        end: hour(20), say: late.say }] };
+    let on = false, rules = [];
+    const items = () => [
+      { ...base, id: 47, kind: "turnaround", code: "A0130", title: "Box up, align and couple 20-K-2200B", start_at: hour(2), end_at: hour(20),
+        breaks: on ? [late] : [] },
+      { ...base, id: 45, kind: "turnaround", code: "A0110", title: "Replace 20-K-2200B bearings", start_at: hour(1), end_at: hour(10), breaks: [] },
+    ];
+    const asked = [], sent = [];
+    await page.route("**/plan?*", (route) => { asked.push(Object.fromEntries(new URL(route.request().url()).searchParams)); return route.fulfill({ json: items() }); });
+    await page.route("**/plan/rules", (route) => {
+      if (route.request().method() === "GET") return route.fulfill({ json: rules });
+      const body = route.request().postDataJSON();
+      sent.push(body);
+      if (body.text === "keep the fitters happy") return route.fulfill({ status: 400,
+        json: { detail: "Fuzer reads five forms: A0130 done by 15 Apr; no job longer than 36 h; at least 12 h between jobs on MECH; no overlap on crane; A0220 before A0130" } });
+      on = true; rules = [rule];
+      return route.fulfill({ json: rules });
+    });
+    await page.route("**/plan/rules/1", (route) => {
+      const body = route.request().postDataJSON();
+      sent.push(body);
+      on = body.on; rules = [{ ...rule, on, breaks: on ? rule.breaks : [] }];
+      return route.fulfill({ json: rules });
+    });
+    await page.goto(`${url}/#/plan`);
+    await page.getByRole("heading", { name: "GGCP", exact: true }).waitFor();
+    assert.equal(asked.at(-1).rules, "true", "Plan asks for the rules each job breaks");
+    const card = page.locator(".plan-rules");
+    await card.getByLabel("Rule").fill("keep the fitters happy");
+    await card.getByRole("button", { name: "Add rule" }).click();
+    await card.getByText("Fuzer reads five forms", { exact: false }).waitFor();
+    await card.getByLabel("Rule").fill("A0130 done by 14 Apr");
+    await card.getByRole("button", { name: "Add rule" }).click();
+    // said back as read, with the job breaking it, and the job's tile marked on the plan
+    const list = card.getByRole("list", { name: "Rules" });
+    await list.getByRole("checkbox", { name: "A0130 done by Wed 15 Apr 00:00" }).waitFor();
+    await list.getByText("deadline", { exact: true }).waitFor();
+    await card.getByRole("link", { name: "Box up, align and couple 20-K-2200B" }).waitFor();
+    assert.deepEqual(sent.at(-1), { by: "pat", text: "A0130 done by 14 Apr" });
+    const job = page.getByRole("button", { name: /Box up, align and couple 20-K-2200B/ });
+    await job.getByText("breaks a rule", { exact: true }).waitFor();
+    assert.equal(await page.locator("#plan-item-47 .plan-bar.breaks").count(), 1);
+    assert.equal(await page.locator("#plan-item-45 .plan-bar.breaks").count(), 0);
+    await page.locator(".ui-badge", { hasText: "1 breaking a rule" }).first().waitFor();
+    await job.click();
+    await page.locator(".plan-detail").getByText(`${late.rule_say}: ${late.say}.`, { exact: false }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    // switched off, it stays said back and marks nothing
+    await list.getByRole("checkbox", { name: "A0130 done by Wed 15 Apr 00:00" }).click();
+    await page.locator("#plan-item-47 .plan-bar:not(.breaks)").waitFor();
+    assert.deepEqual(sent.at(-1), { by: "pat", on: false });
+    assert.equal(await job.getByText("breaks a rule", { exact: true }).count(), 0);
+    assert.equal(await list.getByRole("checkbox", { name: "A0130 done by Wed 15 Apr 00:00" }).isChecked(), false);
+    assert.deepEqual(errors, []);
+  });
+}

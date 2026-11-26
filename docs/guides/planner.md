@@ -140,6 +140,24 @@ closed**), linked to the resource on **Resources**. A crew's trip in an overload
 back after, and that job carries the flag: moving it moves the trip. On Resources each overload lists the jobs in it
 and the moves that clear it.
 
+### Rules typed in words
+
+**Rules** on Plan holds the planner's own rules. Type one and choose **Add rule**; Fuzer reads it without a model,
+says it back as it read it (**A0130 done by Wed 15 Apr 00:00**) with its form, and lists each job breaking it. Each of
+those jobs carries **breaks a rule** on the timeline and a red mark around its bar; open it to read the rule and how it
+breaks it. Untick a rule to switch it off (it stays, and marks nothing); **Remove** takes it out.
+
+| Form | You type | A job breaks it when |
+|---|---|---|
+| deadline | A0130 done by 15 Apr | it finishes after that day (an activity, an SAP order with its operations, or a whole schedule) |
+| duration | no job longer than 36 h, no MECH job longer than 36 h | it runs longer, on that resource when one is named |
+| gap | at least 12 h between jobs on MECH | it starts sooner than that after the job before it on the resource ends |
+| overlap | no overlap on crane | another job on the resource runs at the same time |
+| sequence | A0220 before A0130 | it is a job of the second and starts before the last job of the first is done |
+
+A resource is named by its code, its kind (crane) or a word of its name (fitters). Anything else is not guessed at:
+Fuzer says which forms it reads.
+
 ## When something breaks
 
 A trip, a late part or a lapsed permit that lands on planned work arrives as routed work, **Plan change to review**,

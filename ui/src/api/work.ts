@@ -1054,6 +1054,15 @@ export interface PlanItem {
    * job a crew flies for; `limited_by` is the reason of any capacity window behind it (weather, leave). */
   over_capacity?: { key: string; resource: string; name: string; kind: string; unit: string | null; from: string; to: string;
     peak: number; capacity: number; over_by: number; limited_by: string[] }[];
+  /** The planner's rules it breaks (asked for with `rules`): the rule said back and how this job breaks it. */
+  breaks?: { rule: number; rule_say: string; say: string }[];
+}
+
+/** A rule a planner typed in words on Plan (P5.23a), as read and said back, on or off, with the jobs breaking it. */
+export interface PlanRule {
+  id: number; text: string; form: "deadline" | "duration" | "gap" | "overlap" | "sequence"; say: string; on: boolean;
+  created_by: string; created_at: string;
+  breaks: { item_id: number; title: string; code: string | null; start: string; end: string; say: string }[];
 }
 
 /** What a job needs before it is released: each prerequisite satisfied or not, with what holds it. */
@@ -1230,9 +1239,10 @@ export const workApi = {
   planAtRisk: (start?: string, days = 90) => request<AtRisk>("GET", "/plan/at-risk", { start, days }),
   /** `active` keeps the work still to do: proposed, scheduled or in progress. */
   plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string; within?: string; active?: boolean;
-              overCapacity?: boolean } = {}) => {
-    const { overCapacity, ...rest } = f;
-    return request<PlanItem[]>("GET", "/plan", { ...rest, active: f.active ? "true" : undefined, over_capacity: overCapacity ? "true" : undefined });
+              overCapacity?: boolean; rules?: boolean } = {}) => {
+    const { overCapacity, rules, ...rest } = f;
+    return request<PlanItem[]>("GET", "/plan", { ...rest, active: f.active ? "true" : undefined, over_capacity: overCapacity ? "true" : undefined,
+                                                 rules: rules ? "true" : undefined });
   },
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string; place: "field" | "desk" }>,
     project?: string) =>
@@ -1277,6 +1287,10 @@ export const workApi = {
   scheduleLink: (by: string, pred: number, succ: number, type: ScheduleLinkRef["type"], lag_hours: number) =>
     request<unknown>("POST", "/plan/schedules/links", undefined, { by, pred, succ, type, lag_hours }),
   scheduleUnlink: (by: string, pred: number, succ: number) => request<unknown>("DELETE", "/plan/schedules/links", { by, pred, succ }),
+  planRules: () => request<PlanRule[]>("GET", "/plan/rules"),
+  planRuleAdd: (by: string, text: string) => request<PlanRule[]>("POST", "/plan/rules", undefined, { by, text }),
+  planRuleSwitch: (id: number, by: string, on: boolean) => request<PlanRule[]>("PATCH", `/plan/rules/${id}`, undefined, { by, on }),
+  planRuleRemove: (id: number, by: string) => request<PlanRule[]>("DELETE", `/plan/rules/${id}`, { by }),
   planChangeOf: (id: number) => request<PlanChange>("GET", `/plan/changes/${id}`),
   planConstraint: (id: number, by: string, text: string) =>
     request<PlanChange>("POST", `/plan/changes/${id}/constraints`, undefined, { by, text }),

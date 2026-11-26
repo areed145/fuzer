@@ -1455,7 +1455,7 @@ def _plan_call(conn, fn, *args, **kwargs):
         from ..core.plan import PlanOverload
         if isinstance(e, PlanOverload):
             raise HTTPException(409, str(e)) from e
-        raise HTTPException(404 if re.match(r"no (plan item|plan change|exception|schedule activity) \d|no schedule |no resource |no resource capacity window ", str(e)) else 400, str(e)) from e
+        raise HTTPException(404 if re.match(r"no (plan item|plan change|plan rule|exception|schedule activity) \d|no schedule |no resource |no resource capacity window ", str(e)) else 400, str(e)) from e
     conn.commit()
     return out
 
@@ -1471,14 +1471,51 @@ def plan_at_risk(start: str | None = None, days: int = 90, conn=Depends(get_conn
 @router.get("/plan")
 def plan_items(start: str | None = None, end: str | None = None, area: str | None = None, status: str | None = None,
                subject: str | None = None, within: str | None = None, active: bool = False,
-               over_capacity: bool = False, conn=Depends(get_conn)):
+               over_capacity: bool = False, rules: bool = False, conn=Depends(get_conn)):
     """The integrated plan in a window (default: a week ago to eight weeks ahead), each item with its clashes
     (same asset, same person), bundling chances (could ride along with a shutdown of its area) and, for work
     starting within 30 days, its assets' spare parts with no stock on record. `active` keeps the work still to do;
-    `over_capacity` adds the shared-resource overloads each item is in."""
+    `over_capacity` adds the shared-resource overloads each item is in; `rules` the planner's rules it breaks."""
     from ..ops import plan
     return _plan_call(conn, plan.items, start, end, area=area, status=status, subject=subject, within=within,
-                      active=active, over_capacity=over_capacity)
+                      active=active, over_capacity=over_capacity, rules=rules)
+
+
+@router.get("/plan/rules")
+def plan_rules_list(conn=Depends(get_conn)):
+    """The planner's rules (P5.23a): each as typed and said back in words, on or off, with the jobs breaking it."""
+    from ..ops import plan_rules
+    return _plan_call(conn, plan_rules.rules)
+
+
+class PlanRuleNew(BaseModel):
+    by: str
+    text: str
+
+
+@router.post("/plan/rules")
+def plan_rule_add(r: PlanRuleNew, conn=Depends(get_conn)):
+    """A rule typed in words (A0130 done by 15 Apr; no job longer than 36 h; at least 12 h between jobs on MECH; no
+    overlap on crane; A0220 before A0130), read without a model. A phrase it can't read is refused, naming the forms."""
+    from ..ops import plan_rules
+    return _plan_call(conn, plan_rules.add, r.text, r.by)
+
+
+class PlanRuleSwitch(BaseModel):
+    by: str
+    on: bool
+
+
+@router.patch("/plan/rules/{rule_id}")
+def plan_rule_switch(rule_id: int, r: PlanRuleSwitch, conn=Depends(get_conn)):
+    from ..ops import plan_rules
+    return _plan_call(conn, plan_rules.switch, rule_id, r.on, r.by)
+
+
+@router.delete("/plan/rules/{rule_id}")
+def plan_rule_remove(rule_id: int, by: str = "", conn=Depends(get_conn)):
+    from ..ops import plan_rules
+    return _plan_call(conn, plan_rules.remove, rule_id, by)
 
 
 @router.post("/plan")
