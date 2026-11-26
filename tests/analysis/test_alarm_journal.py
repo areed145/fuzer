@@ -57,7 +57,7 @@ def conn(okan_db):
 
 def test_the_analysis_reads_the_journal_where_it_covers_the_window(conn):
     first, last = alarm_journal.coverage(conn)
-    assert first < datetime(2025, 9, 1, 1) and last > datetime(2025, 12, 31)
+    assert first < datetime(2025, 9, 1, 1) and last > datetime(2025, 12, 30, 23)  # to the end of the latest data day
     a = alarms.alarm_analysis(conn, PACK, None, "2025-09-08T00:00", "2025-09-10T00:00")
     assert a["alarm_source"] == "journal" and "journal" in a["basis"]
     # the export surge drum's Lo set inside its normal range chatters, and is the worst bad actor by far

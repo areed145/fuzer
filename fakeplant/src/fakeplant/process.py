@@ -366,6 +366,13 @@ def okan_model(seed: int, points: list[dict], equipment: list[dict], wells: list
         other = next((j for j in sorted(u for u in units if u.startswith("jacket:")) if j != units[moved]["jacket"]), None)
         if other:
             events.append({"unit": moved, "kind": "reroute", "at": "2025-12-05T10:00", "to": other})
+    # A slow story reaches where it stands by the start of the exports' today (31 December) and holds there through
+    # it: read on a later day the dates move on a day at each midnight (fuzer.sources.relative_dates.roll, #1085),
+    # so today's values stay the same story hour after hour and the trend has no step at midnight.
+    for e in events:
+        p = e.get("points")
+        if p and p[-1][0] == "2025-12-31T23:55" and p[-2][0] < "2025-12-31T00:00":
+            p.insert(-1, ["2025-12-31T00:00", p[-1][1]])
     return {"version": 1, "seed": seed, "live": True, "points": pts, "units": units, "events": events}
 
 
