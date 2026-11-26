@@ -185,6 +185,7 @@ def review_group_withdraw(key: str, by: str = "anonymous", conn=Depends(get_conn
 def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
     from ..graph import review
     from ..ops import corrections, messages
+    from ..workflow import engine
 
     try:
         out = review.decide(conn, item_id, d.decision, d.value, d.by)
@@ -203,9 +204,11 @@ def review_decide(item_id: int, d: Decision, conn=Depends(get_conn)):
         # Merging or splitting records touches IDs, links and values; an accepted curve lands with the
         # rebuild. Do it in the background.
         return {"decided": item_id, "rebuild": deps.rebuilder.request()}
+    # the steward's case the answer closed, as it now stands, for the page it was answered on to show at once (tour F7)
+    closed = {"item": engine.item(conn, out["case"])} if out["case"] else {}
     if out["kind"] == "message":  # the case the answer opened and what it is about, for the line that confirms it
-        return {"decided": item_id, **messages.answer_of(conn, item_id)}
-    return {"decided": item_id}
+        return {"decided": item_id, **messages.answer_of(conn, item_id), **closed}
+    return {"decided": item_id, **closed}
 
 
 def _load_accepted(conn, item_id: int) -> dict | None:

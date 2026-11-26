@@ -23,7 +23,8 @@ import re
 
 from psycopg.types.json import Jsonb
 
-from ..core import settings, work
+from ..core import findings, settings, work
+from ..core.exceptions import exception_type
 from ..core.pack import Pack
 from ..core.taxonomy import failure_modes_in, load_standard
 from . import routing
@@ -35,6 +36,8 @@ DISPOSITIONS = {"real": "A real problem", "false_alarm": "False alarm", "duplica
 ANSWERED = ("matched", "no_work")
 OUTCOMES = {"fixed": "Fixed", "contained": "Contained, follow-up planned", "not_fixed": "Not fixed",
             "monitoring": "Being monitored"}
+# Outcomes that leave work to do: each sends a follow-up, as a case of its own (#1385; not fixed too, tour F, F10)
+FOLLOWS = ("contained", "not_fixed")
 # words that name the maintenance activity (ISO 14224 Table B.5), first match wins
 ACTION_WORDS = (("1", r"\breplac"), ("10", r"\boverhaul"), ("2", r"\brepair|\bfix(ed)?\b"), ("4", r"\badjust|\bre-?set\b"),
                 ("7", r"\bservic|\bclean|\bgrease|\blubric"), ("8", r"\btest"), ("9", r"\binspect"),
@@ -147,7 +150,7 @@ def message_case(conn, item_id: int) -> bool:
 
 def form(conn, pack: Pack, item_id: int) -> dict:
     """Everything the close-out form needs: the record if there is one, the pre-fill, the lists, and whether a real
-    problem on it needs the equipment-failure terms."""
+    problem on it needs the equipment-failure terms, and the case it most likely duplicates (`duplicate_of`)."""
     _text(conn, item_id)
     repeats = conn.execute("select again, at from case_repeat where first = %s order by at", (item_id,)).fetchall()
     equipment, suggestion = equipment_case(conn, item_id), suggest(conn, pack, item_id)
@@ -155,7 +158,8 @@ def form(conn, pack: Pack, item_id: int) -> dict:
         suggestion = {k: v for k, v in suggestion.items() if k not in TERMS}
     return {"item_id": item_id, "record": get(conn, item_id), "follow_up": follow_up(conn, item_id), "suggestion": suggestion,
             "vocabulary": vocabulary(pack), "repeats": repeats, "equipment": equipment,
-            "asked": asked_case(conn, item_id), "message": message_case(conn, item_id)}
+            "asked": asked_case(conn, item_id), "message": message_case(conn, item_id),
+            "duplicate_of": duplicate_candidate(conn, item_id)}
 
 
 TERMS = ("failure_mode", "mechanism", "cause", "activity")  # a real problem's equipment-failure terms
@@ -176,16 +180,17 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
            suggested: dict | None = None, follow_up_to: str | None = None) -> dict:
     """Record the close-out and close the case if it is still open. A real problem on equipment needs its failure mode,
     cause and action from the lists (elsewhere they are optional); a duplicate names its case. Recording again
-    corrects it. Only a real problem keeps an outcome (#1400). Contained with a follow-up planned names `follow_up_to`
-    (a person or `role:<role>`), unless one already went, and it is sent that follow-up as a case of its own (#1385);
-    the row says which (`follow_up`)."""
+    corrects it. Only a real problem keeps an outcome (#1400). Contained with a follow-up planned, or not fixed (tour F,
+    F10), names `follow_up_to` (a person or `role:<role>`), unless one already went, and it is sent that follow-up as a
+    case of its own (#1385); the row says which (`follow_up`). A duplicate adds what it reported, and a link back, to
+    the case it duplicates (tour F, F9)."""
     item, _ = _text(conn, item_id)
     if disposition != "real":
         outcome = follow_up_to = None  # an outcome is what came of a real problem's fix: nothing else keeps one (#1400)
-    if follow_up_to and outcome != "contained":
-        raise ValueError("a follow-up is sent when the outcome is contained, follow-up planned")
-    if outcome == "contained" and not follow_up_to and not follow_up(conn, item_id):
-        raise ValueError("contained, follow-up planned says who the follow-up goes to")
+    if follow_up_to and outcome not in FOLLOWS:
+        raise ValueError("a follow-up is sent when the outcome is contained, follow-up planned, or not fixed")
+    if outcome in FOLLOWS and not follow_up_to and not follow_up(conn, item_id):
+        raise ValueError(f"{OUTCOMES[outcome].lower()} says who the follow-up goes to")
     v = vocabulary(pack)
     if disposition not in DISPOSITIONS or disposition in ANSWERED:
         raise ValueError(f"say what it was: {', '.join(d for d in DISPOSITIONS if d not in ANSWERED)}")
@@ -231,6 +236,9 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
 
     watch.on_closeout(conn, item_id, disposition, by)
     said = summary(row, v) + _checklist_said(conn, item_id)
+    if duplicate_of and item["closed_at"] is None:  # the original carries what the duplicate reported (tour F, F9)
+        work.comment(conn, duplicate_of, by, f"Also reported in case {item_id}, closed as a duplicate of this one: "
+                                             f"{_reported(conn, item)}")
     if item["closed_at"] is None:
         work.close_case(conn, item_id, "done", by, reason=said)
         conn.execute("update work_item set outcome = %s where id = %s and outcome is null", (summary(row, v), item_id))
@@ -243,7 +251,43 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
                                  else follow_up(conn, item_id))}
 
 
+def _reported(conn, item: dict) -> str:
+    """What a case reported, in its reporter's words: the message it came from, else its title."""
+    from . import messages
+
+    x = conn.execute("select id from exception_record where item_id = %s order by id limit 1", (item["id"],)).fetchone()
+    return (messages.text_of(conn, x["id"]) if x else None) or item["title"] or ""
+
+
+def duplicate_candidate(conn, item_id: int) -> dict | None:
+    """The case a case most likely duplicates, for the close-out to suggest (tour F, F9): another case about the same
+    equipment (`exceptions.anchors`: a tag, what it is installed at or part of), open, else closed within
+    `exceptions.join_hours`, the open and newest first. None when nothing matches."""
+    from . import exceptions
+
+    me = conn.execute("select subjects from work_item where id = %s", (item_id,)).fetchone()
+    mine = exceptions.anchors(conn, list(me["subjects"] or [])) if me else set()
+    if not mine:
+        return None
+    hours = int(settings.get(conn, "exceptions.join_hours") or 48)
+    rows = conn.execute(
+        """
+        select id, title, subjects from work_item
+        where id <> %(i)s and cardinality(subjects) > 0 and state <> 'cancelled' and type <> 'recheck'
+          and (closed_at is null or closed_at > now() - make_interval(hours => %(h)s))
+          and not exists (select 1 from case_disposition d where d.item_id = work_item.id and d.disposition = 'duplicate')
+        order by closed_at is null desc, created_at desc limit 200
+        """, {"i": item_id, "h": hours}).fetchall()
+    of = exceptions.anchor_map(conn, sorted({s for r in rows for s in r["subjects"]}))  # one query for them all
+    return next(({"item_id": r["id"], "title": r["title"]} for r in rows
+                 if any(mine & of.get(s, set()) for s in r["subjects"])), None)
+
+
 FOLLOW_UP = "follow_up_of"  # what a follow-up case carries: the case it follows up
+# A follow-up sent to the field is a field job like any other (tour F, F16): an event the field reports back on.
+FIELD_FOLLOW_UP = exception_type(
+    "follow_up", "Follow-up", audience=("ioc", "field"), joins=False,
+    description="What a close-out left to do, sent to a field operator or the operator queue: a field job.").name
 
 
 def _send_follow_up(conn, item: dict, by: str, to: str, note: str | None = None) -> int:
@@ -252,6 +296,10 @@ def _send_follow_up(conn, item: dict, by: str, to: str, note: str | None = None)
     if have := follow_up(conn, item["id"]):
         return have
     queue = to.startswith("role:")
+    from . import exceptions
+
+    if to == f"role:{exceptions.OPERATOR_ROLE}" or (not queue and to in exceptions.operators(conn)):
+        return _send_to_field(conn, item, by, to, note)
     # a person's follow-up runs in a queue of theirs with its step handed to them, so they have a step open (#1400)
     lane = to if queue else next((f"role:{r}" for r in work.roles_of(conn, to) if r in work.person_roles(conn)), None)
     subjects = conn.execute("select subjects from work_item where id = %s", (item["id"],)).fetchone()["subjects"]
@@ -262,8 +310,27 @@ def _send_follow_up(conn, item: dict, by: str, to: str, note: str | None = None)
         work.reassign(conn, case["id"], by, to)
     work.comment(conn, item["id"], by, f"Follow-up sent to {to.removeprefix('role:').replace('_', ' ')}"
                  f"{' queue' if queue else ''}: case {case['id']}")
-    work.comment(conn, case["id"], by, f"Follows up case {item['id']}, contained when it closed")
+    work.comment(conn, case["id"], by, f"Follows up case {item['id']}, closed with work left to do")
     return case["id"]
+
+
+def _send_to_field(conn, item: dict, by: str, to: str, note: str | None) -> int:
+    """A follow-up for a field operator or the operator queue (tour F, F16): a field job, sent as the IOC sends one, so
+    it reaches them as a Field check that asks the close-out's note, never a desk task due in four hours."""
+    from . import exceptions
+
+    case = conn.execute("select subjects, priority from work_item where id = %s", (item["id"],)).fetchone()
+    e = exceptions.raise_(conn, FIELD_FOLLOW_UP, f"follow-up:{item['id']}", f"Follow-up: {item['title']}", by,
+                          refs=list(case["subjects"] or []), priority=case["priority"],
+                          finding=findings.external(by, {"follows up": f"case {item['id']}",
+                                                         **({"left to do": note} if note else {})}))
+    row = exceptions.dispatch(conn, e["id"], by, to, note or f"Follow up case {item['id']}: {item['title']}")
+    conn.execute("update work_item set payload = coalesce(payload, '{}'::jsonb) || %s where id = %s",
+                 (Jsonb({FOLLOW_UP: item["id"]}), row["item_id"]))
+    work.comment(conn, item["id"], by, f"Follow-up sent to {to.removeprefix('role:').replace('_', ' ')}"
+                 f"{' queue' if to.startswith('role:') else ''}: case {row['item_id']}")
+    work.comment(conn, row["item_id"], by, f"Follows up case {item['id']}, closed with work left to do")
+    return row["item_id"]
 
 
 def follow_up(conn, item_id: int) -> int | None:

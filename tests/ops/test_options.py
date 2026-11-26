@@ -254,7 +254,10 @@ def test_a_gas_smell_never_reads_low_and_a_report_is_not_costed_as_lost_producti
     risks = {o["key"]: o["risk"] for o in out["options"] if o.get("available")}
     assert all(r and r["level"] != "Low" for r in risks.values()), risks
     assert risks["dispatch"]["level"] == "Medium" and "gas smell reported" in risks["dispatch"]["why"]
-    assert risks["shelve"]["level"] == "High" and out["recommended"] != "shelve"
+    # a gas report is never shelved (#1408, tour F2: Shelve 30 days was offered on a gas smell)
+    shelve = by_key(out)["shelve"]
+    assert shelve["available"] is False and shelve["unavailable"] == "a safety report can't be shelved", shelve
+    assert out["recommended"] != "shelve"
     # nothing measured links a smell to lost production: what is behind it, not a loss
     assert out["loss"] is None and all(not o.get("deferred") for o in out["options"])
     assert out["if_it_trips"]["oil_bbld"] > 0
@@ -685,3 +688,142 @@ def test_send_to_someone_else_sends_a_case_waiting_at_to_dispatch(conn, report_t
     # a case already sent is handed on as before
     r = _api(conn).post(f"/work/items/{item}/reassign", json={"by": "riley", "to": "pat"})
     assert r.status_code == 200 and [a for _, _, a in _waiting_on(r.json()["item"])] == ["pat"], r.text
+
+
+def _brief(conn, item_id: int, proposal: str) -> None:
+    """A specialist brief on the case, as agents.brief keeps it."""
+    from psycopg.types.json import Jsonb
+
+    conn.execute("insert into work_event (item_id, kind, actor, element, data) values (%s, 'agent_result', "
+                 "'agent:rotating', 'brief', %s)",
+                 (item_id, Jsonb({"step": "brief", "data": {"brief": {"brief": {"proposal": {
+                     "disposition": proposal, "confidence": 0.6, "why": "surge margin held"}}}}})))
+    conn.commit()
+
+
+def test_a_brief_that_says_keep_on_watch_is_what_options_recommend(conn, report_type):
+    """Tour F, F3: 550's brief proposed "Keep on watch" (low risk, margin held), and Options said "Dispatch now …
+    waiting leaves the risk high"; 436's brief proposed keeping it on watch and planning the inspection, and Options
+    recommended a ride-along. Options follow the brief, with a Keep on watch option."""
+    e = raise_report(conn, "anti-surge", "20-K-2300B to watch: recycling on its anti-surge valve", ["tag:20-K-2300B"])
+    item = conn.execute("select item_id from exception_record where id = %s", (e["id"],)).fetchone()["item_id"]
+    assert "watch" not in by_key(options.for_exception(conn, e["id"]))  # no brief: nothing proposes watching
+    _brief(conn, item, "Keep on watch. Refer Train A/B/C load sharing to operations.")
+    out = options.for_exception(conn, e["id"])
+    k = by_key(out)["watch"]
+    assert k["available"] and k["label"] == "Keep on watch" and k["proposed"] is True, k
+    assert out["recommended"] == "watch" and out["deciding"] == "brief", out["reason"]
+    assert "keeping it on watch" in out["reason"] and "risk high" not in out["reason"], out["reason"]
+    chosen = options.choose(conn, e["id"], "riley", "watch")
+    conn.commit()
+    assert chosen["choice"]["accepted"] is True and chosen["event"]["stage"] != "field", chosen
+    assert not conn.execute("select 1 from work_token where item_id = %s and role = 'operator'", (item,)).fetchone()
+    # a brief that proposes sending someone keeps the rule's recommendation, with Keep on watch offered beside it
+    _brief(conn, item, "Dispatch an operator to check the anti-surge valve positioner.")
+    out = options.for_exception(conn, e["id"])
+    assert by_key(out)["watch"]["proposed"] is False and out["recommended"] != "watch", out["reason"]
+
+
+def test_a_gas_smell_is_never_kept_on_watch(conn, report_type):
+    e = raise_report(conn, "gas watch", f"Gas smell at the wellhead of {WELLS[2]}", [f"well:{WELLS[2]}"])
+    item = conn.execute("select item_id from exception_record where id = %s", (e["id"],)).fetchone()["item_id"]
+    _brief(conn, item, "Keep on watch")
+    out = options.for_exception(conn, e["id"])
+    assert "watch" not in by_key(out) and out["recommended"] != "watch", out["reason"]
+
+
+def test_a_ride_along_on_a_work_order_nobody_is_named_on_joins_the_order(conn, report_type):
+    """Tour F, F5: a ride-along onto the GT B preventive maintenance visit (1232, an SAP order with no person on it)
+    went to the operator queue, due when the visit started; the crew doing the order was never told. It joins the
+    order: the maintenance planner is asked to add it for the order's crew before the visit, and the visit on the plan
+    says what rides along."""
+    from fuzer.ops import schedule
+
+    e = raise_report(conn, "door seal", "20-TT-2250B enclosure door seal torn", ["tag:20-TT-2250B"])
+    message(conn, e["id"], "#20-TT-2250B enclosure door seal torn at the bottom hinge")
+    start = (datetime.now(UTC) + timedelta(days=2)).replace(microsecond=0)
+    v = plan.propose(conn, "maintenance", "Preventive maintenance gas turbine driver", "sap", start,
+                     start + timedelta(hours=8), refs=["tag:20-E-2250B"], status="scheduled", source="sap",
+                     source_key="4000123")
+    schedule.set_resource(conn, "MECHX", "planner", name="Mechanical crew", kind="crew", capacity=6, work_center="MECHX")
+    conn.execute("insert into plan_demand (item_id, resource, quantity) values (%s, 'MECHX', 2)", (v["id"],))
+    conn.commit()
+    try:
+        w = by_key(options.for_exception(conn, e["id"]))["window"]
+        assert w["available"] and w["plan_item"] == v["id"], w
+        assert w["order"] == "SAP order 4000123" and w["operator"] == "role:maintenance_planner", w
+        assert w["crew_name"] == "Mechanical crew", w
+        out = options.choose(conn, e["id"], "riley", "window")
+        conn.commit()
+        item = out["event"]["item_id"]
+        steps = conn.execute("select role, assignee from work_token where item_id = %s and kind = 'user' and "
+                             "state in ('ready', 'waiting')", (item,)).fetchall()
+        assert [(s["role"], s["assignee"]) for s in steps] == [("maintenance_planner", None)], steps
+        ask = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind = 'handed_off' "
+                           "order by id desc limit 1", (item,)).fetchone()["r"]
+        assert ask.startswith("Add to SAP order 4000123 “Preventive maintenance gas turbine driver” for Mechanical "
+                              "crew on "), ask
+        assert ask.endswith(": #20-TT-2250B enclosure door seal torn at the bottom hinge"), ask
+        notes = conn.execute("select notes from plan_item where id = %s", (v["id"],)).fetchone()["notes"]
+        assert "Rides along: #20-TT-2250B enclosure door seal torn" in notes, notes
+        due = conn.execute("select due from work_item where id = %s", (item,)).fetchone()["due"]
+        assert due == start, due  # on the order before the crew sets out
+    finally:
+        conn.rollback()
+        conn.execute("delete from plan_resource where code = 'MECHX'")
+        conn.commit()
+
+
+def test_add_to_that_job_joins_the_case_the_field_already_has(conn, report_type):
+    """Tour F, F6: 1253 said "The field already has a case on it" and offered no way to add to that job. The event
+    joins that case: the field reads it there, and the case it had is merged away."""
+    first = raise_report(conn, "xv join", "25-XV-4022 position indicator flickers", ["tag:25-XV-4021"])
+    options.choose(conn, first["id"], "riley", "dispatch", to="sam")
+    conn.commit()
+    again = raise_report(conn, "xv join 2", "25-XV-4022 flickers between open and closed", ["tag:25-XV-4021"])
+    old = conn.execute("select item_id from exception_record where id = %s", (again["id"],)).fetchone()["item_id"]
+    out = options.for_exception(conn, again["id"])
+    assert out["field_case"]["exception"] == first["id"], out["field_case"]
+    r = _api(conn).post(f"/exceptions/{again['id']}/join", json={"into": first["id"], "by": "riley"})
+    assert r.status_code == 200, r.text
+    held = conn.execute("select item_id from exception_record where id = %s", (first["id"],)).fetchone()["item_id"]
+    assert r.json()["event"]["joined_to"] == first["id"] and r.json()["item"]["id"] == held, r.json()
+    assert conn.execute("select state from work_item where id = %s", (old,)).fetchone()["state"] == "cancelled"
+    job = next(j for j in ex.field_jobs(conn, "sam") if j["item_id"] == held)
+    assert again["id"] in {s["id"] for s in job["sources"]}, job["sources"]
+
+
+def test_a_desk_case_on_the_same_asset_does_not_hold_a_dispatch(conn, report_type):
+    """#1408 (tour F2): gas smell 1268 "can't go now" because desk case 1169, in the engineer queue with nobody in the
+    field, was on the same vessel; Escalate was recommended and Shelve offered. Only work in the field counts."""
+    desk = raise_report(conn, "desk on xv", "25-XV-4021 stroke time trending up", ["tag:25-XV-4021"])
+    options.choose(conn, desk["id"], "riley", "escalate")  # sent to the engineer: a desk case
+    conn.commit()
+    gas = raise_report(conn, "gas on xv", "Gas smell at 25-XV-4021", ["tag:25-XV-4021"])
+    out = options.for_exception(conn, gas["id"])
+    d = by_key(out)["dispatch"]
+    assert d["clashes"] == [] and out["field_case"] is None, (d, out["field_case"])
+    assert out["recommended"] == "dispatch", out["reason"]
+    assert by_key(out)["shelve"]["available"] is False
+
+
+def test_an_operator_holding_several_looks_is_no_clash_and_one_case_never_clashes_with_itself(conn, report_type):
+    """#1408 (tour D16): 14 of 21 Plan items showed a clash, mostly an operator holding two or three looks, and 1168
+    clashed with itself. A person on two maintenance jobs at once is still a clash."""
+    start = (datetime.now(UTC) + timedelta(days=3)).replace(microsecond=0)
+    looks = [raise_report(conn, f"look {i}", f"20-TT-225{i}B local display fogged", [f"tag:20-TT-225{i}B"])
+             for i in (0, 1, 2)]
+    bars = [plan.plan_exception(conn, e["id"], "planner", start, start + timedelta(hours=4), crew="sam")
+            for e in looks]
+    again = plan.plan_exception(conn, looks[0]["id"], "planner", start + timedelta(hours=1),
+                                start + timedelta(hours=5), crew="sam")  # a second bar of the same case
+    jobs = [plan.propose(conn, "maintenance", f"Seal change {x}", "planner", start, start + timedelta(hours=8),
+                         status="scheduled", crew="sam") for x in "AB"]
+    conn.commit()
+    rows = {i["id"]: i for i in plan.items(conn, start - timedelta(days=1), start + timedelta(days=1))}
+    for b in [*bars, again]:
+        mine = [c for c in rows[b["id"]]["clashes"] if c["with"] in {x["id"] for x in [*bars, again]}]
+        assert mine == [], mine
+    assert [c["kind"] for c in rows[jobs[0]["id"]]["clashes"] if c["with"] == jobs[1]["id"]] == ["crew"]
+    clash = next(p for p in plan.prerequisites(conn, bars[1]["id"])["prerequisites"] if p["kind"] == "clash")
+    assert not [d for d in clash["detail"] if "fogged" in d], clash

@@ -3,7 +3,7 @@
  * suggestion, and the person confirms it. On a phone it is a handful of selects, one per line. */
 import { useRef, useState } from "react";
 import { when } from "../format";
-import { api, type CaseCloseout, type CloseoutVocabulary } from "../api";
+import { api, type CaseCloseout, type CaseNow, type CloseoutVocabulary } from "../api";
 import { Button, Card, Disclosure, Field, Input, Select, ErrorText, Line, Text, Notice } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
 import { Actor } from "../work";
@@ -27,7 +27,8 @@ export function closeoutLine(r: CaseCloseout, v: CloseoutVocabulary): string {
 }
 
 export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload, startOpen = false, openItems = 0 }:
-  { itemId: number; person: string; closed: boolean; readOnly: boolean; reload: () => void; startOpen?: boolean;
+  { itemId: number; person: string; closed: boolean; readOnly: boolean; startOpen?: boolean;
+    /** Shows the case as the close-out left it, then reads it again. */ reload: (now?: CaseNow | null) => void;
     /** checklist items still open: finishing leaves them open in the record */ openItems?: number }) {
   const form = useAsync(() => api.caseCloseout(itemId), [itemId]);
   const [open, setOpen] = useState(startOpen && !closed);
@@ -56,12 +57,12 @@ export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload, sta
   // Opened by a Close link (Back from the field), the page lands on the form, not a screen above it (P5.28f).
   return <div ref={(el) => { if (el && startOpen && !landed.current) { landed.current = true; el.scrollIntoView?.({ block: "start" }); } }}>
     <CloseoutForm itemId={itemId} person={person} data={form.data} missing={closed && !record} openItems={openItems}
-      onDone={() => { setOpen(false); form.reload(); reload(); }} onCancel={closed && !record ? undefined : () => setOpen(false)} /></div>;
+      onDone={(now) => { setOpen(false); form.reload(); reload(now); }} onCancel={closed && !record ? undefined : () => setOpen(false)} /></div>;
 }
 
 function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openItems = 0 }: {
   itemId: number; person: string; data: NonNullable<Awaited<ReturnType<typeof api.caseCloseout>>>; missing: boolean;
-  onDone: () => void; onCancel?: () => void; openItems?: number;
+  onDone: (now?: CaseNow | null) => void; onCancel?: () => void; openItems?: number;
 }) {
   const v = data.vocabulary;
   // asked work is done as asked or a duplicate; "done as asked" never fits a problem an exception raised; log only is
@@ -77,7 +78,9 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
     : offered ? { disposition: offered, outcome: s.outcome, ...(data.equipment !== false
         // off equipment the failure terms sit in a folded, optional section: left for the person to open and set
         ? { failure_mode: s.failure_mode, mechanism: s.mechanism, cause: s.cause, activity: s.activity } : {}) } : {};
-  const [d, setD] = useState<Draft>(start);
+  // the case it most likely duplicates, ready in the field if Duplicate is chosen, its title beside it (tour F, F9)
+  const dup = data.record ? null : data.duplicate_of ?? null;
+  const [d, setD] = useState<Draft>(dup ? { ...start, duplicate_of: String(dup.item_id) } : start);
   const [followTo, setFollowTo] = useState("");
   const a = useAction();
   const set = (k: keyof Draft) => (e: { target: { value: string } }) => setD({ ...d, [k]: e.target.value || undefined });
@@ -88,8 +91,9 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
     .filter(([, x]) => !x).map(([n]) => n) : [];
   // an outcome is what came of a real problem's fix: hidden on anything else, so nothing else saves one (#1400)
   const outcome = real ? d.outcome : undefined;
-  // contained means a follow-up is planned: it names who it goes to, unless one already went (#1400)
-  const needsFollowUp = outcome === "contained" && data.follow_up == null;
+  // contained (a follow-up planned) or not fixed leaves work to do: it names who it goes to, unless one already went
+  // (#1400; not fixed too, tour F, F10)
+  const needsFollowUp = (outcome === "contained" || outcome === "not_fixed") && data.follow_up == null;
   const ready = !!d.disposition && missingTerms.length === 0
     && (d.disposition !== "duplicate" || !!Number(d.duplicate_of)) && (!needsFollowUp || !!followTo);
   const hint = !d.disposition ? "Say what it was first"
@@ -114,11 +118,12 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
   );
   const save = () => a.run("closeout", () => api.recordCaseCloseout(itemId, {
     by: person, disposition: d.disposition!, failure_mode: d.failure_mode, mechanism: d.mechanism, cause: d.cause,
-    activity: d.activity, outcome, note: d.note, duplicate_of: d.duplicate_of ? Number(d.duplicate_of) : undefined,
+    activity: d.activity, outcome, note: d.note,
+    duplicate_of: d.disposition === "duplicate" && d.duplicate_of ? Number(d.duplicate_of) : undefined,
     suggested: data.record ? undefined : s,
     follow_up_to: needsFollowUp ? followTo : undefined,
-  }), onDone);
-  // Contained means a follow-up is planned: it is sent from here, as a case of its own, unless one already went
+  }), (r) => onDone(r?.item));
+  // The follow-up is sent from here, as a case of its own, unless one already went
   const followUp = needsFollowUp && <Field label="Send the follow-up to" width="full">
     <AssignPicker value={followTo} onChange={setFollowTo} label="Send the follow-up to" /></Field>;
   return (
@@ -145,7 +150,8 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
           {list("mechanism", "Mechanism", v.mechanisms)}
         </Disclosure>
       </>}
-      {d.disposition === "duplicate" && <Field label="Duplicate of case" width="full">
+      {d.disposition === "duplicate" && <Field label="Duplicate of case" width="full"
+        hint={dup && d.duplicate_of === String(dup.item_id) ? dup.title : undefined}>
         <Input width="full" inputMode="numeric" aria-label="Duplicate of case" value={d.duplicate_of ?? ""}
           onChange={set("duplicate_of")} /></Field>}
       <Field label="Note" width="full"><Input width="full" aria-label="Note" value={d.note ?? ""} onChange={set("note")} /></Field>

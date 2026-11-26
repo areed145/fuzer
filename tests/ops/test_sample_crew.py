@@ -55,6 +55,50 @@ def _run_for(conn, hours: float, step_minutes: int = 15, start=None) -> Counter:
     return did
 
 
+# What each thing the field notices is about, and so what the field says when it is done: tour F (F4) saw a fogged
+# gauge glass answered "Local gauge agrees with the DCS after blowing down the impulse line".
+NOTICED_TOPICS = {
+    "Unusual noise from {tag} ({what})": "noise",
+    "Oil level low in the sight glass on {tag} ({what})": "oil",
+    "Weeping mechanical seal on {tag} ({what})": "seal",
+    "Coupling guard bolt missing on {tag} ({what})": None,
+    "Weeping bonnet flange on {tag} ({what})": "leak",
+    "Local gauge downstream of {tag} ({what}) reads higher than the DCS": "gauge",
+    "Small drip from the drain valve beside {tag} ({what})": "leak",
+    "Corroded flange bolting on {tag} ({what})": "corrosion",
+    "Weeping stem packing on {tag} ({what})": "leak",
+    "Position indicator on {tag} ({what}) disagrees with the DCS": "position",
+    "Weeping channel head flange on {tag} ({what})": "leak",
+    "Corrosion under insulation suspected on {tag} ({what})": "corrosion",
+    "Local outlet temperature gauge on {tag} ({what}) reads higher than the DCS": "temperature",
+    "Level in the sight glass on {tag} ({what}) disagrees with the DCS": "level",
+    "Small drip from a drain valve on {tag} ({what})": "leak",
+    "Loose cable gland and missing cover bolt on {tag} ({what})": "electrical",
+    "Local display on {tag} ({what}) reads higher than the DCS": "gauge",
+    "Weeping impulse line fitting at {tag} ({what})": "leak",
+    "Weeping flange on {tag} ({what})": "leak",
+}
+
+
+def test_the_fields_reply_answers_what_it_was_asked():
+    noticed = {t for ts in sample_crew.NOTICED.values() for t in ts}
+    assert noticed == set(NOTICED_TOPICS)
+    for title, topic in NOTICED_TOPICS.items():
+        assert sample_crew._topic({"title": title}) == topic, title
+    fogged = {"title": "30-V-2001 level gauge glass is fogged inside, cannot read the level locally."}
+    assert sample_crew._topic(fogged) == "glass"
+    for k in range(20):
+        done = sample_crew._note(sample_crew.DONE_NOTES, fogged, k, "note")
+        assert "glass" in done and "impulse line" not in done, done
+    # a level that disagrees is answered at the glass, an indicator at the valve, never as a pressure gauge or an oil top-up
+    for title, word in (("Level in the sight glass on 30-V-2001 disagrees with the DCS", "gauge glass"),
+                        ("Position indicator on 68-HCV-1004 disagrees with the DCS", "indicator")):
+        for k in range(20):
+            assert word in sample_crew._note(sample_crew.DONE_NOTES, {"title": title}, k, "note")
+    for topic in {t for t in NOTICED_TOPICS.values() if t} | {"glass"}:
+        assert topic in sample_crew.DONE_NOTES, topic
+
+
 def test_only_a_project_whose_bundle_asks_gets_a_crew(conn):
     assert not sample_crew.enabled(conn)
     assert sample_crew.run(conn) == {}  # nothing staffed, nothing done
@@ -198,6 +242,44 @@ def test_desk_work_with_no_queue_goes_to_the_engineers_not_the_field(crewed):
     finally:
         TYPES.pop("crew_desk_only", None)
 
+
+
+def test_a_bulletin_is_never_sent_to_the_field_and_a_message_goes_out_in_its_own_words(crewed, monkeypatch):
+    """Tour F, B-N10: the vendor's service bulletin (1214) went to morgan as "Go and have a look, report what you find",
+    and a ride-along then joined it. A message that asks for no field work is logged by the lead, never sent out; one
+    that does goes out asking what it said."""
+    from fuzer.ops import messages, options
+
+    monkeypatch.setattr(sample_crew, "LEFT", 0.0)
+    monkeypatch.setattr(sample_crew, "PLANNED", 0.0)
+    said = {}
+    for i in range(6):
+        bulletin = i % 2 == 0
+        text = (f"Service bulletin {i} attached for the fuel nozzles. It applies to all three drivers." if bulletin
+                else f"Weeping flange {i} on the glycol pump, please check")
+        r = raise_exception(crewed, messages.MESSAGE_REPORT, f"crew-msg-{i}", text[:60], "messages")
+        crewed.execute("insert into message (id, channel, sender, text, received_at, outcome, exception_id) "
+                       "values (%s, 'mailbox', 'Vendor', %s, now(), 'case', %s)", (f"crew-m-{i}", text, r["id"]))
+        said[r["id"]] = (bulletin, text)
+    crewed.commit()
+    _run_for(crewed, 6)
+    logged = sent = 0
+    for eid, (bulletin, text) in said.items():
+        item = crewed.execute("select item_id from exception_record where id = %s", (eid,)).fetchone()["item_id"]
+        asks = [e["r"] for e in crewed.execute(
+            "select data->>'reason' as r from work_event where item_id = %s and kind in ('handed_off', 'created') "
+            "and data->>'reason' is not null", (item,))]
+        assert options.ASK not in asks, asks
+        if bulletin:
+            field = crewed.execute("select 1 from work_token where item_id = %s and role = 'operator'", (item,)).fetchone()
+            assert field is None, f"bulletin {eid} went to the field"
+            closed = crewed.execute("select disposition from case_disposition where item_id = %s", (item,)).fetchone()
+            assert closed is None or closed["disposition"] == "log_only", closed
+            logged += closed is not None
+        elif asks:
+            assert text in asks, asks
+            sent += 1
+    assert logged and sent, (logged, sent)
 
 
 def test_what_the_field_found_does_not_wait_behind_the_leads_long_cases(crewed, monkeypatch):

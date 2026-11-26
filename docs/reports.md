@@ -76,6 +76,10 @@ A row wraps. On desktop (above 1100 px) a row has four columns and a panel takes
 across. The order on a phone is the definition's order, so the answer goes first. Rows size to their content; charts
 take a fixed height per width. There are no separate phone, iPad or desktop layouts to keep in step.
 
+A row is read when it comes within half a screen of the view, and stands half a screen tall until its panels have
+drawn, so a first paint asks only for the rows on and just below the screen and the rows further down wait for a
+scroll, never queueing beside the panels on screen.
+
 ## The standard reports
 
 Six definitions in `core/reports/`, in the gallery's order. Each answers its role's question on the first screen; the
@@ -92,8 +96,9 @@ rest is the drill-down. Downtime, Incidents, Metrics and Regulatory stay pages o
 
 Daily operations takes the daily report's place: `#/reports?day=<day>` opens it at that day, and its review moved
 into its header. `#/reports?report=<template:period>` opens the regulatory report on `#/regulatory`. Scorecard's
-analyses are `view` panels on the report they belong to, and `#/scorecard` opens Production and deferment. They are wide tables
-made for a desk, so they are left out on phones (`phone: false`).
+analyses are `view` panels on the report they belong to, and `#/scorecard` opens Production and deferment. Most are wide tables
+made for a desk, so they are left out on phones (`phone: false`); Plan against actual's backlog burn and accounts fit a
+phone and show there, so the planner's phone has every section of it.
 
 ### Scope and window
 

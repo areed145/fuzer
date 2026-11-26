@@ -95,8 +95,10 @@ def test_the_field_closing_a_notification_drafts_the_sap_update(monkeypatch, tmp
 
                 # back with the IOC (#1115), which closes it out; then the field's word holds it until SAP moves
                 job = conn.execute("select item_id from exception_record where id = %s", (done["id"],)).fetchone()
-                ok(client.post(f"/work/items/{job['item_id']}/closeout", json={
+                closed = ok(client.post(f"/work/items/{job['item_id']}/closeout", json={
                     "by": "ioc-ann", "disposition": "real", "failure_mode": "ELP", "cause": "3", "activity": "2"}))
+                # with the case as it now stands, closed, for the page to drop Waiting on at once (tour F12)
+                assert closed["item"]["id"] == job["item_id"] and closed["item"]["closed_at"], closed["item"]
                 conn.rollback()
                 assert refresh()["held"] == 1
                 assert _sap(sap)["10004002"]["status"] == "OSNO"

@@ -151,6 +151,11 @@ aliases and the ones a steward recorded, checked against the register). It calls
 | **Reported in a message** `message_report` | A message that names an entity for certain: every tag, well or alias it names is in the register, in one area, and at least `messages.min_confidence` (0.8) sure | What it names, the first named first | To dispatch, as its own case, for the ops lead to send: a message never joins an older case, where its news would read as a second report under that case's title | Yes | IOC close-out, or **Log only, no action** for one that only said what was done |
 | **Message to match** `message_to_match` | A message that names nothing for certain: a short tag in several areas, a tag the register lacks, only a place, or no tag at all | The entities it might be about | Data steward queue | No | When the steward chooses the entity on **Work > Master data > Questions > Messages**, from the candidates or a register search that offers only what work can be about (tags, equipment, wells and lines, each with its description and place; anything else is refused), tapping one row or several (a message about three drivers is about all three), and its case opens as above, or says no work is needed; the steward's case closes as **Matched** or **No work needed** |
 
+A safety report (gas, a smell, fire or smoke, a leak, someone hurt) that names nothing for certain does not wait for
+the steward: it is also a **Reported in a message** case at once, about nothing yet, at To dispatch for the ops lead.
+The steward's answer then says what that same case is about, as **Change the entity** does, so it keeps its age and
+whoever has it; no work needed leaves it for the IOC to close (#1408).
+
 A message that asks for nothing ("thanks", an out-of-office reply), or only says what was done with nothing wrong or
 asked in it ("Swapped 10-P-1001A to C, A is isolated and drained"), opens no case and is kept as handled, the second as
 a log entry with what it names. On All work a message's case shows the channel and sender as its source and a short
@@ -159,10 +164,14 @@ message. The phone's confirmation and the steward's answer link the case they op
 entities it is about too; answered on its case, the confirmation stays after the case closes. A message case matched
 to the wrong entity, by the reader or a steward, is redone on the case: **Change the entity** on the message card
 searches the same way and replaces what the case is about, and the case's history says what it was about before
-(`POST /exceptions/{id}/message/entities`), naming equipment by the tag it is installed at, never its serial number.
-The register search taps rows rather than a dropdown, comes picked when
-there is one result, says "12 of N" when it found more than it shows, and reads a trailing separator ("20-P-") as part
-of a tag still being typed. The reader's precision on Okan's recorded messages is in [eval results](eval-results.md#message-reader)
+(`POST /exceptions/{id}/message/entities`), naming equipment by the tag it is installed at, never its serial number;
+the case's Options are read again for the new entity, and the old entity's leave the page while they are.
+The register search taps rows rather than a dropdown; a single result is the pick (a line and **Use it**, no box to
+untick). It says "12 of N" when it found more than it shows, and reads a trailing separator ("20-P-") as part
+of a tag still being typed. Searching what work can be about lists each thing once, in the plant: an installed
+equipment as the tag it is installed at, and no equipment installed nowhere (a scrapped pump a second system still
+lists). An answer closes its own steward case at once and comes back with the case as it now stands, so **No work
+needed** answered on the case shows it Done without a reload. The reader's precision on Okan's recorded messages is in [eval results](eval-results.md#message-reader)
 (`fuzer eval --messages`).
 
 ## Regulatory and reporting
@@ -235,6 +244,7 @@ All of these run on the one-step **task** workflow, in the queue they were asked
 | Work | Where it comes from | Routed to | Closes |
 |---|---|---|---|
 | **Did the fix hold?** | `closeout.recheck_days` (30) after a case closed as a real problem | Whoever closed it | Yes closes it. No reopens the first case as a repeat. A new case with the same failure mode on the same asset inside the window does the same. |
+| **Follow-up** `follow_up` | A close-out as **Contained, follow-up planned** or **Not fixed** that named a field operator or the operator queue (one named to a desk is a task in that queue) | Dispatched to them at once: a Field check asking the close-out's note, on the closed case's assets | As field work: the field's report comes back to the IOC to close out |
 | **Update to the source system** `source_closeout` | The field reporting Done or Could not do on work another system raised | The **source_closeout** workflow, in that system's close-out role (the maintenance planner for SAP) | When the planner approves it and the system confirms it |
 | **Write-back to approve** | Any drafted update to another system: a close-out, a correction, detection feedback | The system's approver role | When approved and confirmed, or rejected |
 | **Write-back failed** | A system refused an approved update | The approver role again, with the system's reason. It is never retried on its own. | When approved again or rejected |

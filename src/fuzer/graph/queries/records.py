@@ -67,15 +67,49 @@ def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 
     kinds = [k for k in (kind or "").split(",") if k] or None
     if kinds == ["work"] or (kinds and set(kinds) == set(WORK_KINDS)):
         # what work can be about (a message case's entity, #1382): the one list, held there, each thing once
-        return _once(conn, _search(conn, pack, q, list(WORK_KINDS), limit))
+        return _once(conn, _in_the_plant(conn, _search(conn, pack, q, list(WORK_KINDS), limit)))
     return _search(conn, pack, q, kinds, limit)
+
+
+def _in_the_plant(conn, rows: list[dict]) -> list[dict]:
+    """What work can be about is in the plant, under the name work is pinned to (tour F C9): an installed equipment is
+    listed as the tag it is installed at, so a pump reads as its tag like a vessel does, never "Equipment" in one search
+    and "Tag" in the next; an equipment installed nowhere (a scrapped pump a second system still lists, shown by its
+    serial number beside the pump that replaced it) is left out, where the register says where equipment is installed."""
+    equipment = [r["fuzer_id"] for r in rows if r["kind"] == "equipment"]
+    if not equipment:
+        return rows
+    at = {r["src"]: r["dst"] for r in conn.execute(
+        "select src, dst from edge where rel = 'installed_at' and valid_to is null and src = any(%s) order by src, dst desc",
+        (equipment,))}
+    tracked = bool(at) or bool(conn.execute(
+        "select 1 from edge where rel = 'installed_at' and valid_to is null limit 1").fetchone())
+    listed = {r["fuzer_id"]: r for r in rows}
+    missing = sorted(set(at.values()) - listed.keys())
+    places = {**listed, **({r["fuzer_id"]: r for r in conn.execute(
+        """
+        select e.fuzer_id, e.kind, l.label, g.value as description, p.id as parent, p.label as parent_label, t.label as at
+        from entity e
+        left join entity_label l on l.fuzer_id = e.fuzer_id
+        left join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
+        """ + _PARENT + """
+        where e.fuzer_id = any(%(ids)s) and e.merged_into is null and e.retired_at is null and e.kind = any(%(kinds)s)
+        """, {"ids": missing, "rels": list(CONTAINMENT), "kinds": list(WORK_KINDS)})} if missing else {})}
+    out = []
+    for r in rows:
+        if r["kind"] == "equipment" and r["fuzer_id"] in at:
+            r = places.get(at[r["fuzer_id"]], r)
+        elif r["kind"] == "equipment" and tracked:
+            continue
+        out.append(r)
+    return out
 
 
 def _once(conn, rows: list[dict]) -> list[dict]:
     """Each real thing listed once where work is pinned to it (C9): a vessel was listed three ways, as its tag, the
     equipment installed at that tag, and a second system's record of the same equipment the matcher left for a steward
-    to confirm. Of an equipment and the tag it is installed at, or two entities an open possible match pairs, the one
-    listed first stays."""
+    to confirm. The same entity twice, an equipment and the tag it is installed at, or two entities an open possible
+    match pairs: the one listed first stays."""
     ids = [r["fuzer_id"] for r in rows]
     if len(ids) < 2:
         return rows

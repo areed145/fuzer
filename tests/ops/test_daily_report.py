@@ -56,21 +56,25 @@ def test_a_trip_day_leads_with_the_trip(conn):
 
 def test_efficiency_is_the_registered_metric_for_the_report_day(conn):
     """P7.1b, #1349: the report quotes production efficiency from the metric registry for its own day, the figure
-    Daily operations shows beside it, and the day's oil against potential is in barrels, never a second percentage."""
+    Daily operations shows beside it, and the day's oil is said against the capacity that efficiency is the ratio to,
+    never against the reported potential as well (tour F, A8)."""
     from fuzer.core import metrics
 
     day = "2025-12-20"
     lines = daily_report.facts(conn, PACK, day)["sections"]["Production and deferment"]
     reg = metrics.value(conn, PACK, "production.efficiency", window="1d", at=date.fromisoformat(day))
     assert reg["value"] is not None and reg["as_of"] == day
-    eff = [f for f in lines if f["text"].startswith("Production efficiency")]
-    assert len(eff) == 1 and eff[0]["values"]["eff"] == reg["value"] and eff[0]["cites"] == reg["refs"], eff
+    eff = [f for f in lines if "production efficiency" in f["text"]]
+    assert len(eff) == 1 and eff[0]["values"]["eff"] == reg["value"] and set(reg["refs"]) <= set(eff[0]["cites"]), eff
     # with the volumes it is the ratio of (#1386), which agree with it
     v = eff[0]["values"]
     assert v["oil"] == reg["parts"]["value"] and v["cap"] == reg["parts"]["of"] and reg["parts"]["unit"] == "bbl"
     assert round(100 * v["oil"] / v["cap"], 1) == pytest.approx(reg["value"], abs=0.1)
-    assert f"{v['oil']:,} bbl of the {v['cap']:,} bbl the facility could deliver" in eff[0]["text"]
-    assert "against a potential of" in lines[0]["text"] and "%" not in lines[0]["text"]
+    assert f"Oil {v['oil']:,} bbl of the {v['cap']:,} bbl the facility could deliver" in eff[0]["text"]
+    # one potential (tour F, A8): the day's oil is said against that capacity only, never the reported potential too
+    assert eff[0] is lines[0] and not any("potential" in f["text"] for f in lines), lines
+    headline = daily_report.facts(conn, PACK, day)["sections"]["Headline"]
+    assert headline[0]["text"] == eff[0]["text"]
     assert metrics.value(conn, PACK, "production.efficiency")["as_of"] != day  # the latest is another period
 
 

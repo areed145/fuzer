@@ -9,6 +9,7 @@ arrive:
   iow_breach: {detector: iow_breaches, start: "today-2d 00:00", end: "today"}
   sap_notification: {source: sap_notifications}
   routine_due: {source: routines}  # a maintenance plan's next due date (step 7)
+  follow_up: {closeout: true}  # a close-out, contained, that sends its follow-up to the operator queue
   # The register build's own questions, open before the run (the stewards' queue holds them)
   conflicting_sources: {build: true}
   context_gap: {build: true}

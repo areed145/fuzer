@@ -41,6 +41,14 @@ export function queue(role: string | null | undefined): string {
   return name ? `${name} queue` : "no queue";
 }
 
+/** A person's roles in short form, as a picker shows them (tour F, F17): an owner holds "every role", and more than
+ * two read as the first and a count ("ops lead +4"), never all seven in one option. */
+export function rolesShort(roles: string[], owner?: boolean): string {
+  if (owner) return "every role";
+  const words = roles.map((r) => r.replace(/_/g, " "));
+  return words.length > 2 ? `${words[0]} +${words.length - 1}` : words.join(", ");
+}
+
 /** "1 detection", "7 detections". */
 export function plural(n: number, word: string, many?: string): string {
   return `${n.toLocaleString()} ${n === 1 ? word : many ?? `${word}s`}`;

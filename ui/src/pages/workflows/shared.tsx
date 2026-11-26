@@ -7,7 +7,7 @@ import { Due, holder, priorityLevel, usePerson } from "../../work";
 import { useState, type ReactNode } from "react";
 import { api, type ChecklistProgress, type WorkRow } from "../../api";
 import { href, useAction, useAsync } from "../../lib";
-import { queue, workKind } from "../../wording";
+import { queue, rolesShort, workKind } from "../../wording";
 
 /** A step named for the engine, not for the work: where it would be a title or a row's lead, the work is used. */
 export const GENERIC_STEP = /^(work the case|do the task)$/i;
@@ -118,7 +118,7 @@ export function AssignPicker({ value, onChange, agents = false, placeholder = "c
       <option value="">{placeholder}</option>
       <optgroup label="People">
         {(people.data ?? []).map((p) => <option key={p.name} value={p.name}>{p.display_name || p.name}
-          {p.roles.length ? ` (${p.roles.map((r) => r.replace(/_/g, " ")).join(", ")})` : ""}
+          {p.roles.length || p.owner ? ` (${rolesShort(p.roles, p.owner)})` : ""}
           {p.away_until && new Date(p.away_until) > new Date() ? " · away" : ` · holds ${p.holding ?? 0}`}</option>)}
       </optgroup>
       <optgroup label="Role queues">

@@ -109,11 +109,22 @@ DONE_NOTES = {
     "oil": ("Topped up the oil to the mark; no leak found at the seals or drain plug.",),
     "gauge": ("Local gauge agrees with the DCS after blowing down the impulse line.",
               "Found a loose impulse line fitting, tightened and leak tested. Reading steady since."),
+    # a glass that can't be read, a level that disagrees and an indicator that disagrees are each their own answer: the
+    # gauge's "agrees after blowing down the impulse line" answered a fogged gauge glass (tour F, F4)
+    "glass": ("Isolated, drained and flushed the gauge glass: it is clear and the level can be read locally again.",
+              "Glass is stained inside and won't clean in place; read the level on the try cocks meanwhile. Planner "
+              "has the glass change."),
+    "level": ("Blew down the gauge glass, which was choked at the bottom cock: the glass and the DCS read the same "
+              "level now.",
+              "Blew down the gauge glass: it reads true and the level transmitter reads high. Instrument tech to "
+              "calibrate it."),
+    "position": ("Stroked the valve with the panel operator: the indicator arm was loose; reset and tightened, it "
+                 "matches the DCS now.",),
     "corrosion": ("Stripped a section of cladding: surface rust only, photos on the case. Recommend an inspection on "
                   "the next campaign.",
                   "Wire brushed and coated the bolting; photos on the case."),
-    "temperature": ("Checked with the IR gun: the local reading agrees with the DCS and is steady. Greased and "
-                    "watching it.",),
+    "temperature": ("Checked with the IR gun: the DCS is right and the local gauge reads high. Changed the gauge.",
+                    "Checked with the IR gun: the local reading agrees with the DCS and is steady."),
     "electrical": ("Refitted the cover bolt and remade the cable gland; Ex inspection noted.",),
     None: ("Checked on site: no leak or damage found and the reading agrees locally.",
            "Walked down with the panel operator: nothing abnormal locally."),
@@ -123,17 +134,21 @@ COULD_NOT_NOTES = {
     "seal": ("Spare seal kit is not on board; next boat is tomorrow morning.",),
     "leak": ("Needs the line depressurised to remake the joint; asked the planner for a window.",),
     "gauge": ("Needs the instrument tech to calibrate; none on board this hitch.",),
+    "level": ("Needs the instrument tech to calibrate; none on board this hitch.",),
+    "position": ("Needs the instrument tech to calibrate; none on board this hitch.",),
+    "glass": ("The gauge glass cocks are passing, so it can't be isolated to clean; asked the planner for a window.",),
     "corrosion": ("Needs a scaffold to reach the insulated section. Asked the planner for a slot.",),
     None: ("No access: the area is barricaded for a crane lift until tomorrow's day shift.",
            "Weather: wind over the limit for working at height on the cellar deck."),
 }
-TOPICS = (  # words in a job's title, and what the job is about
-    (("permit",), "permit"), (("seal",), "seal"), (("sight glass", "oil level"), "oil"),
+TOPICS = (  # words in a job's title, and what the job is about, the first that fits
+    (("permit",), "permit"), (("fogged", "cannot read", "can't read", "unreadable", "stained"), "glass"),
+    (("seal",), "seal"), (("oil level", "oil low"), "oil"),
     (("noise", "vibration", "rattl"), "noise"), (("corrosion", "corroded", "cui"), "corrosion"),
     (("cable gland", "cover bolt", "earth"), "electrical"),
     (("leak", "weep", "drip", "flange", "packing"), "leak"),
-    (("gauge", "reads", "dcs", "display", "pressure", "level", "position", "transmitter", "alarm"), "gauge"),
-    (("temperature",), "temperature"),
+    (("position",), "position"), (("level",), "level"), (("temperature",), "temperature"),
+    (("gauge", "reads", "dcs", "display", "pressure", "transmitter", "alarm"), "gauge"),
 )
 
 
@@ -288,9 +303,19 @@ def work_queue(t: _Tick) -> None:
         free = [p for p in FIELD if held[p] == 0]
         return min(free, key=lambda p: _u(p, now.hour)) if free else None
 
-    def send_out(r: dict, step: str, why: str = "Go and have a look, report what you find") -> None:
-        """The lead sends a field job out: to a free operator, else (some of them) to the operator queue."""
+    def send_out(r: dict, step: str, why: str | None = None) -> None:
+        """The lead sends a field job out: to a free operator, else (some of them) to the operator queue, asking what
+        the message said (else the case's title), as Options asks. A message that asks for no field work (a vendor's
+        bulletin, a question, something already over) is never sent out: the lead logs it (tour F, B-N10)."""
         nonlocal queued
+        from . import messages, options
+
+        text = messages.text_of(conn, r["id"])
+        if text and (none := messages.info_only(text)):
+            if r["item_id"]:
+                t.act("log", log_only, conn, r["item_id"], none)
+            return
+        why = why or options.case_text(conn, r["id"])
         who = free_operator()
         if who is None or _u(r["id"], step, "queue") < TO_QUEUE:
             if queued >= QUEUED:
@@ -412,6 +437,14 @@ def close_out(conn, item_id: int, note: str) -> dict:
                               cause=(s.get("cause") or "3") if real else None, activity=(s.get("activity") or "6") if real else None,
                               outcome="fixed" if real else None, note=f"On the field's report: {note or 'done'}"[:300],
                               suggested=s)
+
+
+def log_only(conn, item_id: int, why: str) -> dict:
+    """The lead's close-out of a message that asks for no field work: logged, no action, saying why."""
+    from ..core.pack import resolve
+    from . import disposition
+
+    return disposition.record(conn, resolve(conn), item_id, LEAD, "log_only", note=f"Not field work: {why}"[:300])
 
 
 def _desk_hours(exception_id: int, type: str | None = None) -> float:

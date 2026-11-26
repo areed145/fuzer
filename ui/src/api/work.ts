@@ -300,7 +300,7 @@ export interface CloseoutSuggestion {
 export interface CloseoutInput {
   by: string; disposition: string; failure_mode?: string; mechanism?: string; cause?: string; activity?: string;
   outcome?: string; note?: string; duplicate_of?: number; suggested?: CloseoutSuggestion;
-  /** Contained, follow-up planned: who the follow-up goes to, a person or role:<role> (#1385). */
+  /** Contained or not fixed: who the follow-up goes to, a person or role:<role> (#1385). */
   follow_up_to?: string;
 }
 
@@ -327,8 +327,8 @@ export interface WorkPerformance {
 /** One of an event's options (P5.20): when it would be done, the production deferred until then, the risk of waiting,
  * and whether it is ready; an option that can't be taken says why. */
 export interface CaseOption {
-  key: "dispatch" | "window" | "shelve" | "escalate"; label: string; detail?: string; available: boolean;
-  unavailable?: string; hours?: number; by?: string;
+  key: "dispatch" | "window" | "shelve" | "escalate" | "watch"; label: string; detail?: string; available: boolean;
+  unavailable?: string; hours?: number | null; by?: string | null;
   deferred?: { oil_bbl: number; gas_mscf: number; usd: number } | null;
   risk?: { level: "Low" | "Medium" | "High"; why: string };
   ready?: boolean; blockers?: string[]; warnings?: string[]; clashes?: string[]; basis?: string;
@@ -337,6 +337,8 @@ export interface CaseOption {
   plan_item?: number; start?: string; crew?: string | null; until?: string; to?: string;
   /** A ride along: who takes it on the visit (the operator queue when null). */
   operator?: string | null;
+  /** A ride along on a work order nobody is named on ("SAP order 4000123"): the planner adds it to the order. */
+  order?: string | null;
 }
 
 export interface OptionDecision { id: number; chosen: CaseOption["key"]; recommended: CaseOption["key"]; accepted: boolean;
@@ -1103,7 +1105,7 @@ export const workApi = {
   workNames: () => request<Record<string, string>>("GET", "/work/names"),
   /** Each kind of work's one label (#1358), read once by the app shell into `workKind`. */
   workKinds: () => request<Record<string, string>>("GET", "/work/kinds"),
-  workPeople: () => request<{ name: string; roles: string[]; assigned_roles?: string[]; away_until?: string | null; delegate?: string | null; display_name?: string | null;
+  workPeople: () => request<{ name: string; roles: string[]; assigned_roles?: string[]; away_until?: string | null; delegate?: string | null; display_name?: string | null; owner?: boolean;
     /** Open cases and waiting steps they hold now. */ holding?: number }[]>("GET", "/work/people"),
   /** The demo account picks the human roles it acts as in this project; none is every role. */
   actAs: (roles: string[]) => request<{ name: string; roles: string[]; picked: string[] }>("PUT", "/work/me/roles", undefined, { roles }),
@@ -1268,6 +1270,10 @@ export const workApi = {
     due?: string; priority?: number; override?: string } = {}) =>
     request<{ choice: OptionDecision; event: { id: number; item_id: number | null; stage: string; state: string };
       item: CaseNow | null }>("POST", `/exceptions/${id}/options/choose`, undefined, { by, option, ...c }),
+  /** Add an event to another's case: Options' "Add to that job" on a case the field already has (tour F, F6). */
+  joinException: (id: number, into: number, by: string) =>
+    request<{ event: { id: number; item_id: number; joined_to: number; state: string }; item: CaseNow | null }>(
+      "POST", `/exceptions/${id}/join`, undefined, { by, into }),
   optionAcceptance: (days = 90) => request<OptionAcceptance>("GET", "/options/acceptance", { days: String(days) }),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
   // A case goes ahead of the reads waiting (P5.29d): after an action every view on the page reads again, the case's
@@ -1324,13 +1330,17 @@ export const workApi = {
   workload: () => request<Workload>("GET", "/work/workload"),
   workHome: (person: string, mark = false) => request<WorkHome>("GET", "/work/home", { person, mark: mark ? "true" : undefined }),
   caseCloseout: (id: number) => request<{ item_id: number; record: CaseCloseout | null;
-    /** The follow-up case sent when it closed contained. */ follow_up?: number | null; suggestion: CloseoutSuggestion;
+    /** The follow-up case sent when it closed contained or not fixed. */ follow_up?: number | null; suggestion: CloseoutSuggestion;
+    /** The case it most likely duplicates (the same equipment, open or just closed), suggested for Duplicate. */
+    duplicate_of?: { item_id: number; title: string } | null;
     vocabulary: CloseoutVocabulary; repeats: { again: number; at: string }[]; equipment?: boolean;
     /** Work someone asked for: it closes as done as asked. */ asked?: boolean;
     /** A message's case: one that only said what was done closes as log only. */ message?: boolean }>("GET", `/work/items/${id}/closeout`),
   answerRecheck: (id: number, by: string, held: boolean, note?: string) =>
     request<CaseCloseout>("POST", `/work/items/${id}/recheck`, undefined, { by, held, note }),
-  recordCaseCloseout: (id: number, body: CloseoutInput) => request<CaseCloseout>("POST", `/work/items/${id}/closeout`, undefined, body),
+  /** `item` is the case as the close-out left it (tour F12). */
+  recordCaseCloseout: (id: number, body: CloseoutInput) =>
+    request<CaseCloseout & { item?: CaseNow | null }>("POST", `/work/items/${id}/closeout`, undefined, body),
   closeoutMissing: () => request<{ id: number; title: string; type: string; closed_at: string }[]>("GET", "/closeout/missing"),
   workPerformance: () => request<WorkPerformance>("GET", "/work/performance"),
   detectorPerformance: () => request<DetectorPerformance>("GET", "/work/performance/detectors"),
@@ -1390,10 +1400,10 @@ export const workApi = {
   reviews: (kind: ReviewKind) => request<ReviewItem[]>("GET", "/review", { kind, limit: 500 }),
   /** One open question, as a list of one (none once it is answered). */
   review: (kind: ReviewKind, item: number) => request<ReviewItem[]>("GET", "/review", { kind, item }),
-  /** `case` is the case a message question's answer opened (P5.26a). */
-  /** A message's answer says the case it opened and what that case is about (#1382). */
+  /** A message's answer says the case it opened and what that case is about (#1382); `item` is the steward's case the
+   * answer closed, as it now stands (tour F7). */
   decide: (id: number, d: Decision) => request<{ decided: number; case?: number | null;
-    about?: { fuzer_id: string; label: string }[] }>("POST", `/review/${id}`, undefined, d),
+    about?: { fuzer_id: string; label: string }[]; item?: CaseNow | null }>("POST", `/review/${id}`, undefined, d),
   /** Change the entities a message case is about: a wrong match, redone on the case (#1382). */
   changeMessageEntities: (exceptionId: number, by: string, fuzerIds: string[]) =>
     request<{ case: number | null; about: { fuzer_id: string; label: string }[]; item: CaseNow | null }>(

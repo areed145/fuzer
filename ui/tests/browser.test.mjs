@@ -899,6 +899,80 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
   });
 }
 
+// P5.30b (#1409, tour F): Options follow the case. A brief that says keep on watch is recommended as Keep on watch,
+// one tap (F3); "The field already has a case on it" offers Add to that job, which opens that job (F6); a ride-along
+// on a work order nobody is named on says the planner adds it to the order (F5).
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.30b Keep on watch follows the brief, Add to that job opens the job, and a work order names its planner (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    const chosen = [], joined = [];
+    const base = caseOptions();
+    let options = caseOptions({
+      loss: null, if_it_trips: { oil_bbld: 20000, gas_mscfd: 0, usd_per_day: 1500000, wells: 177, basis: "behind it" },
+      field_case: { exception: 5, item_id: 1170, title: "20-K-2200C seal gas check" },
+      options: [...base.options.map((o) => (o.key === "window" ? { ...o, deferred: null, operator: "role:maintenance_planner",
+        order: "SAP order 4000123" } : { ...o, deferred: null })),
+      { key: "watch", label: "Keep on watch", detail: "no field work now; the case stays where it is", available: true,
+        hours: null, by: null, deferred: null, risk: null, ready: true, blockers: [], warnings: [], clashes: [], unknown: [],
+        proposed: true, basis: "the specialist brief proposes it" }],
+      recommended: "watch", deciding: "brief",
+      reason: "The specialist brief proposes keeping it on watch, and nothing is deferred while it is.",
+    });
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "20-K-2200C to watch", type: "machine_health",
+      state: "open", subjects: [], created_by: "agent:rotating", created_at: "2026-11-25T12:00:00Z", events: [], processes: [],
+      payload: { exception_id: 7 } } }));
+    await page.route("**/work/items/1170", (route) => route.fulfill({ json: { id: 1170, title: "20-K-2200C seal gas check",
+      type: "message", state: "open", subjects: [], created_by: "user:demo", created_at: "2026-11-25T12:00:00Z", events: [],
+      processes: [], payload: { exception_id: 5 } } }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: options }));
+    await page.route("**/exceptions/7/options/choose", (route) => {
+      const body = route.request().postDataJSON();
+      chosen.push(body);
+      return route.fulfill({ json: { choice: { id: 9, chosen: body.option, recommended: "watch", accepted: body.option === "watch" },
+        event: { id: 7, item_id: 21, stage: "desk", state: "open" }, item: null } });
+    });
+    await page.route("**/exceptions/7/join", (route) => {
+      joined.push(route.request().postDataJSON());
+      return route.fulfill({ json: { event: { id: 7, item_id: 1170, joined_to: 5, state: "open" }, item: null } });
+    });
+    await page.goto(`${url}/#/cases/21`);
+    await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    await page.reload();
+    let card = page.getByLabel("Options");
+    const watch = card.locator(".case-option.recommended");
+    await watch.getByText("Keep on watch", { exact: true }).first().waitFor();
+    await watch.getByText("The specialist brief proposes keeping it on watch", { exact: false }).waitFor();
+    // nothing is sent: no time, deferral or risk of its own beside the others
+    assert.equal(await watch.getByText(/^Done by/).count(), 0);
+    assert.equal(await watch.getByText(/^Risk/).count(), 0);
+    assert.deepEqual(await card.locator(".ui-button-primary").allTextContents(), ["Keep on watch"]);
+    if (size === "phone") {
+      const width = await page.evaluate(() => document.documentElement.scrollWidth);
+      assert.ok(width <= 390, `no sideways scroll (${width})`);
+    }
+    await card.getByRole("button", { name: "Keep on watch", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "Kept on watch, as recommended. The choice and why are on the case." }).waitFor();
+    assert.deepEqual(chosen, [{ by: "riley", option: "watch" }]);
+
+    // a ride-along on a work order nobody is named on goes to the planner, who adds it to the order
+    options = { ...options, recommended: "window", reason: "The visit on Wed 25 Nov does it with nothing deferred while it waits." };
+    await page.reload();
+    card = page.getByLabel("Options");
+    await card.getByRole("button", { name: "Add to the visit", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "Sent to the maintenance planner queue to add to SAP order 4000123, as recommended." }).waitFor();
+    assert.deepEqual(chosen[1], { by: "riley", option: "window" });
+
+    // the field already has a case on it: Add to that job joins it and opens that job
+    await page.reload();
+    card = page.getByLabel("Options");
+    await card.getByText("The field already has a case on it:").waitFor();
+    await card.getByRole("button", { name: "Add to that job" }).click();
+    await page.waitForURL(/#\/cases\/1170$/);
+    assert.deepEqual(joined, [{ by: "riley", into: 5 }]);
+    await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+  });
+}
+
 test("another option than the recommended one takes an optional why, which goes with the choice (P5.20, #1347)", async () => {
   const chosen = [];
   await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "20-K-2300B tripped", type: "machine_trip",
@@ -5099,7 +5173,11 @@ for (const [size, viewport, ios] of [["phone", { width: 390, height: 844 }, "?io
         { kind: "spares", label: "Spares", satisfied: false, detail: ["Bearing set, Kelvion KEL-600: 0 in stock, 1 needed; on order (4500000010), due 2026-12-09"] },
         { kind: "crew", label: "Crew", satisfied: false, detail: ["Mechanical maintenance crew (MECH): 8 of 6 booked today, with Unusual noise from 10-V-2002 (LP Production Separator)"] }] } }));
     await page.route("**/plan/5/book", (route) => { booked.push(route.request().postDataJSON()); return route.fulfill({ json: item }); });
-    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "sam", display_name: "Sam Okafor-Lindqvist", roles: ["operator", "maintenance_planner"], holding: 3 }] }));
+    const every = ["ops_lead", "operator", "maintenance_planner", "production_engineer", "data_steward", "engineer", "planner"];
+    await page.route("**/work/people", (route) => route.fulfill({ json: [
+      { name: "sam", display_name: "Sam Okafor-Lindqvist", roles: ["operator", "maintenance_planner"], holding: 3 },
+      { name: "user:adam", display_name: "Adam Owner", roles: every, owner: true, holding: 1 },
+      { name: "kai", roles: ["operator", "engineer", "data_steward"], holding: 0 }] }));
     await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "operator", kind: "person" }] }));
     await page.goto(`${url}/${ios}#/plan`);
     await page.getByRole("heading", { name: "North", exact: true }).waitFor();
@@ -5113,6 +5191,14 @@ for (const [size, viewport, ios] of [["phone", { width: 390, height: 844 }, "?io
     await page.getByText(/Crew: Mechanical maintenance crew \(MECH\): 8 of 6/).waitFor();
     const who = page.getByRole("combobox", { name: "Who" });
     await who.locator("option", { hasText: "Sam Okafor-Lindqvist" }).waitFor({ state: "attached" });
+    // P5.30d (tour F, F17): roles in short form, never all seven in one option; the readiness lines carry only their
+    // tick or cross, no list bullet before it ("○ ✓")
+    const options = await who.locator("option").allInnerTexts();
+    assert.ok(options.some((o) => /^Adam Owner \(every role\)/.test(o)), options.join(" | "));
+    assert.ok(options.some((o) => /^kai \(operator \+2\)/.test(o)), options.join(" | "));
+    assert.ok(options.some((o) => /^Sam Okafor-Lindqvist \(operator, maintenance planner\)/.test(o)), options.join(" | "));
+    const ticks = page.locator(".plan-detail li", { hasText: "Scheduled" });
+    assert.equal(await ticks.evaluate((li) => getComputedStyle(li).listStyleType), "none");
     const spill = await card.evaluate((c) => {
       const edge = c.getBoundingClientRect().right;
       return [...c.querySelectorAll(".plan-detail *, .plan-label *")].filter((el) => el.getBoundingClientRect().right > edge + 1)
@@ -5163,6 +5249,113 @@ test("P5.29f a report reads no phone: false panel on a phone, and shows Plan lin
     await page.waitForTimeout(300);
     assert.equal(read.length, reads, `${viewport.width} px reads the phone: false analysis ${reads} times`);
   }
+});
+
+// P5.30e (#1412, tour F: E8): Plan against actual on a phone shows every section, the backlog and Notification to order
+// included; an iPad reads the panels on its screen first, and the analyses at the foot only when they come near.
+function planReport() {
+  const win = { key: "qtd", at: "2026-11-26", start: "2026-10-01", end: "2026-11-26", days: 57, label: "Quarter to 26 Nov 2026",
+    previous: { start: "2026-07-01", end: "2026-09-30" } };
+  const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
+  const stat = (id, measure) => ({ id, type: "stat", size: 1, measure });
+  const view = { scope, window: win, repeats: {}, scopes: [scope], unknown: [],
+    definition: { schema: 1, key: "plan", title: "Plan against actual", version: 4, for: [], scope: { kinds: ["facility"] },
+      window: { default: "qtd", options: ["qtd"] }, source: "platform", rows: [
+        { id: "headline", panels: [stat("est-hours", "plan.estimate_hours"), stat("act-hours", "plan.actual_hours"),
+          stat("est-cost", "plan.estimate_cost"), stat("act-cost", "plan.actual_cost")] },
+        { id: "execution", panels: [stat("backlog", "work.backlog"), stat("planned", "work.planned_share"),
+          stat("compliance", "work.schedule_compliance"), stat("unplanned", "plan.unplanned_share")] },
+        { id: "commentary", panels: [{ id: "summary", type: "summary", size: 2 }, { id: "notes", type: "note", size: 2 }] },
+        { id: "per-program", title: "By program", panels: [{ id: "by-program", type: "table", size: 4, title: "Plan against actual by program" }] },
+        { id: "lines", panels: [{ id: "plan-lines", type: "table", size: 4, title: "Plan lines" }] },
+        { id: "work", panels: [{ id: "backlog-trend", type: "trend", size: 2, title: "Open cases" },
+          { id: "planned-trend", type: "trend", size: 2, title: "Planned work and schedule compliance" }] },
+        { id: "maintenance", panels: [{ id: "backlog-burn", type: "view", view: "backlog-burn", size: 4 }] },
+        { id: "against-the-accounts", panels: [{ id: "accounts", type: "view", view: "accounts", size: 4 }] }] } };
+  const answer = (id) => {
+    const base = { id, title: id, scope, window: win, as_of: "2026-11-26", note: null, scoped: true, refs: [], href: "/metrics/x" };
+    if (id === "summary") return { ...base, type: "summary", summary: null, can_write: false, due: false };
+    if (id === "notes") return { ...base, type: "note", text: null, values: {}, notes: [] };
+    if (id === "by-program" || id === "plan-lines") return { ...base, type: "table", total: 1,
+      columns: [{ key: "program", label: "Program" }, { key: "hours", label: "Planned hours", align: "end" }],
+      rows: [{ key: "a", cells: { program: "Maintenance", hours: 71.9 } }] };
+    if (id.endsWith("-trend")) return { ...base, type: "trend", spec: { title: id, series: [], time: { start: win.start, end: win.end } } };
+    return { ...base, type: "stat", measure: "plan.estimate_hours", value: 458.5, unknown: false, unit: "h", target: null,
+      better: "none", previous: 441.3, source: "business plan lines", history: [] };
+  };
+  return { view, answer };
+}
+const BURN_SOME = { since: "2025-01-01", until: "2025-12-31", source: "SAP work orders", note: "Orders with no notification are left out.",
+  months: [{ month: "2025-12", created: 6, closed: 3, open_at_end: 32, closed_without_finish: 0, by_type: {} }],
+  summary: { created: 6, closed: 3, open_at_start: 29, open_at_end: 32, trend: "growing" },
+  lag: { orders: 6, with_notification: 4, without_notification: 2, ordered_before_notified: 0, median_days: 1, p90_days: 7,
+    max_days: 16, longest: [] } };
+
+async function routePlan(reads, held = null) {
+  const { view, answer } = planReport();
+  await page.route("**/reports/plan?*", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/plan", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/plan/panels/**", (route) => {
+    const id = new URL(route.request().url()).pathname.split("/").pop();
+    reads.push(id);
+    return held ? held.then(() => route.fulfill({ json: answer(id) })) : route.fulfill({ json: answer(id) });
+  });
+  await page.route("**/plant/backlog-burn", (route) => { reads.push("backlog-burn"); return route.fulfill({ json: BURN_SOME }); });
+  await page.route("**/plant/accounting", (route) => { reads.push("accounts"); return route.fulfill({ json: ACCOUNTS_NONE }); });
+}
+
+async function scrollToFoot() {
+  for (let i = 0; i < 20; i++) {
+    const done = await page.evaluate(() => { scrollBy(0, innerHeight); return innerHeight + scrollY >= document.documentElement.scrollHeight - 2; });
+    await page.waitForTimeout(150);
+    if (done && await page.locator(".report-row-waiting").count() === 0) return;
+  }
+}
+
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.30e Plan against actual shows every section, the backlog and Notification to order included (${size})`, async () => {
+    const reads = [];
+    await routePlan(reads);
+    await page.setViewportSize(viewport);
+    await page.goto(`${url}/#/reports/plan`);
+    await page.getByText("458.5 h").first().waitFor();
+    await scrollToFoot();
+    await page.getByRole("table", { name: "Plan lines" }).waitFor();
+    await page.getByText("Is the backlog under control?").waitFor();
+    await page.getByRole("heading", { name: "Notification to order" }).waitFor();
+    await page.getByText("Median 1 days, 90% within 7, longest 16", { exact: false }).waitFor();
+    assert.ok(reads.includes("accounts"), "the accounts are read too");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}
+
+test("P5.30e an iPad reads the panels on its screen first, and the analyses at the foot only when they come near", async () => {
+  // Every read waits, as on the live server: what is asked for before anything has drawn is what the first paint asked.
+  const reads = [];
+  let release;
+  await routePlan(reads, new Promise((r) => { release = r; }));
+  await page.setViewportSize({ width: 834, height: 1194 });
+  await page.goto(`${url}/#/reports/plan`);
+  await page.getByRole("heading", { level: 1, name: "Plan against actual" }).waitFor();
+  await page.waitForTimeout(500);
+  for (const id of ["est-hours", "act-hours", "est-cost", "act-cost"]) assert.ok(reads.includes(id), `${id} read at first paint`);
+  // the rows at the foot wait until they come near, so their reads never queue beside the screen's (a row not asked
+  // for yet stands as a placeholder; the browser's queue lets four reads out at a time, so the network can't say)
+  const waiting = await page.locator(".report-row-block").evaluateAll((ns) => ns.map((n) => !!n.querySelector(".report-row-waiting")));
+  assert.deepEqual(waiting, [false, false, false, true, true, true, true, true], "only the rows on and just below the screen are asked for");
+  release();
+  await page.getByText("458.5 h").first().waitFor();
+  await page.waitForTimeout(500);
+  // what is on the screen draws without scrolling; nothing on it still says Loading…
+  const onScreen = await page.locator(".report-panel").evaluateAll((ns) => ns.filter((n) => n.getBoundingClientRect().top < innerHeight)
+    .map((n) => n.textContent));
+  assert.ok(onScreen.length >= 4, `${onScreen.length} panels on screen`);
+  assert.equal(onScreen.filter((t) => t.includes("Loading")).length, 0);
+  await scrollToFoot();
+  await page.getByRole("heading", { name: "Notification to order" }).waitFor();
+  assert.ok(reads.includes("accounts"));
+  assert.deepEqual(errors, []);
 });
 
 test("a cold open shows the last answers at once, says how old they are, then swaps in the fresh ones", async () => {
@@ -5563,6 +5756,8 @@ test("P5.29e a past handover is read only and the running one offers no redraft"
       assert.equal(await page.getByRole("button", { name: gone }).count(), 0, `${gone} on a past handover`);
     assert.equal(await page.getByRole("textbox", { name: "Outgoing notes" }).count(), 0);
     await page.getByText("drafted Nov 20", { exact: false }).waitFor();
+    // P5.30d (tour F, F15): no acknowledge button, and the page says why
+    await page.getByText("not acknowledged: a later shift's handover replaced it").waitFor();
     await page.goto(`${url}/#/handover`);  // the running shift: notes, but nothing to redraft
     await page.getByRole("textbox", { name: "Outgoing notes" }).waitFor();
     assert.equal(await page.getByRole("button", { name: "Draft the handover" }).count(), 0);
@@ -5578,14 +5773,22 @@ test("P5.29e a case names a hyphenated agent in words and says opened by only fo
   await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoCase(), created_by: "stewardship",
     created_at: "2026-11-26T04:16:00Z", events: [
       { id: 1, kind: "created", actor: "stewardship", element: null, at: "2026-11-26T04:16:00Z", data: {} },
+      { id: 3, kind: "started", actor: "stewardship", element: null, at: "2026-11-26T04:16:00Z", data: { process_key: "queue_item" } },
       { id: 2, kind: "commented", actor: "agent:maintenance-integrity", element: null, at: "2026-11-26T04:20:00Z",
-        data: { text: "Lube oil pressure trending down" } }] } }));
+        data: { text: "Lube oil pressure trending down" } },
+      { id: 4, kind: "completed_process", actor: "ana", element: null, at: "2026-11-26T04:30:00Z",
+        data: { state: "completed", outcome: "no_work_needed" } }] } }));
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.goto(`${url}/#/cases/7`);
     await page.getByText("Maintenance integrity agent").first().waitFor();
     assert.doesNotMatch(await page.locator("main").innerText(), /agent:|maintenance-integrity/);
     assert.doesNotMatch(await page.locator(".case-head").innerText(), /opened by|stewardship/, "a job's key is not who opened it");
+    // P5.30d (tour F, C8): History says it plainly: no job key opening it, no engine process starting, no "workflow completed:"
+    const history = await page.locator(".timeline").innerText();
+    assert.doesNotMatch(history, /stewardship|started the|queue item process|workflow completed/, history);
+    assert.match(history, /Case opened/);
+    assert.match(history, /Done:\s+No work needed/i);
   }
 });
 
@@ -7178,8 +7381,10 @@ test("P5.17h When the phone has cleared the app's store, the operator is told, w
   const before = fetched;
   await page.goto(`${url}/#/inbox`);
   const notice = page.locator(".field-cleared");
-  await notice.getByText("Your offline copy was cleared by the phone; fetching again.").waitFor();
-  await notice.getByText("2 reports made without signal went with it and never reached the IOC", { exact: false }).waitFor();
+  // in plain words, only for what was lost (tour F, F11): never "Your offline copy was cleared by the phone"
+  await notice.getByText("2 reports made without signal were lost from this phone before they sent: tell the IOC what they said.",
+                         { exact: false }).waitFor();
+  assert.doesNotMatch(await notice.innerText(), /offline copy/);
   await card.getByText("Look at the gland").waitFor();
   assert.ok(fetched > before, "the day's work is fetched again");
   await notice.getByRole("button", { name: "Got it" }).click();
@@ -7553,6 +7758,51 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     await form.getByRole("button", { name: "Close the case" }).click();
     await expectReports(posts, 1);
     assert.deepEqual([posts[0].outcome, posts[0].follow_up_to], ["contained", "role:maintenance_planner"]);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
+
+// P5.30b (#1409, tour F, F9, F10): "Not fixed" names who the follow-up goes to, as Contained does; Duplicate comes
+// with the case it most likely duplicates in the field, its title beside it.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.30b not fixed sends a follow-up and Duplicate suggests the case (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const item = { ...demoTask.item, title: "Grinding noise at the 10-P-1001B coupling", state: "open", closed_at: null,
+      processes: [], events: [] };
+    await page.route("**/work/items/7", (route) => route.fulfill({ json: item }));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "pat", roles: ["maintenance_planner"] }] }));
+    await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "maintenance_planner", kind: "person" }] }));
+    const vocabulary = { dispositions: { real: "A real problem", duplicate: "Duplicate" },
+      outcomes: { fixed: "Fixed", contained: "Contained, follow-up planned", not_fixed: "Not fixed" }, failure_modes: {},
+      mechanisms: {}, causes: {}, activities: {} };
+    const posts = [];
+    await page.route("**/work/items/7/closeout", (route) => {
+      if (route.request().method() === "POST") {
+        posts.push(route.request().postDataJSON());
+        return route.fulfill({ status: 400, json: { detail: "kept here" } });
+      }
+      return route.fulfill({ json: { item_id: 7, record: null, vocabulary, repeats: [], equipment: false, asked: false,
+        suggestion: { from: "words", disposition: "real" },
+        duplicate_of: { item_id: 210, title: "10-P-1001B bearing temperature high" } } });
+    });
+    await page.goto(`${url}/#/cases/7`);
+    await page.getByRole("button", { name: "Close out", exact: true }).click();
+    const form = page.locator(".closeout-form");
+    await form.getByLabel("Outcome").selectOption("not_fixed");
+    assert.equal(await form.getByRole("button", { name: "Close the case" }).isDisabled(), true);
+    await form.getByText("Say who the follow-up goes to.").waitFor();
+    await form.getByLabel("Send the follow-up to").selectOption("role:maintenance_planner");
+    await form.getByRole("button", { name: "Close the case" }).click();
+    await expectReports(posts, 1);
+    assert.deepEqual([posts[0].outcome, posts[0].follow_up_to, posts[0].duplicate_of],
+      ["not_fixed", "role:maintenance_planner", undefined]);
+    await form.getByLabel("What it was").selectOption("duplicate");
+    assert.equal(await form.getByLabel("Duplicate of case").inputValue(), "210");
+    await form.getByText("10-P-1001B bearing temperature high").waitFor();
+    await form.getByRole("button", { name: "Close the case" }).click();
+    await expectReports(posts, 2);
+    assert.deepEqual([posts[1].disposition, posts[1].duplicate_of], ["duplicate", 210]);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   });
 }
@@ -11307,10 +11557,9 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     await page.getByRole("button", { name: "Another entity…" }).click();
     await page.getByLabel("Search the register").fill("20-GT-2000A");
     await page.getByRole("button", { name: "Search", exact: true }).click();
-    // one result comes picked: nothing left to choose
-    const a = page.getByRole("checkbox", { name: /^20-GT-2000A/ });
-    await a.waitFor();
-    assert.equal(await a.isChecked(), true);
+    // one result is the pick: a line and Use it, nothing to tick or untick (tour F8)
+    await page.locator(".match-ref").getByText(/^20-GT-2000A/).waitFor();
+    assert.equal(await page.locator(".match-ref").getByRole("checkbox").count(), 0);
     await page.getByLabel("Search the register").fill("20-GT-");
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await page.getByText("12 of 40", { exact: true }).waitFor();
@@ -11351,11 +11600,180 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     await card.getByRole("button", { name: "Change the entity…" }).click();
     await card.getByLabel("Search the register").fill("40-V-2002");
     await card.getByRole("button", { name: "Search", exact: true }).click();
-    await card.getByRole("checkbox", { name: /^40-V-2002/ }).waitFor();
+    await card.getByText(/^40-V-2002/).waitFor();
     assert.equal(searched.at(-1).get("kind"), "work");  // what work can be about, the server's one list
     await card.getByRole("button", { name: "Use it" }).click();
     await page.waitForFunction(() => document.querySelector(".case-message .match-ref") === null);
     assert.deepEqual(changed, [{ by: "ana", fuzer_ids: ["fz-tag-v2002-40"] }]);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
+
+// P5.30c (#1410, tour F): the case page follows every action. Options read again after Change the entity (E9); No work
+// needed and a close-out show the case closed from the action's own answer, with no reload (F7, F12); a case sent to
+// someone else drops its options and the send (E5); a single search result is a pick, not a box that unticks (F8).
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.30c Options name the new entity after Change the entity, and one result is a pick (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "ana", roles: ["data_steward", "ops_lead"] }] }));
+    let about = ["fz-tag-v2002-10"];
+    await page.route("**/work/items/1156", (route) => route.fulfill({ json: { id: 1156, title: "V-2002 level glass cracked",
+      type: "message_report", state: "open", subjects: about, created_by: "messages", created_at: "2026-11-25T16:30:00Z",
+      events: [], processes: [], payload: { exception_id: 77, message: { id: "MSG-0019", channel: "phone", channel_label: "Field note",
+        sender: "Ada Nwosu", subject: null, text: "V-2002 level glass cracked, isolated it.", received_at: "2026-11-25T10:00" } } } }));
+    const base = caseOptions({ exception_id: 77, item_id: 1156 });
+    // read for the new entity, the options take a while on a busy server
+    await page.route("**/work/items/1156/options", async (route) => {
+      if (about[0] === "fz-tag-v2002-10") return route.fulfill({ json: base });
+      await new Promise((r) => setTimeout(r, 2500));
+      return route.fulfill({ json: { ...base, loss: { ...base.loss, oil_bbld: 60000, usd_per_day: 4500000 } } }).catch(() => {});
+    });
+    await page.route("**/entities?*", (route) => route.fulfill({ json: { total: 1, hits: [{ fuzer_id: "fz-tag-v2002-40", kind: "tag",
+      label: "40-V-2002", description: "ST2 production separator", parent_label: "ST2" }] } }));
+    await page.route("**/exceptions/77/message/entities", (route) => { about = ["fz-tag-v2002-40"];
+      return route.fulfill({ json: { case: 1156, about: [{ fuzer_id: "fz-tag-v2002-40", label: "40-V-2002" }],
+        item: { id: 1156, title: "V-2002 level glass cracked", type: "message_report", state: "open", subjects: about,
+          created_by: "messages", created_at: "2026-11-25T16:30:00Z", events: [], processes: [] } } }); });
+    await page.goto(`${url}/#/cases/1156`);
+    const options = page.getByLabel("Options");
+    await options.getByText("Costing about 1,300 bbl/d", { exact: false }).waitFor();
+    const card = page.locator(".case-message");
+    await card.getByRole("button", { name: "Change the entity…" }).click();
+    await card.getByLabel("Search the register").fill("40-V-2002");
+    await card.getByRole("button", { name: "Search", exact: true }).click();
+    // one result: a line and Use it, no box to tap off
+    await card.getByText("40-V-2002 · Tag · ST2 production separator · ST2").waitFor();
+    assert.equal(await card.getByRole("checkbox").count(), 0);
+    const use = card.getByRole("button", { name: "Use it" });
+    assert.equal(await use.isDisabled(), false);
+    await use.click();
+    // the old entity's options leave at once, and the new entity's come without a reload
+    await page.getByText("Costing about 1,300 bbl/d", { exact: false }).waitFor({ state: "detached", timeout: 1000 });
+    await options.getByText("Costing about 60,000 bbl/d", { exact: false }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+
+  test(`P5.30c No work needed shows the case Done at once, from its answer (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "ana", roles: ["data_steward"] }] }));
+    const item = { id: 29811, kind: "message", subject: "MSG-0031", status: "open", label: null, payload: {
+      message: { id: "MSG-0031", channel: "phone", channel_label: "Field note", sender: "Demo account", subject: null,
+        text: "Train A third stage scrubber gauge glass is dirty, hard to read", received_at: "2026-11-26T08:02" },
+      why: "names no tag, well or alias in the register", question: "Which entity is this about?", candidates: [],
+      kinds: ["well", "pipeline", "pipeline_segment", "tag", "equipment"] } };
+    let answered = false;
+    await page.route("**/review?*", (route) => route.fulfill({ json: answered ? [] : [item] }));
+    const open = { id: 1265, title: "Train A third stage scrubber gauge glass is dirty, hard to read", type: "message_to_match",
+      state: "open", closed_at: null, subjects: [], role: "data_steward", assignee: null, created_by: "stewardship",
+      created_at: "2026-11-26T08:02:00Z", events: [], processes: [], payload: {},
+      sources: [{ id: 9, type: "message_to_match", key: "message:MSG-0031", title: "Which entity is this about?",
+        source: "stewardship", state: "open", first_seen: "2026-11-26T08:02:00Z", last_seen: "2026-11-26T08:02:00Z",
+        joined_to: null, subjects: [], label: "Message to match",
+        finding: finding("external", "Which entity is this about?", [{ label: "Answer", kind: "page",
+          value: "#/masterdata?tab=questions&kind=message&item=29811", text: "Answer it on Master data" }]) }] };
+    const done = { ...open, state: "done", closed_at: "2026-11-26T08:10:00Z", sources: undefined };
+    // the server's read after the answer is slow, as on a busy server: the page shows Done from the answer itself
+    let stall = false;
+    await page.route("**/work/items/1265", async (route) => {
+      if (stall) await new Promise((r) => setTimeout(r, 20_000));
+      return route.fulfill({ json: open }).catch(() => {});
+    });
+    await page.route("**/work/items/1265/options", (route) => route.fulfill({ json: { applies: false, why_not: "x", exception_id: 9, options: [] } }));
+    await page.route("**/work/items/1265/closeout", (route) => route.fulfill({ json: { item_id: 1265, repeats: [],
+      suggestion: { from: "words" }, record: null,
+      vocabulary: { dispositions: { no_work: "No work needed" }, outcomes: {}, failure_modes: {}, mechanisms: {}, causes: {}, activities: {} } } }));
+    await page.route("**/review/29811", (route) => { answered = true; stall = true;
+      return route.fulfill({ json: { decided: 29811, item: done } }); });
+    await page.goto(`${url}/#/cases/1265`);
+    await page.getByLabel("Next step").getByText("With data steward queue").waitFor();
+    await page.getByRole("button", { name: "No work needed" }).click();
+    await page.getByRole("button", { name: "Confirm decision" }).click();
+    await page.getByText("Done", { exact: true }).first().waitFor({ timeout: 3000 });
+    assert.equal(await page.getByLabel("Next step").count(), 0, "nothing waits on a closed case");
+    assert.equal(await page.getByText("Send to someone else").count(), 0);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+
+  test(`P5.30c a case sent to someone else drops its options and the send (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "riley", roles: ["ops_lead"] },
+      { name: "pat", roles: ["maintenance_planner"] }] }));
+    const open = { id: 21, title: "10-P-1001C coupling guard loose", type: "message_report", state: "open", closed_at: null,
+      subjects: [], created_by: "messages", created_at: "2026-11-26T07:00:00Z", events: [], processes: [], payload: { exception_id: 7 } };
+    let stall = false;
+    await page.route("**/work/items/21", async (route) => {
+      if (stall) await new Promise((r) => setTimeout(r, 20_000));
+      return route.fulfill({ json: open }).catch(() => {});
+    });
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: caseOptions() }));
+    await page.route("**/work/items/21/reassign", (route) => { stall = true;
+      return route.fulfill({ json: { item: { ...open, assignee: "pat" } } }); });
+    await page.goto(`${url}/#/cases/21`);
+    const options = page.getByLabel("Options");
+    await options.getByText("Recommended", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Send to someone else" }).click();
+    await page.locator(".case-actions select").selectOption("pat");
+    await page.locator(".case-actions").getByRole("button", { name: "Send", exact: true }).click();
+    await page.locator(".case-actions").getByRole("status").filter({ hasText: "Sent to pat." }).waitFor();
+    assert.equal(await page.getByLabel("Options").count(), 0, "the options leave once it is sent");
+    assert.equal(await page.getByRole("button", { name: "Send to someone else" }).count(), 0, "so does the send");
+    await page.getByLabel("Next step").getByText("With pat").waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+
+  test(`P5.30c a case closed out drops Waiting on and the send at once, from its answer (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "riley", roles: ["ops_lead"] }] }));
+    const open = { id: 21, title: "30-PT-2001 local gauge reads high", type: "message_report", state: "open", closed_at: null,
+      subjects: [], created_by: "messages", created_at: "2026-11-26T07:00:00Z", events: [], processes: [], payload: { exception_id: 7 } };
+    let stall = false;
+    await page.route("**/work/items/21", async (route) => {
+      if (stall) await new Promise((r) => setTimeout(r, 20_000));
+      return route.fulfill({ json: open }).catch(() => {});
+    });
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: caseOptions() }));
+    const vocabulary = { dispositions: { real: "A real problem", false_alarm: "False alarm" }, outcomes: {}, failure_modes: {},
+      mechanisms: {}, causes: {}, activities: {} };
+    let record = null;
+    await page.route("**/work/items/21/closeout", (route) => {
+      if (route.request().method() === "POST") {
+        stall = true;
+        record = { item_id: 21, disposition: "false_alarm", by: "riley", at: "2026-11-26T07:47:00Z" };
+        return route.fulfill({ json: { ...record, item: { ...open, state: "done", closed_at: "2026-11-26T07:47:00Z" } } });
+      }
+      return route.fulfill({ json: { item_id: 21, record, vocabulary, repeats: [], equipment: false, suggestion: { from: "words" } } });
+    });
+    await page.goto(`${url}/#/cases/21`);
+    await page.getByRole("button", { name: "Send to someone else" }).waitFor();
+    await page.getByRole("button", { name: "Close out", exact: true }).click();
+    await page.locator(".closeout-form").getByLabel("What it was").selectOption("false_alarm");
+    await page.locator(".closeout-form").getByRole("button", { name: "Close the case" }).click();
+    await page.getByLabel("Next step").waitFor({ state: "detached", timeout: 3000 });
+    assert.equal(await page.getByRole("button", { name: "Send to someone else" }).count(), 0);
+    assert.equal(await page.getByLabel("Options").count(), 0);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+
+  test(`P5.30c the list row's Send says what it needs (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const row = { id: 7, type: "message_report", key: "MSG-0040", title: "Test separator area smells of gas near the drain",
+      source: "messages", state: "open", stage: "dispatch", priority: null, value_usd: null, subjects: [], unmatched: [],
+      case_state: "open", item_id: 21, role: null, assignee: null, raised_count: 1, first_seen: "2026-11-26T08:00:00Z",
+      last_seen: "2026-11-26T08:00:00Z" };
+    await page.route("**/exceptions?*", (route) => route.fulfill({ json: [row] }));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "sam", roles: ["operator"] }] }));
+    await page.goto(`${url}/#/list`);
+    await page.getByRole("button", { name: "Send to", exact: true }).click();
+    const send = page.locator(".dispatch-controls").getByRole("button", { name: "Send", exact: true });
+    assert.equal(await send.isDisabled(), false, "a tablet has no hover to read a greyed button by");
+    await send.click();
+    await page.locator(".dispatch-controls").getByText("Choose who it goes to first.").waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   });
 }
@@ -11455,7 +11873,7 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     await page.goto(`${url}/#/cases/41`);
     const card = page.locator(".case-message");
     await card.getByRole("heading", { name: /^Field note · Demo account · / }).waitFor();
-    await card.getByText("Chosen by Demo account", { exact: true }).waitFor();
+    await card.getByText("Entity chosen by Demo account", { exact: true }).waitFor();
     await page.locator(".case-head").getByText("Equipment with no name").waitFor();
     await page.getByText("Demo account is also on", { exact: false }).first().waitFor();
     await page.locator(".timeline").getByText(/sent Field check to the operator queue/).waitFor();
@@ -11822,7 +12240,7 @@ for (const [size, viewport] of PHONE_DESK) {
     await card.getByRole("button", { name: "Change the entity…" }).click();
     await card.getByLabel("Search the register").fill("10-P-1001B");
     await card.getByRole("button", { name: "Search", exact: true }).click();
-    await card.getByRole("checkbox", { name: /^10-P-1001B/ }).check();
+    await card.getByText(/^10-P-1001B/).waitFor();
     await card.getByRole("button", { name: "Use it" }).click();
     await head.getByRole("link", { name: "10-P-1001B" }).waitFor({ timeout: 1500 });
     assert.equal(await head.getByRole("link", { name: "10-P-1001A" }).count(), 0);

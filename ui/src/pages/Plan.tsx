@@ -299,7 +299,7 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
           ? <Badge tone="ok">Released {whenDay(item.released_at)}{item.released_by ? ` by ${personName(item.released_by)}` : ""}</Badge>
           : <Badge tone={pre.ready ? "ok" : "warn"}>{pre.ready ? "Ready" : "Not ready"}</Badge>}
         {item.release_reason && <Text as="span" small muted> Why it went anyway: {item.release_reason}</Text>}
-        <List>{pre.prerequisites.map((p) => <li key={p.kind} className={p.satisfied ? "" : "error"}>
+        <List plain>{pre.prerequisites.map((p) => <li key={p.kind} className={p.satisfied ? "" : "error"}>
           {p.satisfied ? "✓" : "✗"} {p.label}{p.detail.length ? `: ${p.detail.join("; ")}` : ""}</li>)}</List>
       </Text>}
       {item.clashes.map((c, n) => <p key={n} className={`small ${c.kind === "bundle" ? "" : "error"}`}>

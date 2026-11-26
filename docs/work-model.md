@@ -231,8 +231,10 @@ flow before the larger moves.
 1. **Close the bar with its case.** Closing a case marks its plan item done, and so does the field's Done on its field job;
    cancelling a plan item with an open case asks first.
 2. **The plan item becomes a job.** `plan_item` gains its case (`item_id`), where it happens (field or desk) and a link to its result.
+   While the case is open, Plan shows the job, and checks its clashes, with whoever has the case now.
 3. **Bookings and one crew capacity.** Crew is picked from the resources, with capacity and clashes shown on booking.
-   Urgent dispatches and released jobs book demand, and the ready check reads that one ledger.
+   Urgent dispatches and released jobs book demand, and the ready check reads that one ledger: the day's busiest hour,
+   the count Crew load shows. A job that fills the crew to capacity is ready; one more is not.
 4. **Needs, and cases from arrival.** `exception_record` gains a need kind (condition, obligation or intent) and opens
    its case when it arrives; To dispatch and planned become stages of cases. A case nothing routes opens at the To
    dispatch step, held by nobody; sending it puts that same case on its process, and an event that joins another's

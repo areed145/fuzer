@@ -210,7 +210,7 @@ def _title(conn, job: int | None) -> str:
     return (row and row["title"]) or ""
 
 
-def crew(conn, subjects: list[str], job: int | None = None) -> dict:
+def crew(conn, subjects: list[str], job: int | None = None, plan_item: int | None = None) -> dict:
     """The crew for a job: each work center that does its work (the one its words' trade needs, when they name one),
     its size and the jobs already sent to it and still open. Ready while every work center has someone free. A full
     crew's blocker is one line with its count; the jobs holding it are on the work center."""
@@ -238,7 +238,7 @@ def crew(conn, subjects: list[str], job: int | None = None) -> dict:
                 holding[c["id"]].append({"id": s["id"], "title": s["title"], "assignee": s["assignee"]})
     out, blockers = [], []
     for c in centers:
-        booked = _booked(conn, c, job)
+        booked = _booked(conn, c, job, plan_item)
         if booked is not None:  # a crew on the plan: read the one capacity ledger planned work is booked against
             out.append(booked)
             if booked["full"]:
@@ -257,13 +257,15 @@ def crew(conn, subjects: list[str], job: int | None = None) -> dict:
             "checked": True, "note": None}
 
 
-def _booked(conn, center: dict, job: int | None) -> dict | None:
-    """A work center's crew read from the plan (step 3 of the work model): the plan resource of kind crew on it, the
-    people booked on it today by every source (planned jobs, schedules, work already sent out), less this job's own
-    booking, against its capacity today. None when the work center has no crew resource on the plan."""
+def _booked(conn, center: dict, job: int | None, plan_item: int | None = None) -> dict | None:
+    """A work center's crew read from the plan (step 3 of the work model): the plan resource of kind crew on it and
+    today's busiest hour on it, the one count Crew load shows (`schedule.resource_load`). Full when this job does not
+    fit in it: over capacity with the job's own booking in it, or no one free when the job is not booked yet; exactly
+    at capacity with the job booked is ready (#1411). None when the work center has no crew resource on the plan."""
     from datetime import timedelta
 
     from .plan import ACTIVE
+    from .schedule import EPS, resource_load
 
     res = conn.execute("select * from plan_resource where kind = 'crew' and work_center = %s order by code limit 1",
                        (center["label"],)).fetchone()
@@ -271,19 +273,21 @@ def _booked(conn, center: dict, job: int | None) -> dict | None:
         return None
     start = datetime.combine(clock.today(), datetime.min.time(), tzinfo=clock.zone())
     end = start + timedelta(days=1)
+    day = resource_load(conn, res["code"], start, 1)["resources"][0]["days"][0]
     rows = conn.execute(
         """
         select i.id, i.title, i.exception_id, d.quantity from plan_demand_all d join plan_item i on i.id = d.item_id
         where d.resource = %s and i.status = any(%s) and i.start_at < %s and i.end_at > %s and d.quantity > 0
         order by i.start_at, i.id
         """, (res["code"], list(ACTIVE), end, start)).fetchall()
-    others = [r for r in rows if job is None or r["exception_id"] != job]
-    window = conn.execute("select min(capacity) as c from plan_resource_capacity where resource = %s and start_at < %s "
-                          "and end_at > %s", (res["code"], end, start)).fetchone()
-    size = float(window["c"]) if window and window["c"] is not None else float(res["capacity"])
-    busy = sum(float(r["quantity"]) for r in others)
-    return {**center, "resource": res["code"], "crew": size, "busy": busy, "full": busy + 1 > size,
-            "jobs": [{"id": r["exception_id"], "item_id": r["id"], "title": r["title"]} for r in others]}
+
+    def own(r) -> bool:
+        return r["id"] == plan_item or (job is not None and r["exception_id"] == job)
+
+    peak, size = float(day["demand"]), float(day["capacity"])
+    full = peak > size + EPS if any(own(r) for r in rows) else peak + 1 > size + EPS
+    return {**center, "resource": res["code"], "crew": size, "busy": peak, "full": full,
+            "jobs": [{"id": r["exception_id"], "item_id": r["id"], "title": r["title"]} for r in rows if not own(r)]}
 
 
 LIVE = ("issued", "live", "active")
@@ -541,7 +545,7 @@ def check(conn, subjects: list[str], job: int | None = None, plan_item: int | No
     operator needs no maintenance crew, so the crew check is left out (#1401). `unknown` says each check that can't be
     said and why (parts with no stock source), and `undetermined` what would answer it (P6.6)."""
     look = bool(to) and field_operator(conn, to)
-    results = [c(conn, subjects, job, plan_item) if c in (_spares, _simops) else c(conn, subjects, job)
+    results = [c(conn, subjects, job, plan_item) if c in (_spares, _simops, crew) else c(conn, subjects, job)
                for c in CHECKS if not (look and c is crew)]
     blockers = [b if b.startswith("blocked:") else f"{r['label']}: {b}" for r in results for b in r["blockers"]]
     warnings = [w for r in results for w in r.get("warnings") or []]  # said to whoever sends it, never holding it

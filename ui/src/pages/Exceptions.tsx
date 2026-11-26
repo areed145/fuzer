@@ -323,7 +323,8 @@ export function DispatchControls({ r, person, onDone }: { r: ExceptionRow; perso
   // Send stays enabled: a tablet has no hover to read a greyed button's reason by, so a tap without what it needs says
   // what is missing beside the button (P5.28f).
   const send = () => {
-    const need = notSent(r) && !ask.trim() ? "Say what to check or do first: they see it on their job."
+    const need = !to.trim() ? "Choose who it goes to first."  // a greyed Send said nothing (tour D9)
+      : notSent(r) && !ask.trim() ? "Say what to check or do first: they see it on their job."
       : blocked && !why.trim() ? "Not ready: say why it should go anyway." : null;
     setMissing(need);
     if (need) return;
@@ -332,7 +333,7 @@ export function DispatchControls({ r, person, onDone }: { r: ExceptionRow; perso
   };
   return <div className="dispatch-controls">
     <Line wrap>
-      <Field label="Dispatch to" width="md"><AssignPicker value={to} onChange={setTo} placeholder="choose a person or queue" /></Field>
+      <Field label="Dispatch to" width="md"><AssignPicker value={to} onChange={(v) => { setTo(v); setMissing(null); }} placeholder="choose a person or queue" /></Field>
       {to.trim() && <Field label="What to do" width="lg"><Input placeholder="what to check or do (they see this)"
         value={ask} onChange={(e) => { setAsk(e.target.value); setMissing(null); }} /></Field>}
     </Line>
@@ -340,7 +341,7 @@ export function DispatchControls({ r, person, onDone }: { r: ExceptionRow; perso
     {to.trim() && blocked && <Input width="full" aria-label="Why send it anyway"
       placeholder="why it should go anyway (kept on its case)" value={why} onChange={(e) => { setWhy(e.target.value); setMissing(null); }} />}
     <Line>
-      <Button size="sm" variant="primary" disabled={!to.trim() || !!busy} onClick={send}>Send</Button>
+      <Button size="sm" variant="primary" disabled={!!busy} onClick={send}>Send</Button>
       <ErrorText inline>{missing}</ErrorText>
     </Line>
     <ErrorText>{error}</ErrorText>

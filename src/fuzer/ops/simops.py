@@ -127,7 +127,8 @@ def conflicts(conn, a: dict, b: dict, *, same_asset: bool = True) -> list[dict]:
 def at_dispatch(conn, subjects: list[str], exception_id: int | None = None, now: datetime | None = None,
                 plan_item: int | None = None) -> dict:
     """Conflicts between a job about to be sent and what is already in the field or planned now: other open jobs
-    sent to the field, and plan items under way or starting within SOON. Ready when there are none. A job never
+    sent to the field (a field operator or the operator queue has them; a case sent to a desk is nobody at the asset,
+    #1408), and plan items under way or starting within SOON. Ready when there are none. A job never
     clashes with its own case, its own bars or the visit it rides along with (`plan_item`, or any bar of the
     exception). The same asset as a case a field operator already has is no clash: the field is already on it, and
     `field_cases` names that case so whoever sends this one can see it (tour E, E14)."""
@@ -154,11 +155,11 @@ def at_dispatch(conn, subjects: list[str], exception_id: int | None = None, now:
         order by e.id
         """, (exception_id, case)).fetchall()
     others = [job(conn, r["title"], list(r["subjects"] or []), ref={"exception": r["id"]}, plant=plant,
-                  on_file=on_file) | {"field": r["role"] == exceptions.OPERATOR_ROLE or r["assignee"] in field,
-                                      "item_id": r["item_id"]} for r in rows]
-    # a job sent to the field that is also on the plan is one job: counted once, as sent, not again as its plan item
-    # (the same clash line twice on a case, tour D16)
-    sent = [o["ref"]["exception"] for o in others]
+                  on_file=on_file) | {"field": True, "item_id": r["item_id"]}
+              for r in rows if r["role"] == exceptions.OPERATOR_ROLE or r["assignee"] in field]
+    # a job sent out that is also on the plan is one job: counted once, as sent, not again as its plan item (the same
+    # clash line twice on a case, tour D16), and a case now at a desk is not in the field through its old bar either
+    sent = [r["id"] for r in rows]
     others += [job(conn, r["title"], list(r["subjects"] or []), r["area_id"], ref={"plan_item": r["id"]}, plant=plant,
                    on_file=on_file)
                for r in conn.execute(

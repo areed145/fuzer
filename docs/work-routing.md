@@ -169,6 +169,12 @@ by side:
 | **Ride along with the next visit** | A Field check for the field operator already at the same asset, or put on the plan with a job already booked on the same equipment (its assets or what they are part of) and a Field check for its operator; always a Field check, even for a case with no open step | Now, or that visit within `options.window_days` (21) |
 | **Shelve** | Off the list until the area's next turnaround or shutdown; not offered for a limit or a leak with production behind it | At most `exceptions.max_shelve_days` (30) |
 | **Escalate** | Sent to the engineer, or past the engineer to the ops lead; to the ops lead for a gas test, permit, isolation or depressurising; never to a role you act as | The engineer queue's SLA, then a dispatch |
+| **Keep on watch** | Only on a case with a specialist brief: nothing is sent and the case stays where it is; never for a hazard, a safety type, or a limit or leak with production behind it | - |
+
+A ride along on a visit that is a work order with nobody named on it goes to the maintenance planner queue, asking to
+add it to that order for its crew before the visit. A brief that proposes keeping it on watch is recommended as **Keep
+on watch** while nothing is deferred. When the field already has a case on the same asset, **Add to that job** joins
+this one to it.
 
 Each option says the production it defers until then (in bbl and $, from the wells it reaches at their latest test,
 only for a trip or a process upset; a report has no measured link to production), the risk of waiting (from

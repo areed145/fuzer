@@ -1,7 +1,7 @@
 # Work types
 
 Generated from the work type registry (`core/exceptions.py`) and the detector registry; don't edit by hand (`uv run python -m fuzer.reference`).
-The 49 types of work declared in code, grouped by where the routing table sends each one when it arrives. A deployment adds its own as data (on **Settings > Routing**) or in a source pack's `exception_types`; **Settings > Routing** shows the table as it stands on a running site, those included. [Where work goes](work-map.md) draws the path each group takes through the pages, and [every source of work](work-sources.md) says how each source is matched, routed, dispatched and closed.
+The 50 types of work declared in code, grouped by where the routing table sends each one when it arrives. A deployment adds its own as data (on **Settings > Routing**) or in a source pack's `exception_types`; **Settings > Routing** shows the table as it stands on a running site, those included. [Where work goes](work-map.md) draws the path each group takes through the pages, and [every source of work](work-sources.md) says how each source is matched, routed, dispatched and closed.
 
 Every type is listed on the **List** (All work), whichever group it is in. *The field can be sent* means a case of the type can be dispatched to a field operator's **My work**; *joins one event's case* means it joins an open case about the same asset instead of opening another; *held back by planned work* means a finding during a shutdown or planned job on its asset is counted under that window and opens no case.
 
@@ -11,6 +11,7 @@ No workflow and no queue: it waits on the List's **To dispatch** until the IOC d
 
 | Type of work | What it is | Found by | Declared in | How it behaves |
 |---|---|---|---|---|
+| **Follow-up** `follow_up` | What a close-out left to do, sent to a field operator or the operator queue: a field job. | - | [`ops.disposition`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/disposition.py) | the field can be sent |
 | **Reported in a message** `message_report` | A message to the IOC (mail, radio, Teams or a field note) about an entity in the register. | - | [`ops.messages`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/messages.py) | the field can be sent |
 | **SAP notification** `sap_notification` | An open SAP maintenance notification with no work order raised for it yet. | - | [`ops.intake`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/intake.py) | the field can be sent; joins one event's case; due by priority (`intake.sap_notifications.due_hours`) |
 

@@ -19,8 +19,9 @@ class ReviewError(ValueError):
 
 
 def decide(conn, item_id: int, decision: str, value, by: str, extra: dict | None = None, sync: bool = True) -> dict:
-    """Answer one open question. Returns {decided, kind, rebuild}: `rebuild` when the answer lands with a rebuild
-    (a merge or split, an accepted curve or drawing line). The caller commits."""
+    """Answer one open question. Returns {decided, kind, rebuild, case}: `rebuild` when the answer lands with a rebuild
+    (a merge or split, an accepted curve or drawing line), `case` the steward's case the answer closed. The caller
+    commits."""
     if decision not in DECISIONS:
         raise ReviewError(f"a decision is one of {', '.join(DECISIONS)}")
     item = conn.execute("select * from review_item where id = %s", (item_id,)).fetchone()
@@ -126,12 +127,15 @@ def decide(conn, item_id: int, decision: str, value, by: str, extra: dict | None
         "update review_item set status = 'decided', decision = %s, decided_by = %s, decided_at = now() where id = %s",
         (Jsonb(record), by, item_id),
     )
+    case = None
     if sync:
         from . import data_work
 
-        data_work.sync(conn, by)  # the answer closes its case in the steward's queue
+        # the answer closes its own case in the steward's queue; the other questions wait for the next rebuild's sync.
+        # A whole sync on each answer refreshed every open question, and No work needed took 4 to 6 s (tour F7)
+        case = data_work.answered(conn, item_id, by)
     rebuild = item["kind"] == "match" or (item["kind"] in ("curve", "pid_connection") and decision != "reject")
-    return {"decided": item_id, "kind": item["kind"], "rebuild": rebuild}
+    return {"decided": item_id, "kind": item["kind"], "rebuild": rebuild, "case": case}
 
 
 def _wrong(kind: str, p: dict, decision: str, value) -> dict:

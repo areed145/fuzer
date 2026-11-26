@@ -93,6 +93,25 @@ def test_a_shift_of_repeats_is_a_few_lines_with_links_to_the_rest(okan_db):
         conn.rollback()
 
 
+def test_a_line_names_its_case_in_a_few_words(okan_db):
+    """Tour F, A17: a case titled with a message's whole text made every line four phone lines and the handover 7.6
+    screens. A line names its case in a few words; the case it links has the whole of it."""
+    conn = okan_db.conn
+    conn.rollback()
+    start = conn.execute("select now() as t").fetchone()["t"]
+    long = ("The flare meter has read zero since 05:00. Please get the 25-FT-4003 transmitter checked, we need it "
+            "for the allocation and the monthly report before the end of the day")
+    try:
+        c = work.open_case(conn, "handover_test", long, "test", role="ops_lead")
+        work.close_case(conn, c["id"], "done", "test", reason="checked")
+        f = handover.facts(conn, start, datetime.now(UTC) + timedelta(seconds=1))
+        line = next(x for x in f["sections"]["Closed"] if f"case:{c['id']}" in x["cites"])
+        assert line["text"].startswith("The flare meter has read zero since 05:00.") and "…" in line["text"]
+        assert len(line["text"].removesuffix(": done {at}")) <= handover.TITLE, line["text"]
+    finally:
+        conn.rollback()
+
+
 def test_saving_notes_mid_shift_leaves_the_shift_in_progress(okan_db):
     conn = okan_db.conn
     try:

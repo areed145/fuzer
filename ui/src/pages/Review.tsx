@@ -12,6 +12,7 @@ import {
   api,
   type ConflictPayload,
   type CurvePayload,
+  type CaseNow,
   type Decision,
   type MappingPayload,
   type MatchPayload,
@@ -208,7 +209,9 @@ function QuestionCard({ item, onDecide }: { item: ReviewItem; onDecide: OnDecide
 
 /** A case's question, answered on the case (#1131): the same card and the same decision as Master data's Questions
  * tab, with the drawing it is about. Nothing shows once it is answered. */
-export function CaseQuestion({ id, kind, onDone }: { id: number; kind: ReviewKind; onDone: (said: ReactNode) => void }) {
+export function CaseQuestion({ id, kind, onDone }: { id: number; kind: ReviewKind;
+  /** What the answer said, and the case as the answer left it (closed, tour F7). */
+  onDone: (said: ReactNode, now?: CaseNow | null) => void }) {
   const q = useAsync(() => api.review(kind, id), [kind, id]);
   const [name] = usePerson();
   const [done, setDone] = useState<ReactNode>();
@@ -220,7 +223,7 @@ export function CaseQuestion({ id, kind, onDone }: { id: number; kind: ReviewKin
     <QuestionCard item={item} onDecide={async (d) => {
       const out = await api.decide(item.id, { ...d, by: name || "anonymous" });
       const said = saved(item, d, out);
-      setDone(said); notifyChanged(); onDone(said);
+      setDone(said); notifyChanged(); onDone(said, out.item);
     }} />
     {sheet?.document && <DrawingViewer id={sheet.document} highlight={[sheet.fuzer_id]} title={sheet.sheet} compact />}
   </div>;

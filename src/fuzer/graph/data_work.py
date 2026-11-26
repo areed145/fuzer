@@ -8,13 +8,13 @@ All work, on the Routing page, under the role's SLA.
 
     sync(conn)    one open exception per open question (key `<kind>:<subject>`), refreshed; the exception of a
                   question that was decided, or no longer arises, is cleared, which closes its case
+    answered(conn, id)  the case of one question just answered closes, as `sync` would close it
 
-`sync` runs at the end of every rebuild and after each answer, so the queue always matches the questions. A type's
+`sync` runs at the end of every rebuild and `answered` after each answer, so the queue always matches the questions. A type's
 cases don't join the IOC's cases about the same asset (`joins=False`): a disagreement about a pump's maker is the
 steward's, not part of the pump's trip.
 """
 
-from ..core import wording
 from ..core.exceptions import clear_exception, exception_type, open_keys, raise_exception
 from ..core.findings import EXTERNAL, Finding, at, fact, page
 
@@ -77,10 +77,9 @@ def title(kind: str, subject: str, p: dict) -> str:
     if kind == "pid_mismatch" and p.get("tag"):
         return _drawing_title(p)
     if kind == "message" and p.get("message"):
-        m = p["message"]
-        # by the sender's name: a field note's sender is the account that sent it ("Field note from user:demo", C8)
-        sender = m.get("sender_name") or wording.say(m.get("sender"))
-        return f"Which entity is this about? {m.get('channel_label', 'Message')} from {sender}: {m.get('text')}"
+        # what was said, as a message's case is titled (`messages.title`): the question and who sent it are on the
+        # case already, its kind and its card, never "Which entity is this about? Field note from ..." (tour F, C8)
+        return p.get("title") or " ".join(str(p["message"].get("text") or "").split())
     return p.get("question") or f"{KINDS[kind][1]}: {subject}"
 
 
@@ -172,6 +171,20 @@ def closeout(kind: str, decision: dict | None) -> str:
     if kind == "match" and said in ("accept", "choose"):
         return "matched"
     return "data_problem"
+
+
+def answered(conn, item_id: int, by: str = BY) -> int | None:
+    """Close the case of one question just answered, as `sync` would, without refreshing every other open question.
+    Returns the case's work item, or None when it has none or another open question still holds it."""
+    r = conn.execute("select kind, subject, status, decided_by, decision from review_item where id = %s",
+                     (item_id,)).fetchone()
+    if not r or r["kind"] not in TYPES or r["status"] != "decided" or conn.execute(
+            "select 1 from review_item where kind = %s and subject = %s and status = 'open' limit 1",
+            (r["kind"], r["subject"])).fetchone():
+        return None
+    row = clear_exception(conn, TYPES[r["kind"]].name, f"{r['kind']}:{r['subject']}", by,
+                          reason=f"answered by {r['decided_by']}", closeout=closeout(r["kind"], r["decision"]))
+    return row["item_id"] if row else None
 
 
 def sync(conn, by: str = BY) -> dict:

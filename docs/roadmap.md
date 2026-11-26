@@ -227,7 +227,7 @@ hesitation at each step. The direction is to remove, not add.
 |---|---|---|
 | P5.25 Take, dispatch and close without hesitation | Take it swaps the card in place and the field gets only the ask (a); the Work tab opens one My work (b); steward work escalates inside the steward team (c); one optional why to dispatch, no Options after the field reports (d); a returned case leads with the field's answer and Close out (e); report figures say unknown or no history instead of 0 (f); charts end at now (g); a handover readable on a phone (h); one count per measure (i) | A field job is taken, worked and finished on a 390 px phone with no reload; the Work tab opens My work for every role; Dispatch enables on touch with no hidden prerequisite; a returned case shows Close out in its first screen; no report shows 0 for missing data; no chart runs past now; handover Notes and Acknowledge are in the first phone screen; counts agree across pages |
 
-## Fixes from the 25 and 26 Nov tours (P5.26 #1362, P5.27 #1378, P5.28 #1388, P5.29 #1399)
+## Fixes from the 25 and 26 Nov tours (P5.26 #1362, P5.27 #1378, P5.28 #1388, P5.29 #1399, P5.30 #1407)
 
 | Epic | Build | Done when |
 |---|---|---|
@@ -235,6 +235,7 @@ hesitation at each step. The direction is to remove, not add.
 | P5.27 Close-outs hold, the field finds its note, options never shelve a leak | A close-out holds (a); the field's My work is the field's (b); options never shelve a limit or a leak (c); the steward can change the entity (d); names, not ids (e); case pages chart the reported tag (f); the IOC's queue counts and confirms (g); report figures that agree (h) | No new case for an unchanged signal after a close-out; Note to the IOC in the first phone screen; no Shelve over a limit or leak; a message case's entity can be changed; no raw id rendered; efficiency agrees with its volumes |
 | P5.28 Every action does what it says | A close-out holds, for real (a); every option does what it says (b); ready means the job's parts (c); pages follow actions (d); plain words (e); phone and iPad snags (f); the planner's day (g); report figures that add up (h) | Shelve leaves My work; a ride-along is a field step with the message; Options never recommend Shelve; "not ready" names only the job's parts; Plan opens on today |
 | P5.29 Close-outs, readiness and ride-alongs say what is true | A close-out saves what the user chose (a); ready means what this job needs (b); a ride-along is always field work (c); pages follow every action (d); fewer, plainer words (e); Plan and reports on every screen (f) | A false alarm saves no outcome; a field look is not held on a crew it doesn't use; a ride-along with no open step is a Field check with the case text; Waiting on follows Choose who and Send to someone else; Plan fits 390 px and lists no closed items |
+| P5.30 A safety report reaches the IOC, and Options follow the case | A safety report reaches the IOC at once (a); Options follow the case (b); pages follow every action, part two (c); one count, plain words (d); reports and the demo field (e) | A gas smell with no tag is on the IOC's My work at once; a desk case doesn't hold a dispatch; no Shelve on a gas report; Keep on watch when the brief says so; Options name the new entity without a reload; readiness and Crew load agree |
 
 ## How the work is tracked
 

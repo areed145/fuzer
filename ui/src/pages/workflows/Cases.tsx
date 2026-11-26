@@ -6,8 +6,8 @@ import { OpportunityPanel } from "./OpportunityPanel";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
 import { cap, person as personName, say, workKind } from "../../wording";
-import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
-import { api, type CaseNow, type CaseSource, type MessageSaid, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
+import { Suspense, lazy, useMemo, useRef, useState, type ReactNode } from "react";
+import { api, type CaseNow, type CaseSource, type MessageSaid, type ReviewKind, type WorkEvent, type WorkItem, type WorkProcess } from "../../api";
 import { CaseQuestion } from "../Review";
 import { Status, afterMap, href, useAsync, useAction } from "../../lib";
 import { Actor, DataView, Due, ENGINE_FIELDS, EntityLinks, describe, holder, usePerson } from "../../work";
@@ -70,12 +70,18 @@ export function NewWorkItem({ onCreated }: { onCreated: () => void }) {
 
 export function CasePage({ id, demo = false, closing = false }: { id: number; demo?: boolean; closing?: boolean }) {
   const item = useAsync(() => api.workItem(id), [id]);
-  const options = useAsync(() => api.caseOptions(id), [id]);
+  // What Change the entity made it about: the options are read for it, and those of the entity it was about leave the
+  // page while they are, rather than standing as this entity's until a reload (tour E9)
+  const [about, setAbout] = useState<string | null>(null);
+  const options = useAsync(() => api.caseOptions(id), [id, about]);
   const people = useAsync(() => api.workPeople(), []);
   // The options decide where Waiting on sits and the roster whether the evidence folds (a field operator): the page
   // waits for both, failures included, so case 1136 no longer moved under the reader as they answered (P5.26h).
   const settled = (a: { data?: unknown; error?: unknown }) => a.data !== undefined || !!a.error;
-  const drawn = settled(item) && settled(options) && settled(people);
+  // Only the first draw waits: options read again after an action leave the rest of the case on the page.
+  const drawnFor = useRef<number | null>(null);
+  const drawn = drawnFor.current === id || (settled(item) && settled(options) && settled(people));
+  if (drawn) drawnFor.current = id;
   // The evidence is read once the page has drawn, and shown together once it answers: arriving one by one, each pushed
   // down what was already on screen (#1069). Asked beside the case, the trend's slow read took one of the browser's
   // four places and the server's one CPU, and the case sat on Loading for seconds (P5.28d).
@@ -91,7 +97,10 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
   // An action's answer carries the case as it left it (P5.29d): its holder, steps and subjects show with the
   // confirmation, and the read that follows fills in the rest. Read after it, Waiting on still said "With ops lead
   // queue" for seconds after "Dispatched to kai" on the live server, long enough to be taken for not done.
+  // Every view, the options included, reads again after an action (useAction).
   const showNow = (now?: CaseNow | null) => { if (now && it && now.id === it.id) item.put({ ...it, ...now }); item.reload(); };
+  // Sent to someone else from here: the case is theirs, so its options and the send leave the page (tour E5)
+  const [sentTo, setSentTo] = useState<string | null>(null);
   if (!it || item.error || !drawn) return <section><PageHeader>Case</PageHeader>
     {demo && <DemoContext step="workflow" />}
     {it && !item.error ? <Status loading /> : <Status of={item} />}
@@ -121,13 +130,13 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
   // closes a job back from the field without opening the step (#1222).
   const closesHere = it.type !== "recheck" && (closed ? it.state === "done"
     : it.processes.every((p) => p.state !== "running" || CLOSES_WITH_CASE.has(p.process_key)));
-  const closeout = closesHere ? <CaseCloseoutCard itemId={it.id} person={person} closed={closed} readOnly={demo} reload={item.reload}
+  const closeout = closesHere ? <CaseCloseoutCard itemId={it.id} person={person} closed={closed} readOnly={demo} reload={showNow}
     startOpen={closing} openItems={(it.checklist ?? []).filter((c) => c.state === "open").length} /> : null;
   // Close out sits with the step it ends, in Waiting on, rather than loose between the cards below it.
   const steps = it.processes.flatMap((p) => p.open.filter((s) => ["user", "agent", "fix"].includes(s.kind)));
   const inStep = !closed && !(steps.length === 0 && demo);
-  const optionsCard = !closed && !fieldOnly ? <CaseOptionsCard o={options} person={person} readOnly={demo}
-    onDone={(now) => { showNow(now); options.reload(); }} /> : null;
+  const optionsCard = !closed && !fieldOnly && !sentTo ? <CaseOptionsCard o={options} person={person} readOnly={demo}
+    onDone={showNow} /> : null;
   // Back from the field, the IOC's next act is reading the report and closing out, so Waiting on (the report, Close
   // out) comes first and the options to send it again follow it, rather than "Dispatch now · Recommended" on top.
   const backFromField = options.data?.stage === "back";
@@ -151,7 +160,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
       {Object.keys(raised).some((k) => !hidden.includes(k)) && (
         <Disclosure className="card" label={<>Details</>}><DataView data={raised} omit={hidden} /></Disclosure>
       )}
-      <Timeline it={it} person={person} readOnly={demo} />
+      <Timeline it={it} person={person} readOnly={demo} openedByPerson={openedByPerson} />
     </>}
   </>;
   return (
@@ -184,15 +193,16 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
       </div>
       {message && <CaseMessage m={message} matched={matchedBy(it.sources)} person={person}
         exceptionId={!closed && !demo && typeof raised.exception_id === "number" ? raised.exception_id : null}
-        onChanged={showNow} />}
+        onChanged={(now) => { if (now) setAbout(now.subjects.join(",")); showNow(now); }} />}
       {/* The decision first (#1071): who has it, what it waits on, how late, and the one next action, above the
           evidence it is decided on. */}
       {answered ? <Notice role="status">{answered}</Notice>
-        : asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={(said) => { setAnswered(said); item.reload(); }} />}
+        : asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={(said, now) => { setAnswered(said); showNow(now); }} />}
       {/* the choices side by side, with what each costs (P5.20): the IOC's decision on field work comes first */}
       {!backFromField && optionsCard}
       <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload} show={showNow}
-        optionsShown={!!options.data?.applies || backFromField} closeout={inStep ? closeout : null}
+        sentTo={sentTo} onSent={setSentTo}
+        optionsShown={!!options.data?.applies || backFromField || (!options.data && !options.error)} closeout={inStep ? closeout : null}
         exceptionId={typeof raised.exception_id === "number" ? raised.exception_id : null}
         proposal={typeof raised.opportunity === "string"}
         asked={typeof raised.summary === "string" ? raised.summary : null}
@@ -222,7 +232,7 @@ const messageOf = (m: unknown): MessageSaid | null =>
 const matchedBy = (sources?: CaseSource[]): string | null => {
   const items = sources?.find((x) => x.type === "message_report")?.finding.items ?? [];
   const chosen = items.find((i) => i.label === "Chosen by");
-  if (chosen) return `Chosen by ${personName(String(chosen.value))}`;
+  if (chosen) return `Entity chosen by ${personName(String(chosen.value))}`;  // says what was chosen (tour F, F17)
   const item = items.find((i) => i.label === "Matched by");
   return item ? `Matched by ${String(item.value)}` : null;
 };
@@ -277,8 +287,9 @@ function questionOf(sources?: CaseSource[]): { id: number; kind: ReviewKind } | 
 /** The decision card at the top of a case (#1071): each open step with who holds it and how late it is, the one next
  * action (open the step), and, for the IOC, giving it to someone else or changing its priority or due time. */
 function NextStep({ it, person, demo, fieldOnly, answered = false, reload, show, exceptionId = null, asked = null, evidence = [], proposal = false,
-  optionsShown = false, closeout = null }: {
+  optionsShown = false, closeout = null, sentTo = null, onSent }: {
   it: WorkItem; person: string; demo: boolean; fieldOnly: boolean; answered?: boolean; reload: () => void;
+  /** Who it was sent to from this page, and how it says so. */ sentTo?: string | null; onSent: (to: string) => void;
   /** Shows the case as an action left it, then reads it again. */
   show: (now: CaseNow | null) => void;
   /** Close out or Finish, shown under the step it ends. */
@@ -330,9 +341,9 @@ function NextStep({ it, person, demo, fieldOnly, answered = false, reload, show,
       {fieldOnly && <div className="row wrap case-next-actions"><ButtonLink variant="secondary" href={href("/inbox")}>My jobs</ButtonLink></div>}
       <ErrorText>{takeOver.error}</ErrorText>
       {/* the IOC sends it out through the case's workflow: not while the field already has it */}
-      {!demo && !fieldOnly && !optionsShown && exceptionId != null && !open.some((s) => s.role === "operator") && person &&
+      {!demo && !fieldOnly && !optionsShown && !sentTo && exceptionId != null && !open.some((s) => s.role === "operator") && person &&
         <SendToField exceptionId={exceptionId} person={person} onDone={reload} />}
-      {!demo && !fieldOnly && <CaseActions it={it} person={person} reload={reload} show={show} />}
+      {!demo && !fieldOnly && <CaseActions it={it} person={person} reload={reload} show={show} sent={sentTo} onSent={onSent} />}
     </UICard>
   );
 }
@@ -393,31 +404,30 @@ export function CloseoutPanel({ id, person, readOnly, reload }: { id: number; pe
   );
 }
 
-function CaseActions({ it, person, reload, show }: { it: WorkItem; person: string; reload: () => void; show: (now: CaseNow | null) => void }) {
+function CaseActions({ it, person, reload, show, sent, onSent }: { it: WorkItem; person: string; reload: () => void;
+  show: (now: CaseNow | null) => void; sent: string | null; onSent: (to: string) => void }) {
   const [to, setTo] = useState("");
   const [priority, setPriority] = useState(it.priority?.toString() ?? "");
   const [due, setDue] = useState("");
   const [reason, setReason] = useState("");
-  // Sent: the form closes (a new key folds the Disclosure) and says where it went (#1385)
-  const [sent, setSent] = useState<string | null>(null);
-  const [sends, setSends] = useState(0);
   const a = useAction();
   const send = () => a.run("to", () => api.reassignCase(it.id, person, to, reason || undefined), (r) => {
-    setSent(to); setSends((n) => n + 1); setTo(""); setReason(""); show(r.item);
+    onSent(to); setTo(""); setReason(""); show(r.item);
   });
   const role = sent?.startsWith("role:");
   return (
     <div className="case-actions">
-      <Disclosure key={sends} className="small" label={<>Send to someone else</>}>
+      {/* Sent: the form leaves the page and says where it went (#1385, tour E5), in the same notice as a dispatch's
+          (#1403): a grey line under the link read as no sign it went */}
+      {sent ? <Notice role="status">Sent to {holder(role ? null : sent, role ? sent : null)}.</Notice>
+        : <Disclosure className="small" label={<>Send to someone else</>}>
       <Line wrap>
-        <Field label="Send to" width="md"><AssignPicker value={to} onChange={(v) => { setTo(v); setSent(null); }} /></Field>
+        <Field label="Send to" width="md"><AssignPicker value={to} onChange={setTo} /></Field>
         <Field label="Why (kept in its history)" width="md">
           <Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
         <Button variant="secondary" disabled={!to || !!a.busy} onClick={send}>Send</Button>
       </Line>
-      </Disclosure>
-      {/* the same notice as a dispatch's (#1403): a grey line under the link read as no sign it went */}
-      {sent && !a.busy && !a.error && <Notice role="status">Sent to {holder(role ? null : sent, role ? sent : null)}.</Notice>}
+      </Disclosure>}
       <Disclosure className="small" label={<>Change priority or due time</>}>
         <Line wrap>
           <Field label="Priority" width="xs"><Input value={priority} onChange={(e) => setPriority(e.target.value)} /></Field>
@@ -461,24 +471,36 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
   );
 }
 
-export function Timeline({ it, person, readOnly = false }: { it: WorkItem; person: string; readOnly?: boolean }) {
+/** What a person reads in History (tour F, C8): no "stewardship opened the case" (a job's key opens it, which says
+ * nothing; only a person who opened it is named), no "started the queue item process" (the engine starting the
+ * case's own process at the same moment), and an end said as Done or Cancelled, never "workflow completed:". */
+const unsaid = (e: WorkEvent, events: WorkEvent[]) => e.kind === "started"
+  && events.some((c) => c.kind === "created" && Math.abs(Date.parse(c.at) - Date.parse(e.at)) < 60_000);
+const unnamed = (e: WorkEvent, openedByPerson: boolean) =>
+  e.kind === "step_started" || e.kind === "completed_process" || (e.kind === "created" && !openedByPerson);
+
+export function Timeline({ it, person, readOnly = false, openedByPerson = true }: {
+  it: WorkItem; person: string; readOnly?: boolean; openedByPerson?: boolean;
+}) {
   const [text, setText] = useState("");
   const a = useAction();
   return (
     <UICard title="History">
       <ol className="timeline">
-        {it.events.map((e) => {
+        {it.events.filter((e) => !unsaid(e, it.events)).map((e) => {
           const described = describe(e);
           // The brief has its own card above; History says it was written and points there, rather than printing it
           // a second time (#1071).
           const brief = !!it.brief?.entry && (e.kind === "agent_result" || e.kind === "completed")
             && JSON.stringify(e.data ?? {}).includes("what_happened");
           const t = brief ? <>wrote the specialist brief{" "}<Button variant="link" onClick={() =>
-            document.querySelector(".case-brief")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Read it</Button></> : described.text;
+            document.querySelector(".case-brief")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Read it</Button></>
+            : e.kind === "created" && !openedByPerson ? <>Case opened{e.data.assignee ? <> for {personName(e.data.assignee)}</> : ""}</>
+            : described.text;
           const body = brief ? null : described.body;
           return (
             <li key={e.id} className={`ev-${e.kind}`}>
-              <Line small><Text muted mono>{when(e.at)}</Text> {e.kind !== "step_started" && <Actor who={e.actor} />} {t}
+              <Line small><Text muted mono>{when(e.at)}</Text> {!unnamed(e, openedByPerson) && <Actor who={e.actor} />} {t}
                 {e.count && e.count > 1 ? <Text muted>{" "}({e.count} times)</Text> : null}</Line>
               {body}
               {photosOf(e.data).length > 0 && <div className="field-photos">{photosOf(e.data).map((p) =>

@@ -47,6 +47,7 @@ ROUTINE = "routine_due"  # planned work coming due, not news: on Plan and All wo
 CASE_TYPE = "shift_handover"
 ROLE = "ops_lead"
 LIMIT = 25  # lines per section; the rest is counted
+TITLE = 60  # characters of a case's title a line names it by; the case has the whole of it
 # The List filtered to a section's rows, where it can show the same rows: the page links "N more" there.
 # Those are the List's own rows, one line each, so their counts stay the List's: their lines are never folded together.
 LINKS = {"In the field": "/list?stage=field", "Back from the field": "/list?stage=back",
@@ -152,6 +153,9 @@ def facts(conn, start: datetime, end: datetime) -> dict:
         if len(lines) > LIMIT:
             more[name] = len(lines) - LIMIT
 
+    # each line names its case in a few words, the case has the rest: a message's whole text as a title made a phone
+    # handover 7.6 screens (tour F, A17)
+    named = lambda title: wording.clip(wording.say(title) or "", TITLE)
     holder = lambda r: r.get("assignee") or (f"the {wording.queue(r['role'])}" if r.get("role") else "nobody yet")
     # In the field and Back from the field are the List's own rows (ops.worklist), so the handover's counts are the
     # List's and the Board's (red team #4): the same open work, the same stages. The rest of the open work is not
@@ -164,7 +168,8 @@ def facts(conn, start: datetime, end: datetime) -> dict:
     def in_field(r) -> dict:
         said, handed = last(r), (r.get("evidence") or {}).get("handover")
         on_site = said and said.get("status") == "on_site"
-        text = f"{r['title']}: {said['by']} on site since {{at}}" if on_site else f"{r['title']}: with {holder(r)}"
+        text = (f"{named(r['title'])}: {said['by']} on site since {{at}}" if on_site
+                else f"{named(r['title'])}: with {holder(r)}")
         if handed and not handed.get("accepted_at"):
             text += f"; handed over to {handed['to']}, waiting to be accepted" + (
                 f" (unsafe to leave: {handed['unsafe']})" if handed.get("unsafe") else "")
@@ -174,8 +179,8 @@ def facts(conn, start: datetime, end: datetime) -> dict:
     def came_back(r) -> dict:
         said = last(r)
         if not said or said.get("status") not in ("done", "could_not_do"):
-            return _line(f"{r['title']}: back with {holder(r)}", *cite(r))
-        return _line(f"{r['title']}: {said['by']} reported {'done' if said['status'] == 'done' else 'could not do'}"
+            return _line(f"{named(r['title'])}: back with {holder(r)}", *cite(r))
+        return _line(f"{named(r['title'])}: {said['by']} reported {'done' if said['status'] == 'done' else 'could not do'}"
                      + (f" ({said['note']})" if said.get("note") else ""), *cite(r))
     back = sorted((r for r in live if r["stage"] == "back"), key=lambda r: (last(r) or {}).get("at") or "", reverse=True)
     keep("Open permits", _permits(conn, end), lambda r: _line(r["text"], f"entity:{r['id']}", at=r.get("at")))
@@ -198,7 +203,7 @@ def facts(conn, start: datetime, end: datetime) -> dict:
         -- what went late this shift; work late for days is under Open work, not leading every handover
         order by coalesce(t.escalated_at, t.due_at)
         """, {"s": start, "e": end}).fetchall(),
-        lambda r: _line(f"{r['step']} on {r['title']}, with {holder(r)}: "
+        lambda r: _line(f"{r['step']} on {named(r['title'])}, with {holder(r)}: "
                         + ("escalated {at}" if r["escalated_at"] else "overdue since {at}"), f"case:{r['item_id']}",
                         at=r["escalated_at"] or r["due_at"]))
     keep("Dispatched", conn.execute(
@@ -206,7 +211,7 @@ def facts(conn, start: datetime, end: datetime) -> dict:
         select o.created_at, o.payload, o.ref from event_outbox o
         where o.topic = 'exception.dispatched' and o.created_at >= %(s)s and o.created_at < %(e)s order by o.id
         """, {"s": start, "e": end}).fetchall(),
-        lambda r: _line(f"{wording.say(r['payload'].get('title'))} sent to {_to(r['payload'].get('to'))} {{at}}"
+        lambda r: _line(f"{named(r['payload'].get('title'))} sent to {_to(r['payload'].get('to'))} {{at}}"
                         + (f" ({r['payload']['reason']})" if r["payload"].get("reason") else ""),
                         r["ref"], f"case:{r['payload']['item_id']}" if r["payload"].get("item_id") else "",
                         at=r["created_at"]))
@@ -219,7 +224,7 @@ def facts(conn, start: datetime, end: datetime) -> dict:
         """, {"s": start, "e": end, "r": [RECORDS, ROUTINE], "src": alerts.TYPE}).fetchall(),
         # the kind by its label and the source in words, as the case says them: "Field report from Demo crew", not
         # "field report from sample crew" (tour D15)
-        lambda r: _line(f"{r['title']} ({kinds.get(r['type'], r['type'].replace('_', ' '))} from "
+        lambda r: _line(f"{named(r['title'])} ({kinds.get(r['type'], r['type'].replace('_', ' '))} from "
                         f"{wording.source(r['source'])}, {r['state']})",
                         f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
     keep("Closed", conn.execute(
@@ -230,14 +235,14 @@ def facts(conn, start: datetime, end: datetime) -> dict:
                           and x.state = 'cleared')
         order by w.closed_at desc, w.id
         """, {"s": start, "e": end, "h": CASE_TYPE, "src": alerts.TYPE}).fetchall(),
-        lambda r: _line(f"{r['title']}: {'done' if r['state'] == 'done' else 'cancelled'} {{at}}",
+        lambda r: _line(f"{named(r['title'])}: {'done' if r['state'] == 'done' else 'cancelled'} {{at}}",
                         f"case:{r['id']}", at=r["closed_at"]))
     keep("Records to check", conn.execute(
         """
         select id, title, item_id, evidence->>'at' as at from exception_record
         where type = %s and state = 'open' and joined_to is null order by evidence->>'at' desc, id
         """, (RECORDS,)).fetchall(),
-        lambda r: _line(r["title"], f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
+        lambda r: _line(named(r["title"]), f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
     return {"sections": sections, "more": more, "unknown": unknown,
             "links": {k: v for k, v in LINKS.items() if sections.get(k)}}
 
