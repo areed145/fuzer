@@ -183,6 +183,13 @@ _SAMPLE_CREW = re.compile(r"\bfrom sample crew\b")
 _KEYS_FROM = re.compile(r"\((?P<kind>[a-z][a-z ]*) from (?P<src>[a-z0-9]+(?:_[a-z0-9]+)*), (?P<state>[a-z ]+)\)")
 
 
+def clip(text: str, n: int = 120) -> str:
+    """Text on one line, cut at a word to `n` characters with an ellipsis: a list row or a handover line names the
+    thing, and its case has the whole of it."""
+    text = " ".join(str(text or "").split())
+    return text if len(text) <= n else text[:n - 1].rsplit(" ", 1)[0] + "…"
+
+
 def say(text: str | None) -> str | None:
     """Text already written, in people's words: the old upset and incident title shapes, alarm keys, queue roles
     and unit spellings. Idempotent, and text with none of these comes back unchanged."""

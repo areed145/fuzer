@@ -7,7 +7,7 @@ import { OpportunityPanel } from "./OpportunityPanel";
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
 import { cap, person as personName, say, workKind } from "../../wording";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
-import { api, type CaseNow, type CaseSource, type MessageSaid, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
+import { api, type CaseNow, type CaseSource, type MessageSaid, type ReviewKind, type WorkEvent, type WorkItem, type WorkProcess } from "../../api";
 import { CaseQuestion } from "../Review";
 import { Status, afterMap, href, useAsync, useAction } from "../../lib";
 import { Actor, DataView, Due, ENGINE_FIELDS, EntityLinks, describe, holder, usePerson } from "../../work";
@@ -151,7 +151,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
       {Object.keys(raised).some((k) => !hidden.includes(k)) && (
         <Disclosure className="card" label={<>Details</>}><DataView data={raised} omit={hidden} /></Disclosure>
       )}
-      <Timeline it={it} person={person} readOnly={demo} />
+      <Timeline it={it} person={person} readOnly={demo} openedByPerson={openedByPerson} />
     </>}
   </>;
   return (
@@ -222,7 +222,7 @@ const messageOf = (m: unknown): MessageSaid | null =>
 const matchedBy = (sources?: CaseSource[]): string | null => {
   const items = sources?.find((x) => x.type === "message_report")?.finding.items ?? [];
   const chosen = items.find((i) => i.label === "Chosen by");
-  if (chosen) return `Chosen by ${personName(String(chosen.value))}`;
+  if (chosen) return `Entity chosen by ${personName(String(chosen.value))}`;  // says what was chosen (tour F, F17)
   const item = items.find((i) => i.label === "Matched by");
   return item ? `Matched by ${String(item.value)}` : null;
 };
@@ -461,24 +461,36 @@ export function ProcessDiagram({ p, person, reload, focus }: { p: WorkProcess; p
   );
 }
 
-export function Timeline({ it, person, readOnly = false }: { it: WorkItem; person: string; readOnly?: boolean }) {
+/** What a person reads in History (tour F, C8): no "stewardship opened the case" (a job's key opens it, which says
+ * nothing; only a person who opened it is named), no "started the queue item process" (the engine starting the
+ * case's own process at the same moment), and an end said as Done or Cancelled, never "workflow completed:". */
+const unsaid = (e: WorkEvent, events: WorkEvent[]) => e.kind === "started"
+  && events.some((c) => c.kind === "created" && Math.abs(Date.parse(c.at) - Date.parse(e.at)) < 60_000);
+const unnamed = (e: WorkEvent, openedByPerson: boolean) =>
+  e.kind === "step_started" || e.kind === "completed_process" || (e.kind === "created" && !openedByPerson);
+
+export function Timeline({ it, person, readOnly = false, openedByPerson = true }: {
+  it: WorkItem; person: string; readOnly?: boolean; openedByPerson?: boolean;
+}) {
   const [text, setText] = useState("");
   const a = useAction();
   return (
     <UICard title="History">
       <ol className="timeline">
-        {it.events.map((e) => {
+        {it.events.filter((e) => !unsaid(e, it.events)).map((e) => {
           const described = describe(e);
           // The brief has its own card above; History says it was written and points there, rather than printing it
           // a second time (#1071).
           const brief = !!it.brief?.entry && (e.kind === "agent_result" || e.kind === "completed")
             && JSON.stringify(e.data ?? {}).includes("what_happened");
           const t = brief ? <>wrote the specialist brief{" "}<Button variant="link" onClick={() =>
-            document.querySelector(".case-brief")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Read it</Button></> : described.text;
+            document.querySelector(".case-brief")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Read it</Button></>
+            : e.kind === "created" && !openedByPerson ? <>Case opened{e.data.assignee ? <> for {personName(e.data.assignee)}</> : ""}</>
+            : described.text;
           const body = brief ? null : described.body;
           return (
             <li key={e.id} className={`ev-${e.kind}`}>
-              <Line small><Text muted mono>{when(e.at)}</Text> {e.kind !== "step_started" && <Actor who={e.actor} />} {t}
+              <Line small><Text muted mono>{when(e.at)}</Text> {!unnamed(e, openedByPerson) && <Actor who={e.actor} />} {t}
                 {e.count && e.count > 1 ? <Text muted>{" "}({e.count} times)</Text> : null}</Line>
               {body}
               {photosOf(e.data).length > 0 && <div className="field-photos">{photosOf(e.data).map((p) =>

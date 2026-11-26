@@ -184,7 +184,8 @@ def items(conn, start=None, end=None, area: str | None = None, status: str | Non
     with its subjects' and area's labels, its clashes and bundling chances. Items just outside the window that
     touch the same areas are compared too, so a clash at its edge still shows. `within` keeps the items about an
     entity or anything beneath it (an entity page's Schedule); `active` keeps the work still to do (Plan's timeline:
-    a job that is done or cancelled is no longer on the day)."""
+    a job that is done or cancelled is no longer on the day). A job whose case is open is booked to whoever has the
+    case now."""
     now = datetime.now(UTC)
     inside = None
     if within:
@@ -198,8 +199,10 @@ def items(conn, start=None, end=None, area: str | None = None, status: str | Non
         select p.*, la.label as area_label,
                coalesce((select json_agg(json_build_object('fuzer_id', s, 'label', l.label) order by n)
                          from unnest(p.subjects) with ordinality u (s, n) left join entity_label l on l.fuzer_id = s),
-                        '[]') as assets
+                        '[]') as assets,
+               case when w.state = 'open' then coalesce(w.assignee, 'role:' || w.role) end as case_owner
         from plan_item p left join entity_label la on la.fuzer_id = p.area_id
+        left join work_item w on w.id = p.item_id
         where p.start_at < %(end)s and p.end_at > %(start)s
           and (%(area)s::text is null or p.area_id = %(area)s)
           and (%(subject)s::text is null or %(subject)s = any(p.subjects))
@@ -207,6 +210,10 @@ def items(conn, start=None, end=None, area: str | None = None, status: str | Non
         order by p.start_at, p.id
         """, {"start": start - margin, "end": end + margin, "area": area, "subject": subject,
               "inside": inside}).fetchall()
+    # a job with an open case is with whoever has the case now: sent on to the planner queue, it is no longer sam's,
+    # on its line or in a clash (tour F, F14)
+    for r in rows:
+        r["crew"] = r.pop("case_owner") or r["crew"]
     clashes = _clashes(rows)
     from . import simops
 

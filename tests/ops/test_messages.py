@@ -157,7 +157,7 @@ def test_a_steward_question_carries_the_message_and_its_answer_makes_the_case(re
     assert q["payload"]["message"]["text"].startswith("PT-2001") and len(q["payload"]["candidates"]) == 5
     work = conn.execute("select * from exception_record where type = 'message_to_match' and key = 'message:MSG-0007' "
                         "and state = 'open'").fetchone()
-    assert work and work["title"].startswith("Which entity is this about? Radio call from ST1 CRO")
+    assert work and work["title"] == messages.title(q["payload"]["message"]["text"])  # what was said (tour F, C8)
 
     chosen = _id(conn, "tag:30-PT-2001")  # the ST1 CRO called it: ST1's separator
     review.decide(conn, q["id"], "choose", chosen, "ana")
@@ -237,8 +237,8 @@ def test_a_field_operators_note_from_the_phone_becomes_routed_work(read):
     demo = messages.receive(conn, load_pack("okan"), "user:demo", "Something dripping by the stairs")
     asked = conn.execute("select * from exception_record where type = 'message_to_match' and key = %s",
                          (f"message:{demo['id']}",)).fetchone()
-    assert asked["title"].startswith("Which entity is this about? Field note from Demo account:"), asked["title"]
-    assert "user:" not in asked["title"]
+    # tour F (C8): its title is what was said; who sent it is on its card, never "Which entity is this about? ..."
+    assert asked["title"] == "Something dripping by the stairs", asked["title"]
     conn.rollback()
 
 

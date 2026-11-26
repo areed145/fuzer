@@ -85,8 +85,11 @@ function note(m: Marker) {
   } catch { /* storage unavailable */ }
 }
 
-/** The phone cleared what it kept, and how many writes went with it, once noticed; until the operator dismisses it. */
+/** The phone cleared reports made without signal before they sent, and how many, once noticed; until the operator
+ * dismisses it. Pages it kept and nothing more are fetched again without a word: there is nothing to tell (tour F, F11:
+ * a desk browser read "Your offline copy was cleared by the phone"). */
 let cleared: { lost: number } | null = null;
+let emptied = false;
 export const dismissCleared = () => { cleared = null; changed(); };
 
 async function noticeCleared() {
@@ -95,7 +98,10 @@ async function noticeCleared() {
     if (!was || (!was.kept && !was.waiting) || !(await store.durable())) return;
     const kept = (await store.keys("kept")).some((k) => k.startsWith(`jobs:${account}:`));
     const queued = (await store.all<QueuedWrite>("outbox")).some((w) => w.account === account);
-    if (!kept && !queued) cleared = { lost: was.waiting ?? 0 };
+    if (!kept && !queued) {
+      emptied = true;
+      if (was.waiting) cleared = { lost: was.waiting };
+    }
   } finally {
     checked = true;
   }
@@ -143,7 +149,7 @@ export function outboxSession(actor: string, isLive: boolean) {
   migrated ??= migrate().catch(() => undefined);
   void migrated.then(async () => {
     if (!checked) await noticeCleared();
-    if (cleared) note({ kept: false });
+    if (emptied) note({ kept: false });
     changed();
     if (live) void flush();
   });

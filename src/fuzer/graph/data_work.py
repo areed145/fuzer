@@ -14,7 +14,6 @@ cases don't join the IOC's cases about the same asset (`joins=False`): a disagre
 steward's, not part of the pump's trip.
 """
 
-from ..core import wording
 from ..core.exceptions import clear_exception, exception_type, open_keys, raise_exception
 from ..core.findings import EXTERNAL, Finding, at, fact, page
 
@@ -77,10 +76,9 @@ def title(kind: str, subject: str, p: dict) -> str:
     if kind == "pid_mismatch" and p.get("tag"):
         return _drawing_title(p)
     if kind == "message" and p.get("message"):
-        m = p["message"]
-        # by the sender's name: a field note's sender is the account that sent it ("Field note from user:demo", C8)
-        sender = m.get("sender_name") or wording.say(m.get("sender"))
-        return f"Which entity is this about? {m.get('channel_label', 'Message')} from {sender}: {m.get('text')}"
+        # what was said, as a message's case is titled (`messages.title`): the question and who sent it are on the
+        # case already, its kind and its card, never "Which entity is this about? Field note from ..." (tour F, C8)
+        return p.get("title") or " ".join(str(p["message"].get("text") or "").split())
     return p.get("question") or f"{KINDS[kind][1]}: {subject}"
 
 

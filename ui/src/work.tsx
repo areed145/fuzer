@@ -133,7 +133,7 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "agent_failed": return { text: <>failed try {d.attempt} at <strong>{el}</strong>; retrying</>, body: <ErrorText>{d.error}</ErrorText> };
     case "failed": return { text: <><strong>{el}</strong> couldn't go on; it is a task for {to(`role:${d.role}`)}</>, body: <ErrorText>{d.error}</ErrorText> };
     case "step_cancelled": return { text: <><strong>{el}</strong> was cancelled</>, body: d.why && <Text as="p" small>{d.why}</Text> };
-    case "completed_process": return { text: <>workflow {d.state}: <strong>{say(d.outcome)}</strong></> };
+    case "completed_process": return { text: <>{d.state === "cancelled" ? "Cancelled" : "Done"}{d.outcome ? <>: <strong>{readable(say(String(d.outcome)))}</strong></> : null}</> };
     case "state_changed": return { text: <>case is now <strong>{d.state}</strong>{d.outcome ? ` (${d.outcome})` : ""}</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
     case "commented": return { text: <>commented</>, body: <p className="section-text small">{withCaseLinks(String(d.text ?? ""))}</p> };
     case "attached": return { text: <>attached an answer from Ask</>, body: <div className="attached-answer">

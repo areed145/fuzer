@@ -340,7 +340,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   work, which the page links. **Draft the handover** writes the running shift's handover when there is none yet; while
   the shift runs its lines are read from live work each time it is opened (nothing is stored by reading). A handover
   that was acknowledged, or that a later shift's handover replaced, is kept as it was: it takes no notes and no
-  acknowledgement.
+  acknowledgement, and one replaced unread says so ("not acknowledged: a later shift's handover replaced it"). A line
+  names its case in its first 60 characters; the case it links has the whole title.
 
 ### The installed app on a phone
 
@@ -426,9 +427,9 @@ it left (sent again, applied once), lie-fi with the phone saying it is online an
 phone cleared, and a release fetched as the signal drops. On lie-fi nothing waits for ever: a read the phone keeps
 waits 15 s for an answer to start and then comes from the phone, any other read 90 s, and a write with a client id 60 s
 before it is kept in the outbox; a request that never got a place in the queue counts as never reaching the server,
-so a report is kept, not lost. When iOS clears the app's store, the next launch says "Your offline copy was cleared by
-the phone; fetching again", with how many reports waiting to send went with it, from a note the app keeps outside the
-store; when the phone clears everything, the note goes too and the app simply fetches again. The app worker keeps a
+so a report is kept, not lost. When iOS clears the app's store with reports still waiting to send, the next launch says how
+many were lost and to tell the IOC what they said, from a note the app keeps outside the store; with nothing waiting,
+or when the phone clears everything and the note goes too, the app simply fetches again and says nothing. The app worker keeps a
 new page only once every file it names is kept, and a new worker installs only with the whole app, so a release
 fetched on a dropping signal never strands the phone on a page without its script.
 

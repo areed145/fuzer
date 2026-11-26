@@ -96,7 +96,9 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
     <Card title={`Shift ${when(h.shift_start)} to ${when(h.shift_end)}`}>
       <Text as="p" small>
         <Badge tone={acked ? "ok" : "warn"}>{acked ? `acknowledged by ${personName(h.acknowledged_by)} ${when(h.acknowledged_at!)}`
-          : running ? `shift in progress: goes to the incoming lead ${when(h.shift_end)}` : h.status}</Badge>
+          : running ? `shift in progress: goes to the incoming lead ${when(h.shift_end)}`
+          // a later shift's handover replaced it, so it takes no acknowledgement: say so, rather than no button (F15)
+          : h.read_only ? "not acknowledged: a later shift's handover replaced it" : h.status}</Badge>
         {h.item_id && <> · <a href={caseHref(h.item_id)}>its case</a></>}
         {/* a running shift's lines are as of now; a past one says when it was drafted */}
         {!running && <Text muted> · drafted {when(h.drafted_at)}</Text>}

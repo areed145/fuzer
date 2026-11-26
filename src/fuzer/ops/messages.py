@@ -197,8 +197,7 @@ def _sender_name(conn, sender: str) -> str:
 
 
 def _short(text: str, n: int = 120) -> str:
-    text = " ".join(text.split())
-    return text if len(text) <= n else text[:n - 1].rsplit(" ", 1)[0] + "…"
+    return wording.clip(text, n)
 
 
 def title(text: str, n: int = 72) -> str:
@@ -235,6 +234,7 @@ def _ask_steward(conn, m: dict, reading: Reading) -> int:
     labels = {r["fuzer_id"]: r["label"] for r in conn.execute(
         "select fuzer_id, label from entity_label where fuzer_id = any(%s)", (ids,))}
     payload = {"message": {**_message(m), "sender_name": _sender_name(conn, m["sender"])}, "why": reading.why, "question": f"Which entity is this about? {_short(m['text'], 80)}",
+               "title": title(m["text"]),  # the case's title is what was said, like any message's case (tour F, C8)
                "candidates": [{"fuzer_id": i, "label": labels.get(i)} for i in ids]}
     return conn.execute(
         "insert into review_item (kind, subject, payload) values (%s, %s, %s) "

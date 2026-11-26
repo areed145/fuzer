@@ -30,10 +30,9 @@ export function Outbox({ onSent, jobs = [] }: { onSent: () => void; jobs?: { id:
     window.addEventListener(OUTBOX_CHANGED, done);
     return () => window.removeEventListener(OUTBOX_CHANGED, done);
   }, []);
-  const gone = cleared && <Notice tone={cleared.lost ? "danger" : "warn"} className="field-cleared" role="alert">
-    Your offline copy was cleared by the phone; fetching again.
-    {cleared.lost > 0 && <> {cleared.lost === 1 ? "1 report" : `${cleared.lost} reports`} made without signal went with it and
-      never reached the IOC: tell them what {cleared.lost === 1 ? "it" : "they"} said.</>}
+  const gone = cleared && cleared.lost > 0 && <Notice tone="danger" className="field-cleared" role="alert">
+    {cleared.lost === 1 ? "A report" : `${cleared.lost} reports`} made without signal {cleared.lost === 1 ? "was" : "were"} lost
+    from this phone before {cleared.lost === 1 ? "it" : "they"} sent: tell the IOC what {cleared.lost === 1 ? "it" : "they"} said.
     {" "}<Button variant="ghost" onClick={dismissCleared}>Got it</Button>
   </Notice>;
   if (!waiting.length && !refused.length) return gone || null;

@@ -5173,7 +5173,11 @@ for (const [size, viewport, ios] of [["phone", { width: 390, height: 844 }, "?io
         { kind: "spares", label: "Spares", satisfied: false, detail: ["Bearing set, Kelvion KEL-600: 0 in stock, 1 needed; on order (4500000010), due 2026-12-09"] },
         { kind: "crew", label: "Crew", satisfied: false, detail: ["Mechanical maintenance crew (MECH): 8 of 6 booked today, with Unusual noise from 10-V-2002 (LP Production Separator)"] }] } }));
     await page.route("**/plan/5/book", (route) => { booked.push(route.request().postDataJSON()); return route.fulfill({ json: item }); });
-    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "sam", display_name: "Sam Okafor-Lindqvist", roles: ["operator", "maintenance_planner"], holding: 3 }] }));
+    const every = ["ops_lead", "operator", "maintenance_planner", "production_engineer", "data_steward", "engineer", "planner"];
+    await page.route("**/work/people", (route) => route.fulfill({ json: [
+      { name: "sam", display_name: "Sam Okafor-Lindqvist", roles: ["operator", "maintenance_planner"], holding: 3 },
+      { name: "user:adam", display_name: "Adam Owner", roles: every, owner: true, holding: 1 },
+      { name: "kai", roles: ["operator", "engineer", "data_steward"], holding: 0 }] }));
     await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "operator", kind: "person" }] }));
     await page.goto(`${url}/${ios}#/plan`);
     await page.getByRole("heading", { name: "North", exact: true }).waitFor();
@@ -5187,6 +5191,14 @@ for (const [size, viewport, ios] of [["phone", { width: 390, height: 844 }, "?io
     await page.getByText(/Crew: Mechanical maintenance crew \(MECH\): 8 of 6/).waitFor();
     const who = page.getByRole("combobox", { name: "Who" });
     await who.locator("option", { hasText: "Sam Okafor-Lindqvist" }).waitFor({ state: "attached" });
+    // P5.30d (tour F, F17): roles in short form, never all seven in one option; the readiness lines carry only their
+    // tick or cross, no list bullet before it ("○ ✓")
+    const options = await who.locator("option").allInnerTexts();
+    assert.ok(options.some((o) => /^Adam Owner \(every role\)/.test(o)), options.join(" | "));
+    assert.ok(options.some((o) => /^kai \(operator \+2\)/.test(o)), options.join(" | "));
+    assert.ok(options.some((o) => /^Sam Okafor-Lindqvist \(operator, maintenance planner\)/.test(o)), options.join(" | "));
+    const ticks = page.locator(".plan-detail li", { hasText: "Scheduled" });
+    assert.equal(await ticks.evaluate((li) => getComputedStyle(li).listStyleType), "none");
     const spill = await card.evaluate((c) => {
       const edge = c.getBoundingClientRect().right;
       return [...c.querySelectorAll(".plan-detail *, .plan-label *")].filter((el) => el.getBoundingClientRect().right > edge + 1)
@@ -5637,6 +5649,8 @@ test("P5.29e a past handover is read only and the running one offers no redraft"
       assert.equal(await page.getByRole("button", { name: gone }).count(), 0, `${gone} on a past handover`);
     assert.equal(await page.getByRole("textbox", { name: "Outgoing notes" }).count(), 0);
     await page.getByText("drafted Nov 20", { exact: false }).waitFor();
+    // P5.30d (tour F, F15): no acknowledge button, and the page says why
+    await page.getByText("not acknowledged: a later shift's handover replaced it").waitFor();
     await page.goto(`${url}/#/handover`);  // the running shift: notes, but nothing to redraft
     await page.getByRole("textbox", { name: "Outgoing notes" }).waitFor();
     assert.equal(await page.getByRole("button", { name: "Draft the handover" }).count(), 0);
@@ -5652,14 +5666,22 @@ test("P5.29e a case names a hyphenated agent in words and says opened by only fo
   await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoCase(), created_by: "stewardship",
     created_at: "2026-11-26T04:16:00Z", events: [
       { id: 1, kind: "created", actor: "stewardship", element: null, at: "2026-11-26T04:16:00Z", data: {} },
+      { id: 3, kind: "started", actor: "stewardship", element: null, at: "2026-11-26T04:16:00Z", data: { process_key: "queue_item" } },
       { id: 2, kind: "commented", actor: "agent:maintenance-integrity", element: null, at: "2026-11-26T04:20:00Z",
-        data: { text: "Lube oil pressure trending down" } }] } }));
+        data: { text: "Lube oil pressure trending down" } },
+      { id: 4, kind: "completed_process", actor: "ana", element: null, at: "2026-11-26T04:30:00Z",
+        data: { state: "completed", outcome: "no_work_needed" } }] } }));
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.goto(`${url}/#/cases/7`);
     await page.getByText("Maintenance integrity agent").first().waitFor();
     assert.doesNotMatch(await page.locator("main").innerText(), /agent:|maintenance-integrity/);
     assert.doesNotMatch(await page.locator(".case-head").innerText(), /opened by|stewardship/, "a job's key is not who opened it");
+    // P5.30d (tour F, C8): History says it plainly: no job key opening it, no engine process starting, no "workflow completed:"
+    const history = await page.locator(".timeline").innerText();
+    assert.doesNotMatch(history, /stewardship|started the|queue item process|workflow completed/, history);
+    assert.match(history, /Case opened/);
+    assert.match(history, /Done:\s+No work needed/i);
   }
 });
 
@@ -7252,8 +7274,10 @@ test("P5.17h When the phone has cleared the app's store, the operator is told, w
   const before = fetched;
   await page.goto(`${url}/#/inbox`);
   const notice = page.locator(".field-cleared");
-  await notice.getByText("Your offline copy was cleared by the phone; fetching again.").waitFor();
-  await notice.getByText("2 reports made without signal went with it and never reached the IOC", { exact: false }).waitFor();
+  // in plain words, only for what was lost (tour F, F11): never "Your offline copy was cleared by the phone"
+  await notice.getByText("2 reports made without signal were lost from this phone before they sent: tell the IOC what they said.",
+                         { exact: false }).waitFor();
+  assert.doesNotMatch(await notice.innerText(), /offline copy/);
   await card.getByText("Look at the gland").waitFor();
   assert.ok(fetched > before, "the day's work is fetched again");
   await notice.getByRole("button", { name: "Got it" }).click();
@@ -11574,7 +11598,7 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     await page.goto(`${url}/#/cases/41`);
     const card = page.locator(".case-message");
     await card.getByRole("heading", { name: /^Field note · Demo account · / }).waitFor();
-    await card.getByText("Chosen by Demo account", { exact: true }).waitFor();
+    await card.getByText("Entity chosen by Demo account", { exact: true }).waitFor();
     await page.locator(".case-head").getByText("Equipment with no name").waitFor();
     await page.getByText("Demo account is also on", { exact: false }).first().waitFor();
     await page.locator(".timeline").getByText(/sent Field check to the operator queue/).waitFor();

@@ -371,6 +371,64 @@ def test_work_sent_to_a_field_operator_is_on_the_plan_and_holds_no_maintenance_c
     conn.rollback()
 
 
+def test_plan_shows_whoever_has_the_case_now(conn, monkeypatch):
+    """Tour F, F14: 1168 went to the field operator, then on to the planner queue, and Plan still showed it with sam
+    (and in a clash with sam's other looks). A job with an open case is with whoever has the case now."""
+    from datetime import timedelta
+
+    from fuzer.core import clock, work
+    from fuzer.core.exceptions import TYPES, ExceptionType, raise_exception
+    from fuzer.ops import exceptions
+
+    monkeypatch.setitem(TYPES, "minor_leak", ExceptionType("minor_leak", "Minor leak", joins=False))
+    monkeypatch.setattr(work, "roles_of", lambda conn, p: ["operator"] if p == "sam" else [])
+    monkeypatch.setattr(exceptions, "operators", lambda conn: {"sam"})
+    e = raise_exception(conn, "minor_leak", "P-107 fogged glass", "P-107 fogged glass", "olga", refs=["tag:P-101"])
+    sent = exceptions.dispatch(conn, e["id"], "ann", "sam")
+    now = clock.aware(clock.now())
+    mine = lambda: next(i for i in plan.items(conn, now.date(), now.date() + timedelta(days=1))
+                        if i["exception_id"] == e["id"])
+    assert mine()["crew"] == "sam"
+    exceptions.send_case(conn, sent["item_id"], "ann", "role:maintenance_planner")
+    assert mine()["crew"] == "role:maintenance_planner"
+    assert e["id"] not in {i["exception_id"] for i in plan.coming_up(conn, "sam")}
+    conn.rollback()
+
+
+def test_readiness_and_crew_load_read_one_crew_count_and_full_is_ready(conn):
+    """Tour F, F13: Readiness said "MECH 6 of 6 booked today" (not ready) where Crew load said "peak 5 of 6 ... within
+    capacity": readiness added up every job on the crew that day, whatever the hour, and counted a planned job with no
+    case against itself. Both read the day's busiest hour now, and a job that fills the crew to capacity is ready."""
+    from datetime import datetime, timedelta
+
+    from fuzer.core import clock
+    from fuzer.ops import readiness, schedule
+
+    _crew(conn, capacity=2)
+    now = clock.aware(clock.now())
+    day = datetime.combine(clock.today(), datetime.min.time(), tzinfo=now.tzinfo)
+    morning = propose(conn, "maintenance", "Morning seal", "ann", day + timedelta(hours=1), day + timedelta(hours=8),
+                      refs=["fz-pump-1"])
+    evening = propose(conn, "maintenance", "Evening filter", "ann", day + timedelta(hours=14),
+                      day + timedelta(hours=20), refs=["fz-pump-1"])
+    for j in (morning, evening):
+        plan.book(conn, j["id"], "ann", "MECH", 1)
+    load = schedule.resource_load(conn, "MECH", day, 1)["resources"][0]["days"][0]
+    check = readiness.crew(conn, ["fz-pump-1"])
+    center = check["centers"][0]
+    assert (center["busy"], center["crew"]) == (load["demand"], load["capacity"]) == (1, 2)
+    assert check["ready"]  # two jobs at different hours leave one fitter free all day
+    # a job booked alongside the morning one fills the crew: it is ready itself, and the next one is not
+    third = propose(conn, "maintenance", "Valve job", "ann", day + timedelta(hours=2), day + timedelta(hours=6),
+                    refs=["fz-pump-1"])
+    plan.book(conn, third["id"], "ann", "MECH", 1)
+    crew_check = next(p for p in plan.prerequisites(conn, third["id"])["prerequisites"] if p["kind"] == "crew")
+    assert crew_check["satisfied"], crew_check
+    full = readiness.crew(conn, ["fz-pump-1"])
+    assert not full["ready"] and full["blockers"][0].endswith("2 of 2 booked today")
+    conn.rollback()
+
+
 def test_a_job_is_released_to_the_field_when_its_prerequisites_are_met_or_with_a_reason(conn, monkeypatch):
     """Step 5 of the work model: prerequisites decide Ready, and Release sends the job's waiting case to its crew."""
     from fuzer.core.exceptions import TYPES, ExceptionType, raise_exception

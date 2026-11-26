@@ -1105,7 +1105,7 @@ export const workApi = {
   workNames: () => request<Record<string, string>>("GET", "/work/names"),
   /** Each kind of work's one label (#1358), read once by the app shell into `workKind`. */
   workKinds: () => request<Record<string, string>>("GET", "/work/kinds"),
-  workPeople: () => request<{ name: string; roles: string[]; assigned_roles?: string[]; away_until?: string | null; delegate?: string | null; display_name?: string | null;
+  workPeople: () => request<{ name: string; roles: string[]; assigned_roles?: string[]; away_until?: string | null; delegate?: string | null; display_name?: string | null; owner?: boolean;
     /** Open cases and waiting steps they hold now. */ holding?: number }[]>("GET", "/work/people"),
   /** The demo account picks the human roles it acts as in this project; none is every role. */
   actAs: (roles: string[]) => request<{ name: string; roles: string[]; picked: string[] }>("PUT", "/work/me/roles", undefined, { roles }),
