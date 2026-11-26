@@ -308,8 +308,7 @@ def _said(conn, m: dict) -> str:
     """What became of a note, in the one line the person who sent it reads."""
     if m["outcome"] == "case":
         ids, _ = match(conn, m["refs"])
-        names = [r["label"] for r in conn.execute(
-            "select label from entity_label where fuzer_id = any(%s) order by array_position(%s, fuzer_id)", (ids, ids))]
+        names = [x["label"] for x in _named(conn, ids)]
         case = f"case {m['item_id']}" if m.get("item_id") else "a case"
         return f"Sent to the IOC as {case} about {', '.join(names) or ', '.join(m['refs'])}."
     if m["outcome"] == "steward":
@@ -354,9 +353,11 @@ def answer_of(conn, review_item_id: int) -> dict:
 
 
 def _named(conn, ids: list[str]) -> list[dict]:
-    labels = {r["fuzer_id"]: r["label"] for r in conn.execute(
-        "select fuzer_id, label from entity_label where fuzer_id = any(%s)", (ids,))}
-    return [{"fuzer_id": i, "label": labels.get(i) or i} for i in ids]
+    """Each entity with what people call it (records.called): equipment by its tag, never "S/N 76031"."""
+    from ..graph.queries.records import called
+
+    names = called(conn, ids)
+    return [{"fuzer_id": i, "label": names[i]} for i in ids]
 
 
 def change_entities(conn, exception_id: int, ids: list[str], by: str) -> dict:

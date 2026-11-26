@@ -7,6 +7,8 @@ what was done, in the ISO 14224 terms of `standards/iso14224.yaml`, so the close
     data_problem  the data was wrong, not the equipment
     done          done as asked: only for work someone asked for (no exception opened it), such as a task
     log_only      log only, no action: only for a message to the IOC that turned out to say what was done (#1363)
+    matched       a steward's question answered by confirming a match or choosing the entity (set by the answer)
+    no_work       a message the steward said needed no work (set by the answer)
 
 The form is pre-filled from an agent's suggestion on the case (`payload.closeout_suggestion`), else from the case's
 own words: the failure-mode keywords of the taxonomy and pack, and the action words below. The person confirms it.
@@ -27,7 +29,10 @@ from ..core.taxonomy import failure_modes_in, load_standard
 from . import routing
 
 DISPOSITIONS = {"real": "A real problem", "false_alarm": "False alarm", "duplicate": "Duplicate",
-                "data_problem": "Data problem", "done": "Done as asked", "log_only": "Log only, no action"}
+                "data_problem": "Data problem", "done": "Done as asked", "log_only": "Log only, no action",
+                "matched": "Matched", "no_work": "No work needed"}
+# what a steward's answer closes a data question as (graph.data_work.closeout), never picked on the close-out form
+ANSWERED = ("matched", "no_work")
 OUTCOMES = {"fixed": "Fixed", "contained": "Contained, follow-up planned", "not_fixed": "Not fixed",
             "monitoring": "Being monitored"}
 # words that name the maintenance activity (ISO 14224 Table B.5), first match wins
@@ -45,7 +50,8 @@ DATA_WORDS = (r"\bbad (data|value|reading)\b|\bstale\b|\bwrong unit|\bsensor (fa
 def vocabulary(pack: Pack) -> dict:
     """The controlled lists the form picks from: dispositions, outcomes and the taxonomy's failure terms."""
     std = load_standard(pack.classification.get("taxonomy", "iso14224"))
-    return {"dispositions": DISPOSITIONS, "outcomes": OUTCOMES, "failure_modes": std.get("failure_modes", {}),
+    return {"dispositions": DISPOSITIONS, "answered": list(ANSWERED), "outcomes": OUTCOMES,
+            "failure_modes": std.get("failure_modes", {}),
             "mechanisms": std.get("failure_mechanisms", {}), "causes": std.get("failure_causes", {}),
             "activities": std.get("maintenance_activities", {})}
 
@@ -175,8 +181,8 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
     if follow_up_to and outcome != "contained":
         raise ValueError("a follow-up is sent when the outcome is contained, follow-up planned")
     v = vocabulary(pack)
-    if disposition not in DISPOSITIONS:
-        raise ValueError(f"say what it was: {', '.join(DISPOSITIONS)}")
+    if disposition not in DISPOSITIONS or disposition in ANSWERED:
+        raise ValueError(f"say what it was: {', '.join(d for d in DISPOSITIONS if d not in ANSWERED)}")
     if disposition == "done" and not asked_case(conn, item_id):
         raise ValueError("a case an exception opened says what it was: a real problem, a false alarm, a duplicate "
                          "or a data problem")

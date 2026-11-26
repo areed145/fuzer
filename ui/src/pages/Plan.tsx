@@ -1,12 +1,12 @@
 /** The integrated plan (Turnaround is a window on it, #554): every planned activity from every source on one timeline, by area. SAP work orders,
  * turnaround work, inspections and the exceptions the IOC chose to plan sit side by side, so two jobs on one asset,
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
-import { acronyms, say } from "../wording";
+import { acronyms, detectorName, person as personName, queue, say } from "../wording";
 import { money, whenDay, whenHour, estimate } from "../format";
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem, type ResourceLoad } from "../api";
 import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field, confirmDialog, promptDialog } from "../ui";
-import { Status, entityHref, errorMessage, href, useAsync, useAction } from "../lib";
+import { Status, errorMessage, href, useAsync, useAction } from "../lib";
 import { AssignPicker } from "./workflows/shared";
 import { TurnaroundPanel } from "./Turnaround";
 import { SchedulePage } from "./Schedule";
@@ -14,7 +14,7 @@ import { ResourcesPage } from "./Resources";
 import { LogisticsPage } from "./Logistics";
 import { SchedulesPage } from "./Schedules";
 import { PortfolioPage } from "./Portfolio";
-import { usePerson } from "../work";
+import { EntityLinks, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { commonName } from "../entityRefs";
 
@@ -25,6 +25,9 @@ const SPANS: [number, string][] = [[1, "1 day"], [7, "1 week"], [14, "2 weeks"],
 const STATUSES = ["proposed", "scheduled", "in_progress", "done", "cancelled"];
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const short = (at: string) => whenDay(at);
+/** Who a job is booked on, as people say it: a role's queue ("role:operator" is the "operator queue") or the person by
+ * name ("user:demo" is the account's name), never the actor the plan keeps (tour D8). */
+const crewName = (crew: string) => (crew.startsWith("role:") ? queue(crew) : personName(crew));
 
 /** An area's rows, with the exceptions about one piece of equipment together: an item alone, or a list of two or more
  * exceptions on the same equipment where the first of them would be (the field raises one per condition, so a machine
@@ -153,7 +156,7 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
   const row = (i: PlanItem) => <li key={i.id} id={`plan-item-${i.id}`} className={`plan-row status-${i.status}`}>
     <button type="button" className="plan-label" aria-expanded={open === i.id} onClick={() => setOpen(open === i.id ? null : i.id)}>
       <strong>{acronyms(i.title)}</strong>
-      <Text small muted> {i.kind.replace(/_/g, " ")} · {short(i.start_at)}–{short(i.end_at)}{i.crew ? ` · ${i.crew}` : ""}</Text>
+      <Text small muted> {i.kind.replace(/_/g, " ")} · {short(i.start_at)}–{short(i.end_at)}{i.crew ? ` · ${crewName(i.crew)}` : ""}</Text>
       {i.clashes.filter((c) => c.kind !== "bundle").length > 0 && <Badge tone="danger">clash</Badge>}
       {i.clashes.some((c) => c.kind === "bundle") && <Badge tone="ok">bundle</Badge>}
       {i.needs_shutdown && <Badge tone="warn">shutdown</Badge>}
@@ -287,7 +290,7 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
     <div className="plan-detail">
       {fieldJob && pre && <Text as="div" small>
         {item.released_at
-          ? <Badge tone="ok">Released {whenDay(item.released_at)}{item.released_by ? ` by ${item.released_by}` : ""}</Badge>
+          ? <Badge tone="ok">Released {whenDay(item.released_at)}{item.released_by ? ` by ${personName(item.released_by)}` : ""}</Badge>
           : <Badge tone={pre.ready ? "ok" : "warn"}>{pre.ready ? "Ready" : "Not ready"}</Badge>}
         {item.release_reason && <Text as="span" small muted> Why it went anyway: {item.release_reason}</Text>}
         <List>{pre.prerequisites.map((p) => <li key={p.kind} className={p.satisfied ? "" : "error"}>
@@ -298,10 +301,11 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
       {!!item.parts_short?.length && <Text as="p" small>
         Parts with no stock on record (check with stores before it starts): {item.parts_short.map((p) =>
           `${p.label ?? p.id}${p.description ? ` (${p.description})` : ""}`).join(", ")}</Text>}
-      <Text as="p" small>{item.assets.map((a) => <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</Text>
+      {/* by name, as every page names entities: equipment by the tag it is installed at, not "S/N 72852" */}
+      {item.assets.length > 0 && <Text as="p" small><EntityLinks ids={item.assets.map((a) => a.fuzer_id)} /></Text>}
       {item.item_id != null ? <Text as="p" small><a href={href(`/cases/${item.item_id}`)}>Open its case</a></Text>
         : item.exception_id != null && <Text as="p" small><a href={href("/list", { q: item.title })}>Open this work in All work</a></Text>}
-      <Text as="p" small muted>{item.source}{item.source_key ? ` ${item.source_key}` : ""}{item.notes ? ` · ${item.notes}` : ""}
+      <Text as="p" small muted>{item.source ? detectorName(item.source) : ""}{item.source_key ? ` ${item.source_key}` : ""}{item.notes ? ` · ${item.notes}` : ""}
         {item.deferment_usd != null ? ` · ${money(item.deferment_usd)} at risk` : ""}</Text>
       {person ? <Line>
         <Field inline label="Start"><Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>

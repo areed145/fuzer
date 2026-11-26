@@ -147,15 +147,18 @@ def at_dispatch(conn, subjects: list[str], exception_id: int | None = None, now:
           and exists (select 1 from event_outbox o where o.topic = 'exception.dispatched' and o.ref = 'exception:' || e.id)
         order by e.id
         """, (exception_id,)).fetchall()]
+    # a job sent to the field that is also on the plan is one job: counted once, as sent, not again as its plan item
+    # (the same clash line twice on a case, tour D16)
+    sent = [o["ref"]["exception"] for o in others]
     others += [job(conn, r["title"], list(r["subjects"] or []), r["area_id"], ref={"plan_item": r["id"]}, plant=plant,
                    on_file=on_file)
                for r in conn.execute(
         """
         select id, title, subjects, area_id from plan_item
         where status in ('proposed', 'scheduled', 'in_progress') and start_at <= %(soon)s and end_at >= %(now)s
-          and exception_id is distinct from %(e)s
+          and exception_id is distinct from %(e)s and (exception_id is null or exception_id <> all(%(sent)s))
         order by start_at, id
-        """, {"now": now, "soon": now + SOON, "e": exception_id}).fetchall()]
+        """, {"now": now, "soon": now + SOON, "e": exception_id, "sent": sent}).fetchall()]
     found = [{**c, "with": o["ref"], "title": o["title"]} for o in others for c in conflicts(conn, me, o)]
     return {"check": "simops", "label": "Simultaneous operations", "ready": not found,
             "blockers": [c["say"] for c in found], "conflicts": found, "checked": True,

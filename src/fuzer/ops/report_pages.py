@@ -366,7 +366,9 @@ def narrative(conn, pack, d, panel, scope, w) -> dict:
     listed = next((r for r in daily_report.days(conn, 400) if str(r["day"]) == day), None)
     if listed is None:
         return {"title": "Daily report", "day": day, "status": None, "scoped": True,
-                "note": f"No daily report for {day}: `fuzer report` closes a day.", "as_of": day}
+                # what a reader can act on, not the developer command that closes a day (tour D6)
+                "note": f"Not closed yet: the daily close drafts {day}'s report for the ops lead to review.",
+                "as_of": day}
     return {"title": "Daily report", "day": day, "status": listed["status"], "version": listed["version"],
             "ok": listed["ok"], "as_of": day, "scoped": True,
             "href": f"/cases/{listed['item_id']}" if listed.get("item_id") else None}

@@ -51,7 +51,8 @@ child case); the item is done when that case is.
 not run side by side. Shown on Plan and checked again at dispatch; it is a flag, not a case.
 
 **Close-out.** Closing a case by saying what it was (a real problem, a false alarm, a duplicate, a data problem, or
-for a message that only said what was done, log only with no action) and, for a real problem, what failed, why and what was done. Where another system raised the work, the update for
+for a message that only said what was done, log only with no action; a steward's question closes as its answer,
+**Matched** or **No work needed**) and, for a real problem, what failed, why and what was done. Where another system raised the work, the update for
 that system is drafted for a planner to approve. Work someone asked for (a task) is **finished** instead: done as
 asked, or a duplicate.
 
@@ -231,6 +232,9 @@ as a Gantt under Plan > Schedules. A planning system such as Primavera P6 can de
 
 **Shelve.** Take a standing condition that can wait off the list and every queue until a date, with a reason. It
 comes back by itself. Safety work cannot be shelved, and Options never recommend it.
+
+**Site.** A facility Fuzer runs for, as people name it on screen (a **project** in code and the API): work at a
+person's other sites is listed as **At your other sites**, never "other fields".
 
 **Skill.** A playbook (its SKILL.md) an agent follows for one kind of work, with the tools it may call and the eval
 questions it is held to. A skill's owner changes it on Ops IQ, Skills: a change is a **draft**, and a person

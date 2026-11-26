@@ -281,6 +281,8 @@ export interface SavedWorkView {
 
 export interface CloseoutVocabulary {
   dispositions: Record<string, string>; outcomes: Record<string, string>; failure_modes: Record<string, string>;
+  /** Set by a steward's answer (Matched, No work needed), never picked on the form. */
+  answered?: string[];
   mechanisms: Record<string, string>; causes: Record<string, string>; activities: Record<string, string>;
 }
 

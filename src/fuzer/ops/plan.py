@@ -18,7 +18,7 @@ its assets' spare parts recorded with zero stock (`parts_short`), so stores can 
 
 from datetime import UTC, date, datetime, time, timedelta
 
-from ..core import clock, events
+from ..core import clock, events, wording
 from ..core.plan import KINDS, STATUSES, PlanError, PlanNotReady, PlanOverload
 
 ACTIVE = ("proposed", "scheduled", "in_progress")
@@ -139,6 +139,13 @@ def _off_the_plan(conn, row: dict, by: str) -> None:
         work.comment(conn, e["item_id"], by, f"Taken off the plan ({row['start_at']:%d %b}); the work is still open.")
 
 
+def _who(crew: str) -> str:
+    """A person booked on a job as a clash names them, first in its sentence: "Sam", the demo sign-in by its name, never
+    "clash sam is also on" or "user:demo" (tour D16)."""
+    said = wording.say(crew) or crew
+    return said[:1].upper() + said[1:]
+
+
 def _clashes(rows: list[dict]) -> dict[int, list[dict]]:
     """Clashes and bundling chances between the active items given, by item id."""
     out: dict[int, list[dict]] = {r["id"]: [] for r in rows}
@@ -155,7 +162,7 @@ def _clashes(rows: list[dict]) -> dict[int, list[dict]]:
             if overlap and person:
                 for x, y in ((a, b), (b, a)):
                     out[x["id"]].append({"kind": "crew", "with": y["id"], "title": y["title"],
-                                         "say": f"{x['crew']} is also on “{y['title']}” then"})
+                                         "say": f"{_who(x['crew'])} is also booked on “{y['title']}” then"})
             for s, o in ((a, b), (b, a)):  # o could ride along with shutdown s (a turnaround or shutdown itself)
                 if (s["kind"] in SHUTDOWNS and o["kind"] not in SHUTDOWNS and s["area_id"]
                         and s["area_id"] == o["area_id"] and not overlap

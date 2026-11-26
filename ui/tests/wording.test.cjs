@@ -61,4 +61,8 @@ test("#16 what raised an event reads as words, not its code", () => {
   assert.equal(detectorName("sre"), "SRE");
   assert.equal(detectorName("agent:opportunity_scan"), "Opportunity scan agent");
   assert.equal(detectorName("SAP PM"), "SAP PM");
+  // a row's source is a system or the person who raised it, read here, never as an actor (tour D8:
+  // "Machine health · rotating_screen")
+  assert.equal(detectorName("user:demo"), "Demo account");
+  assert.equal(detectorName("sample crew"), "Demo crew");
 });

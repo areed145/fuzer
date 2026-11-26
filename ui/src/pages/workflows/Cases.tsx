@@ -128,7 +128,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
     {!evidenceReady ? <Status loading /> : <>
       <CaseSafeguards id={it.id} data={safeguards.data} />
       {/* the message card above is what was found when the case is only messages */}
-      {!asks && !(message && it.sources?.every((x) => x.type === "message_report")) && <CaseFindings sources={it.sources} />}
+      {!asks && !(message && it.sources?.every((x) => x.type === "message_report")) && <CaseFindings sources={it.sources} openedBy={it.created_by} />}
       {/* a question about the records has no event to trend, answered or not */}
       {!question && <CaseAround id={it.id} data={around.data} focus={it.title} />}
       <Related about={{ case: it.id }} />

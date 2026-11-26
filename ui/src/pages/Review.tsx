@@ -191,7 +191,7 @@ function QuestionCard({ item, onDecide }: { item: ReviewItem; onDecide: OnDecide
         ) : item.kind === "role" ? (
           <RoleCard id={item.id} p={item.payload} onDecide={onDecide} />
         ) : item.kind === "message" ? (
-          <MessageCard id={item.id} p={item.payload} onDecide={onDecide} />
+          <MessageCard p={item.payload} onDecide={onDecide} />
         ) : item.kind === "pid_mismatch" ? (
           <PidMismatchCard id={item.id} label={item.label} p={item.payload} onDecide={onDecide} />
         ) : (
@@ -267,7 +267,8 @@ function LikeQuestions({ kind, name, onDone }: { kind: ReviewKind; name: string;
 
 type OnDecide = (d: Omit<Decision, "by">) => Promise<void>;
 
-function useBusy(onDecide: OnDecide, consequence = "It may change accepted values, asset links or future loads.") {
+function useBusy(onDecide: OnDecide,
+  consequence: string | ((d: Omit<Decision, "by">) => string) = "It may change accepted values, asset links or future loads.") {
   const operate = usePermission("operate");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -288,7 +289,7 @@ function useBusy(onDecide: OnDecide, consequence = "It may change accepted value
   const feedback = <>
     {!operate && <p>Decisions require operate access and any applicable workflow role. Ask an owner to update your roles.</p>}
     {pending && !busy && <Notice role="group" aria-label="Confirm review decision">
-      <p>Save this answer for everyone? {consequence} The records catch up in the background after you save.</p>
+      <p>Save this answer for everyone? {typeof consequence === "string" ? consequence : consequence(pending)} The records catch up in the background after you save.</p>
       <Button type="button" variant="primary" onClick={submit}>Confirm decision</Button>{" "}
       <Button type="button" onClick={() => { setPending(null); setError(undefined); }}>Cancel</Button>
     </Notice>}
@@ -674,11 +675,13 @@ function RoleCard({ id, p, onDecide }: { id: number; p: RolePayload; onDecide: O
 }
 
 /** A message to the IOC that named no entity for certain (P2.8): the entity it is about opens its case. */
-function MessageCard({ id, p, onDecide }: { id: number; p: MessagePayload; onDecide: OnDecide }) {
-  const { busy, feedback, run } = useBusy(onDecide, "The entity you choose gets a case, routed like any other.");
+function MessageCard({ p, onDecide }: { p: MessagePayload; onDecide: OnDecide }) {
+  // what the answer does, said for the answer given: "No work needed" opens no case (tour D11)
+  const { busy, feedback, run } = useBusy(onDecide, (d) => d.decision === "reject"
+    ? "The message is kept with no case." : "The entity you choose gets a case, routed like any other.");
   const m = p.message;
   return (
-    <UICard className="review" title={`${m.channel_label} from ${person(m.sender)}`} detail={<>#{id}</>}>
+    <UICard className="review" title={`${m.channel_label} from ${person(m.sender)}`}>
       {m.subject && <Text as="p" small>{m.subject}</Text>}
       <p>{m.text}</p>
       <Text as="p" small>Why it stopped: {p.why}</Text>

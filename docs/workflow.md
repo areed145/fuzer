@@ -100,7 +100,7 @@ the published version, and running cases stay on their original version.
 - **Field or overarching** (#497): most people are on one field's roster (`work_person`, per project). Specialists
   and monitoring desks whose work cuts across fields are **overarching** (`fuzer.work_person_cover`, shared by the
   instance): their roles count in every field they cover (all fields, or the ones named), on top of any roles a
-  field's own roster gives them. Their My work lists their work in the other fields too (`/work/inbox/fields`), only
+  field's own roster gives them. Their My work lists their work at their other sites too (**At your other sites**, `/work/inbox/fields`), only
   for fields the viewer may open: covering a field is routing, never an access grant. Set on Users, workflow
   assignments (`PUT /work/people/{name}/cover`).
 

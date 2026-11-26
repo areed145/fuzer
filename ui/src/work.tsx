@@ -9,7 +9,7 @@ import { Markdown } from "./Markdown";
 import { entityHref, fieldLabel, fmt, href } from "./lib";
 import { display, isId } from "./entityRefs";
 import { useEntityNames } from "./useEntityNames";
-import { cap, person as personName, queue, say } from "./wording";
+import { cap, detectorName, person as personName, queue, say } from "./wording";
 
 export { loadPerson, usePerson } from "./identityStore";
 
@@ -57,7 +57,7 @@ export function Due({ at, closed }: { at: string | null; closed?: boolean }) {
  * system reporting four times, not four systems. */
 export function reportedBy(sources: { source?: string | null }[]): string {
   const systems = new Set(sources.map((x) => x.source ?? "unknown"));
-  if (systems.size === 1) return `Reported ${sources.length} times by ${[...systems][0]}`;
+  if (systems.size === 1) return `Reported ${sources.length} times by ${detectorName([...systems][0])}`;
   return systems.size === sources.length ? `Reported by ${systems.size} systems`
     : `Reported ${sources.length} times by ${systems.size} systems`;
 }
@@ -229,6 +229,9 @@ export function startedWith(data: Record<string, unknown> | null | undefined): R
 /** Entities by name, from one lookup. The id stays in the tooltip. */
 export function EntityLinks({ ids }: { ids: string[] }) {
   const names = useEntityNames(ids);
+  // nothing until the names come: display() falls back to the id, so a case first opened "about fz-tag-c8bb45ec62bf"
+  // (tour D8)
+  if (!names) return null;
   // Equipment reads as the tag it is installed at, so that tag beside it would say the same thing twice.
   const shownAt = new Set(ids.map((id) => names?.[id]?.at).filter(Boolean));
   const shown = ids.filter((id) => names?.[id]?.at || !shownAt.has(names?.[id]?.label ?? ""));

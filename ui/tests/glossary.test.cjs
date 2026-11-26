@@ -46,6 +46,7 @@ const RETIRED = [
   [/\bwork items?\b/i, "case"],
   [/\b(?:an?|the|this|that|same|another|picked|new|two|other)\s+items?\b/i, "entity"],
   [/\bitems\s+(?:with|in|to)\b/i, "entities"],
+  [/\bother fields\b/i, "other sites"],
 ];
 
 test("screen text uses the glossary's words: entity, not item; case, not work item", () => {

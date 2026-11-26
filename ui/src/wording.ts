@@ -86,12 +86,13 @@ export const workKind = (type: string): string => workKinds[type] ?? cap(type.re
 const SOURCE_WORDS: Record<string, string> = { ptw: "Permit to work", "sample crew": "Demo crew" };
 
 /** What raised an event, as words (#16): "alarm_performance" reads "Alarm performance", "agent:opportunity_scan" the
- * "Opportunity scan agent". */
+ * "Opportunity scan agent", and a person who raised it ("user:demo") by their name. Every row and finding that says
+ * where an event came from reads it here: a row read it as a person and showed "Machine health · rotating_screen"
+ * (tour D8). */
 export function detectorName(source: string): string {
-  if (/^(agent|detector):/.test(source)) return person(source);
   if (SOURCE_WORDS[source]) return SOURCE_WORDS[source];
   return /^[a-z0-9]+(_[a-z0-9]+)*$/.test(source)
-    ? cap(source.replace(/_/g, " ")).replace(/\b(sre|sap|iow|dcs)\b/gi, (w) => w.toUpperCase()) : source;
+    ? cap(source.replace(/_/g, " ")).replace(/\b(sre|sap|iow|dcs)\b/gi, (w) => w.toUpperCase()) : person(source);
 }
 
 /** Who did something, as a name: the demo sign-in reads "Demo account", the system "Fuzer". */

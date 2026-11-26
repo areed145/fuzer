@@ -410,6 +410,20 @@ def names(conn, ids: list[str]) -> dict:
             for r in rows}
 
 
+def called(conn, ids: list[str]) -> dict[str, str]:
+    """What text written on the server calls each entity, as `display` in ui/src/entityRefs.ts does on a page: equipment
+    by the tag it is installed at and its description ("20-GT-2000A Gas Turbine A"), else the label, else the
+    description, else the id. A case's history read "S/N 76031, S/N 80853, S/N 85143" (tour D8)."""
+    got = names(conn, ids)
+
+    def one(i: str) -> str:
+        n = got.get(i) or {}
+        if n.get("at"):
+            return " ".join(x for x in (n["at"], n.get("description")) if x)
+        return n.get("label") or n.get("description") or i
+    return {i: one(i) for i in ids}
+
+
 def conversations(conn, fuzer_id: str, limit: int = 20) -> list[dict]:
     """The chat threads about an asset (P5.8b, #745): each conversation whose summary names it, or names the tag it is
     installed at or the equipment installed at it, newest first, with the problem, what was tried, the fix and the

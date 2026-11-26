@@ -137,8 +137,9 @@ def facts(conn, start: datetime, end: datetime) -> dict:
     the rest; `unknown` names a section that can't be said and why (no bypass register loaded), which is not a section
     with nothing."""
     from ..sources import alerts
-    from . import safeguards
+    from . import exceptions, safeguards
 
+    kinds = {k: t.label for k, t in exceptions.types(conn).items()}
     sections: dict[str, list[dict]] = {s: [] for s in SECTIONS}
     more: dict[str, int] = {}
     unknown = {} if safeguards.loaded(conn) else {"Active bypasses": safeguards.NO_REGISTER}
@@ -215,7 +216,10 @@ def facts(conn, start: datetime, end: datetime) -> dict:
           and not (type = %(src)s and state = 'cleared')  -- a load that failed and then loaded is not the next shift's
         order by value_usd desc nulls last, id
         """, {"s": start, "e": end, "r": [RECORDS, ROUTINE], "src": alerts.TYPE}).fetchall(),
-        lambda r: _line(f"{r['title']} ({r['type'].replace('_', ' ')} from {r['source']}, {r['state']})",
+        # the kind by its label and the source in words, as the case says them: "Field report from Demo crew", not
+        # "field report from sample crew" (tour D15)
+        lambda r: _line(f"{r['title']} ({kinds.get(r['type'], r['type'].replace('_', ' '))} from "
+                        f"{wording.source(r['source'])}, {r['state']})",
                         f"exception:{r['id']}", f"case:{r['item_id']}" if r["item_id"] else ""))
     keep("Closed", conn.execute(
         """

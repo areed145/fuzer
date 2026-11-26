@@ -7,6 +7,7 @@ import { useAction } from "./lib";
 import { percent, when } from "./format";
 import { api, type WorkItem } from "./api";
 import { Actor } from "./work";
+import { Markdown } from "./Markdown";
 import { Badge, Button, Card, Disclosure, Input, Notice, Table, ErrorText, Line, Text } from "./ui";
 
 const pct = (x: number | null | undefined) => (x == null ? "no confidence given" : `${percent(x)} confident`);
@@ -30,11 +31,12 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
   const evidence = b.evidence ?? [], analysis = b.analysis ?? [], similar = b.similar ?? [];
   return (
     <Card className="case-brief" title="Specialist brief">
-      {b.what_happened && <p>{b.what_happened}</p>}
+      {/* the specialist cites entities by id ("V-2002 (fz-tag-89c2b263acef)"): read by name, as every page does (tour D8) */}
+      {b.what_happened && <Markdown text={b.what_happened} />}
       {p.disposition && (
         <Notice tone="info">
           <strong>Proposed: {p.disposition}</strong> <Text small>({pct(p.confidence)})</Text>
-          {p.why && <Text as="p" small>{p.why}</Text>}
+          {p.why && <Text as="div" small><Markdown text={p.why} /></Text>}
         </Notice>
       )}
       {(e.lessons ?? []).length > 0 && (
@@ -47,7 +49,7 @@ export function CaseBrief({ it, person, readOnly = false, reload }: {
         <Disclosure label={<>Evidence, analysis and similar cases</>}>
           {evidence.length > 0 && <Table density="compact" variant="list">
             <thead><tr><th>Record</th><th>Shows</th></tr></thead>
-            <tbody>{evidence.map((x, i) => <tr key={i}><td className="mono small">{x.ref}</td><td className="small">{x.says}</td></tr>)}</tbody>
+            <tbody>{evidence.map((x, i) => <tr key={i}><td className="small"><Markdown text={x.ref ?? ""} /></td><td className="small"><Markdown text={x.says ?? ""} /></td></tr>)}</tbody>
           </Table>}
           {analysis.length > 0 && <Table density="compact" variant="list">
             <thead><tr><th>Method</th><th>Result</th></tr></thead>

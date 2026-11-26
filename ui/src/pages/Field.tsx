@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { when } from "../format";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
-import { kindWord, person as personName, say as words } from "../wording";
+import { detectorName, kindWord, person as personName, say as words } from "../wording";
 import { ActionStatus, Badge, Button, ButtonLink, Card, ConfirmAction, Disclosure, Input, Notice, Select, Textarea, ErrorText, Line, Text, Checkbox, List, Heading } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
 import { OUTBOX_CHANGED, asNote, describe, discard, dismissCleared, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
@@ -442,7 +442,7 @@ export function FieldJobCard({ job, person, onChange, onReported, onTaken }: {
         {job.sources?.length > 1 && <div>
           <Heading level={3} small>{reportedBy(job.sources)}</Heading>
           <List plain small>{job.sources.map((x) => <li key={x.id}>
-            <strong>{x.label}</strong>: {x.title} <Text muted>· {x.source ?? ""}</Text></li>)}</List>
+            <strong>{x.label}</strong>: {x.title}{x.source && <Text muted> · {detectorName(x.source)}</Text>}</li>)}</List>
         </div>}
         {job.permit && !desk && !gating && <PermitPanel permit={job.permit} inHand={inHand} onInHand={setInHand} />}
         {(job.checklist?.length ?? 0) > 0 && <div>

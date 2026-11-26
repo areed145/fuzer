@@ -262,7 +262,7 @@ function OtherFields({ person }: { person: string }) {
   const others = (fields.data ?? []).filter((f) => f.project !== here && f.mine.length + f.queue.length > 0);
   if (!others.length) return null;
   return (
-    <UICard title="In your other fields" detail={<>{others.length} · you hold roles there too</>}>
+    <UICard title="At your other sites" detail={others.length}>
       {others.map((f) => <div key={f.project}>
         <Heading level={3} small detail={`${f.mine.length} assigned to you · ${f.queue.length} unclaimed in ${f.roles.join(", ").replace(/_/g, " ")}`}
           actions={<Button size="sm" variant="secondary" onClick={() => switchProject(f.project)}>Work in {f.project}</Button>}>{f.project}</Heading>

@@ -306,6 +306,26 @@ def test_hot_work_beside_a_line_break_is_flagged_on_plan_and_at_dispatch(kestrel
     assert r.status_code == 409 and "Simultaneous operations: Hot work near a line break" in r.text
 
 
+def test_a_job_sent_to_the_field_and_on_the_plan_is_one_clash(kestrel, client):
+    """Tour D16: a job in the field that is also a bar on the plan clashed twice, the same line twice on the case."""
+    from datetime import UTC, datetime
+
+    from fuzer.core import events
+    from fuzer.graph import queries
+    from fuzer.ops import plan, simops
+
+    conn, pack = kestrel
+    reboiler = queries.resolve_ref(conn, pack, "C1-H-3008")
+    first = job(conn, "Reboiler sight glass", reboiler)
+    events.publish(conn, "exception.dispatched", f"exception:{first}", {"to": "fred"})
+    now = datetime.now(UTC)
+    plan.propose(conn, "maintenance", "Look at Reboiler sight glass", "ioc-ann", now - timedelta(hours=1),
+                 now + timedelta(hours=4), refs=[reboiler], status="scheduled", exception_id=first)
+    said = simops.at_dispatch(conn, [reboiler], job(conn, "Reboiler flame out", reboiler))["blockers"]
+    assert len(said) == len(set(said)) and sum("at the same time" in b for b in said) == 1, said
+    conn.rollback()
+
+
 def test_a_plan_with_nothing_side_by_side_reads_nothing_more_to_say_so(kestrel):
     """Plan and My work check every plan item for hazards side by side: items apart in time or place cost nothing."""
     from datetime import UTC, datetime

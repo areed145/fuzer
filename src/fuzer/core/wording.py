@@ -101,6 +101,25 @@ def escalation(step: str, sla: str | None, due_utc: str, holder: str, to_role: s
             + (f" It moved to the {queue(to_role)}." if to_role else ""))
 
 
+# Sources whose key is not a word (#1383), as `detectorName` in ui/src/wording.ts reads them: "ptw" read "Ptw", and the
+# demo's sample crew (ops/sample_crew.py) reads by its glossary name.
+_SOURCE_WORDS = {"ptw": "Permit to work", "sample crew": "Demo crew"}
+
+
+def source(name: str | None) -> str:
+    """What raised an event, as words, the same as the pages say it: 'sample crew' is 'Demo crew', 'alarm_performance'
+    'Alarm performance', 'sap' 'SAP'. A handover line read "field report from sample crew" (tour D15)."""
+    if not name:
+        return "an unknown source"
+    if name in _SOURCE_WORDS:
+        return _SOURCE_WORDS[name]
+    if re.fullmatch(r"[a-z0-9]+(_[a-z0-9]+)*", name):
+        words = name.replace("_", " ")
+        return re.sub(r"\b(sre|sap|iow|dcs)\b", lambda m: m.group(0).upper(), words[:1].upper() + words[1:],
+                      flags=re.IGNORECASE)
+    return say(name) or name
+
+
 def queue(role: str | None) -> str:
     """A routing role as the queue people see: 'role:data_steward' and 'ops_lead' both read 'data steward queue',
     'ops lead queue'."""
@@ -157,6 +176,8 @@ _SNAKE_QUEUE = re.compile(r"\b(?P<role>[a-z]+(?:_[a-z]+)+) queue\b")
 
 # the shared demo sign-in as records keep it; people read the account's name
 _DEMO_ACTOR = re.compile(r"\buser:demo\b")
+# a line written with the demo's source key, before it read as words ("field report from sample crew")
+_SAMPLE_CREW = re.compile(r"\bfrom sample crew\b")
 
 
 def say(text: str | None) -> str | None:
@@ -173,4 +194,5 @@ def say(text: str | None) -> str | None:
     text = _SNAKE_QUEUE.sub(lambda m: queue(m["role"]), text)
     text = _ONE.sub(lambda m: f"1 {m['word']}", text)
     text = _DEMO_ACTOR.sub("Demo account", text)
+    text = _SAMPLE_CREW.sub("from Demo crew", text)
     return units(text)

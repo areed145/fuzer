@@ -13,7 +13,7 @@ import { switchProject } from "../authState";
 import { GENERIC_STEP, StepBadges, byUrgency, caseHref } from "./workflows/shared";
 import { waitingToDispatch } from "./Exceptions";
 import { workHref } from "../pageTabs";
-import { workKind } from "../wording";
+import { detectorName, workKind } from "../wording";
 
 const TOP = 5;  // per section
 const SLOW = 300_000;  // load health is a heavy read: every five minutes, not every 30 s
@@ -126,7 +126,7 @@ export function NeedsYou({ inbox, figures, jobsHealth, ready, exceptions, stewar
       out.push(...[...f.mine, ...f.queue.filter(theirs)].map((r) => row(r, f.project)));
     for (const x of (exceptions ?? []).filter(waitingToDispatch)) {
       out.push({ group: "dispatch", key: `x-${x.id}`, title: x.title, to: workHref("dispatch", { q: x.title }), late: false, subjects: x.subjects ?? [],
-                 at: x.first_seen, priority: x.priority, meta: <><strong>To dispatch</strong> · {x.source ?? "unknown source"} · since {when(x.first_seen)}</> });
+                 at: x.first_seen, priority: x.priority, meta: <><strong>To dispatch</strong> · {x.source ? detectorName(x.source) : "unknown source"} · since {when(x.first_seen)}</> });
     }
     for (const d of (loads.data ?? []).filter((d) => d.problems.includes("held") || d.problems.includes("failed"))) {
       const held = d.problems.includes("held");
@@ -242,7 +242,7 @@ export function NeedsYou({ inbox, figures, jobsHealth, ready, exceptions, stewar
           : <>
             <Status error={inbox.error} onRetry={inbox.reload} />
             {sections.map((g) => <section key={g.key} className="feed-group" aria-label={g.label}>
-              <Heading level={3} detail={g.key === "work" && elsewhere > 0 && `and ${elsewhere} in other fields`}>
+              <Heading level={3} detail={g.key === "work" && elsewhere > 0 && `and ${elsewhere} at other sites`}>
                 {g.label} <span className="count">{g.total}</span></Heading>
               <ol className="feed" aria-label={g.label}>{g.rows.slice(0, TOP).map(feedRow)}</ol>
               {g.total > TOP && <a className="small" href={more[g.key]}>{g.key === "work" ? `All ${g.total} on My work` : `All ${g.total}`}</a>}

@@ -12,7 +12,7 @@ import { money, whenDay } from "../format";
 import { holder as holderWords, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display } from "../entityRefs";
-import { person as personName, queue as queueWords, say, workKind } from "../wording";
+import { detectorName, queue as queueWords, say, workKind } from "../wording";
 import { EventRow, DispatchControls, ROW_HEADINGS, STAGE_WORDS, Suppressed, age, type Person, type RowPlace } from "./Exceptions";
 import { PriorityBadge, SampleTeam } from "./workflows/shared";
 import { NewWorkItem } from "./workflows/Cases";
@@ -311,7 +311,7 @@ function CaseRow({ r, place, person, take, onChange }: {
   return <tr className="work-row">
     <td className="work-row-what">
       <div className="work-card-title"><a href={open}>{say(r.title)}</a></div>
-      <Text as="div" small muted>{r.kind_label}{r.source ? ` · ${personName(r.source)}` : ""}</Text>
+      <Text as="div" small muted>{r.kind_label}{r.source ? ` · ${detectorName(r.source)}` : ""}</Text>
     </td>
     <td className="small work-row-stage">{STAGE_WORDS[r.stage] ?? r.stage}</td>
     <td className="small"><PriorityBadge p={r.priority} type={r.type} /></td>

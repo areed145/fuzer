@@ -72,6 +72,10 @@ def test_daily_operations_ends_on_the_last_production_day_and_draws_its_daily_re
         assert oil["window"]["at"] == day and str(oil["as_of"])[:10] == day
         story = client.get("/reports/operations/panels/narrative").json()
         assert story["day"] == day and story["type"] == "narrative"
+        # a day not closed says so, and who closes it, never a developer command (tour D6)
+        open_day = client.get("/reports/operations/panels/narrative", params={"at": "2020-01-01"}).json()
+        assert open_day["status"] is None and open_day["note"].startswith("Not closed yet"), open_day
+        assert "`" not in open_day["note"] and "fuzer report" not in open_day["note"]
         named = client.get("/reports/operations", params={"at": "2025-12-01"}).json()
         assert named["window"]["at"] == "2025-12-01"
 

@@ -64,6 +64,7 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
   // asked work is done as asked or a duplicate; "done as asked" never fits a problem an exception raised; log only is
   // for a message that only said what was done
   const dispositions = Object.fromEntries(Object.entries(v.dispositions)
+    .filter(([code]) => !(v.answered ?? []).includes(code))
     .filter(([code]) => (data.asked ? ["done", "duplicate"].includes(code) : code !== "done" && (code !== "log_only" || data.message))));
   const s = data.suggestion;
   // a suggested disposition the form doesn't offer here fills nothing: the form shows Choose, and claims nothing

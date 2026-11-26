@@ -159,6 +159,18 @@ def _message(m: dict | None, why: str | None) -> tuple:
             at("Received", m.get("received_at")), fact("Why it stopped", why))
 
 
+def closeout(kind: str, decision: dict | None) -> str:
+    """What an answered question closes its case as: a match confirmed or an entity chosen is "Matched", a message
+    that needed no work "No work needed", any other answer a data problem (the answer says what it was). A good match
+    and a no-work answer both closed as "Data problem" (tour D11)."""
+    said = (decision or {}).get("decision")
+    if kind == "message":
+        return "no_work" if said == "reject" else "matched"
+    if kind == "match" and said in ("accept", "choose"):
+        return "matched"
+    return "data_problem"
+
+
 def sync(conn, by: str = BY) -> dict:
     """Make the steward's open work match the open questions. Returns {raised, refreshed, cleared}."""
     out = {"raised": 0, "refreshed": 0, "cleared": 0}
@@ -174,11 +186,11 @@ def sync(conn, by: str = BY) -> dict:
     for t, keys in live.items():
         for key in open_keys(conn, t) - keys:
             kind, _, subject = key.partition(":")
-            done = conn.execute("select status, decided_by from review_item where kind = %s and subject = %s",
+            done = conn.execute("select status, decided_by, decision from review_item where kind = %s and subject = %s",
                                 (kind, subject)).fetchone()
             answered = bool(done and done["status"] == "decided")
             reason = f"answered by {done['decided_by']}" if answered else "the question no longer arises"
-            # a data question someone answered closes as a data problem: the answer says what it was
-            clear_exception(conn, t, key, by, reason=reason, closeout="data_problem" if answered else None)
+            clear_exception(conn, t, key, by, reason=reason,
+                            closeout=closeout(kind, done["decision"]) if answered else None)
             out["cleared"] += 1
     return out

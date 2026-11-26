@@ -5905,7 +5905,7 @@ test("an overarching person's Inbox lists their work in other fields and opens a
     { project: "kestrel", roles: ["engineer"], mine: [], queue: [row] },
   ] }));
   await page.goto(`${url}/#/inbox?steps=1`);
-  await page.getByText("In your other fields", { exact: false }).waitFor();
+  await page.getByText("At your other sites", { exact: false }).waitFor();
   await page.getByText("Sales gas compressor vibration", { exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Work in okan" }).count(), 0);  // the field this tab is in
   await page.getByRole("button", { name: "Work in kestrel" }).click();
@@ -11166,6 +11166,59 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     const main = await page.locator("main").innerText();
     for (const raw of ["user:demo", gone, "scored", "Matched by chosen", "again to"])
       assert.ok(!main.includes(raw), `no "${raw}" on the case`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}
+
+// P5.28e (#1393, tour D8, D17): what #1387's formatters still missed. The case head printed its subject's id until the
+// names came, a brief's text kept its "(fz-tag-...)" citations, a field report kept before it named its reporter read
+// "Another system found this", and Plan showed the crew as "role:operator" and "user:demo".
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.28e plain words on a case and on Plan, never ids or actors (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const tag = "fz-tag-89c2b263acef";
+    await page.route("**/entities/names*", async (route) => {
+      await new Promise((r) => setTimeout(r, 700));  // the names come after the case
+      return route.fulfill({ json: { [tag]: { label: "40-V-2002", description: "LP Production Separator" } } });
+    });
+    const source = { id: 12, type: "field_report", key: "2026-11-14T06:00#1", title: "Small drip from a drain valve on 40-V-2002",
+      source: "sample crew", state: "open", first_seen: "2026-11-14T14:35:00Z", last_seen: "2026-11-14T14:35:00Z",
+      joined_to: null, subjects: [tag], label: "Field report",
+      finding: finding("external", "Noticed on the way round", [text("What was seen", "Small drip from a drain valve")]) };
+    await page.route("**/work/items/51", (route) => route.fulfill({ json: { id: 51, type: "field_report", state: "open",
+      title: source.title, subjects: [tag], priority: null, created_by: "sam", created_at: "2026-11-14T14:35:00Z",
+      payload: { exception_id: 12 }, sources: [source], processes: [], events: [],
+      brief: { expected: true, due: "2026-11-15T06:00:00Z", verdict: null, entry: { pack: "maintenance-integrity/static",
+        ledger: { cost_usd: 0.1 }, budget_usd: 0.5, over_budget: false, late: false,
+        brief: { what_happened: `The drain valve on 40-V-2002 (${tag}) weeps at the bonnet.` } } } } }));
+    await page.route("**/work/items/51/options", (route) => route.fulfill({ json: caseOptions({ item_id: 51, exception_id: 12 }) }));
+    await page.goto(`${url}/#/cases/51`);
+    const head = page.locator(".case-head");
+    await head.getByText("Field report", { exact: true }).first().waitFor();
+    assert.ok(!(await head.innerText()).includes(tag), "no id while the names load");
+    await head.getByRole("link", { name: /^40-V-2002/ }).waitFor();
+    await page.getByText(/^sam reported this/).waitFor();
+    await page.locator(".case-brief").getByRole("link", { name: "40-V-2002" }).waitFor();
+    const main = await page.locator("main").innerText();
+    for (const raw of [tag, "Another system", "sample crew"]) assert.ok(!main.includes(raw), `no "${raw}" on the case`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+
+    const at = (d) => new Date(Date.now() + d * 86_400_000).toISOString();
+    const bar = { source: "sap", subjects: [tag], area_id: "fz-area-0123456789ab", area_label: "North", crew_hours: null,
+      deferment_usd: null, exception_id: null, notes: null, needs_shutdown: false, status: "scheduled", clashes: [],
+      assets: [{ fuzer_id: tag, label: "40-V-2002" }] };
+    await page.route("**/plan?*", (route) => route.fulfill({ json: [
+      { ...bar, id: 1, kind: "maintenance", title: "Unusual noise from 10-P-1001A", source_key: "1", start_at: at(0), end_at: at(1),
+        crew: "role:operator" },
+      { ...bar, id: 2, kind: "maintenance", title: "Unusual noise from 10-V-2002", source_key: "2", start_at: at(0), end_at: at(1),
+        crew: "user:demo" }] }));
+    await page.goto(`${url}/#/plan`);
+    await page.getByText(/operator queue/).first().waitFor();
+    await page.getByText(/Demo account/).first().waitFor();
+    const plan = await page.locator("main").innerText();
+    for (const raw of ["role:operator", "user:demo"]) assert.ok(!plan.includes(raw), `no "${raw}" on Plan`);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.deepEqual(errors, []);
   });
