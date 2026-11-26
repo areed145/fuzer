@@ -189,8 +189,9 @@ function panelsOf(d: ReportDefinition): Panel[] {
 /** True once printing or editing asks for every row, whether or not it has been scrolled to. */
 const Everything = createContext(false);
 
-/** A row is read when it comes within a screen of the view, so a long report (a row per well) costs only what is
- * looked at, and the browser's bounded request queue never overflows. */
+/** A row is read when it comes within half a screen of the view, so a long report (a row per well) costs only what is
+ * looked at, and the browser's bounded request queue never overflows. Until its panels have drawn it stands half a
+ * screen tall (report-pages.css), so the rows below it are not counted near before the ones above have drawn. */
 function useNear(): [RefObject<HTMLDivElement | null>, boolean] {
   const ref = useRef<HTMLDivElement | null>(null);
   const all = useContext(Everything);

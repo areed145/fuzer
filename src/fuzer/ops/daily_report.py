@@ -86,24 +86,23 @@ def facts(conn, pack, day: str) -> dict:
     num = operations._num
 
     # production and deferment
-    oil, pot = num(today.get("oil_bbl")), num(today.get("oil_potential_bbl"))
+    oil = num(today.get("oil_bbl"))
     prev = _day001(conn, (d - timedelta(days=1)).isoformat())
     week = [r for r in (_day001(conn, (d - timedelta(days=i)).isoformat()) for i in range(1, 8)) if r]
     avg = sum(num(r.get("oil_bbl")) for r in week) / len(week) if week else None
-    # The day's oil against its reported potential, in barrels: a share of potential beside production efficiency read
-    # as a second efficiency. The one efficiency is the registered metric for this day, the figure Daily operations
-    # shows beside this report (P7.1b, #1349).
-    prod = _f("Oil {oil} bbl against a potential of {pot} bbl", [today["id"]], oil=oil, pot=pot)
-    sections["Production and deferment"].append(prod)
+    # One potential (tour F, A8): the day's oil is stated against what the facility could deliver, the binding capacity
+    # the registered production efficiency is the ratio to, the figure Daily operations shows beside this report
+    # (P7.1b, #1349). "Against a potential of 47,086 bbl" (the reported potential) beside the efficiency's 46,999 bbl
+    # read as two potentials, so the efficiency line, with the volumes it is the ratio of (#1386), is the one line.
     eff = metrics.value(conn, pack, "production.efficiency", window="1d", at=d)
     if eff["value"] is not None:
-        # with the volumes it is the ratio of (#1386): the capacity it is measured against is the binding one, which
-        # can be below the reported potential, so "100%" beside "46,997 of 47,086 bbl" read as a contradiction
         parts = eff.get("parts") or {}
-        sections["Production and deferment"].append(_f(
-            "Production efficiency {eff}% on {day}: {oil} bbl of the {cap} bbl the facility could deliver ({standard})",
-            eff["refs"], eff=eff["value"], day=day, oil=parts.get("value"), cap=parts.get("of"),
-            standard=eff["standard"]))
+        prod = _f("Oil {oil} bbl of the {cap} bbl the facility could deliver: production efficiency {eff}% ({standard})",
+                  [today["id"], *eff["refs"]], oil=parts.get("value"), cap=parts.get("of"), eff=eff["value"],
+                  standard=eff["standard"])
+    else:
+        prod = _f("Oil {oil} bbl", [today["id"]], oil=oil)
+    sections["Production and deferment"].append(prod)
     if prev:
         p_oil = num(prev.get("oil_bbl"))
         sections["Production and deferment"].append(_f(_vs("yesterday's {prev} bbl", oil - p_oil), [today["id"], prev["id"]],

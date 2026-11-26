@@ -5251,6 +5251,113 @@ test("P5.29f a report reads no phone: false panel on a phone, and shows Plan lin
   }
 });
 
+// P5.30e (#1412, tour F: E8): Plan against actual on a phone shows every section, the backlog and Notification to order
+// included; an iPad reads the panels on its screen first, and the analyses at the foot only when they come near.
+function planReport() {
+  const win = { key: "qtd", at: "2026-11-26", start: "2026-10-01", end: "2026-11-26", days: 57, label: "Quarter to 26 Nov 2026",
+    previous: { start: "2026-07-01", end: "2026-09-30" } };
+  const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
+  const stat = (id, measure) => ({ id, type: "stat", size: 1, measure });
+  const view = { scope, window: win, repeats: {}, scopes: [scope], unknown: [],
+    definition: { schema: 1, key: "plan", title: "Plan against actual", version: 4, for: [], scope: { kinds: ["facility"] },
+      window: { default: "qtd", options: ["qtd"] }, source: "platform", rows: [
+        { id: "headline", panels: [stat("est-hours", "plan.estimate_hours"), stat("act-hours", "plan.actual_hours"),
+          stat("est-cost", "plan.estimate_cost"), stat("act-cost", "plan.actual_cost")] },
+        { id: "execution", panels: [stat("backlog", "work.backlog"), stat("planned", "work.planned_share"),
+          stat("compliance", "work.schedule_compliance"), stat("unplanned", "plan.unplanned_share")] },
+        { id: "commentary", panels: [{ id: "summary", type: "summary", size: 2 }, { id: "notes", type: "note", size: 2 }] },
+        { id: "per-program", title: "By program", panels: [{ id: "by-program", type: "table", size: 4, title: "Plan against actual by program" }] },
+        { id: "lines", panels: [{ id: "plan-lines", type: "table", size: 4, title: "Plan lines" }] },
+        { id: "work", panels: [{ id: "backlog-trend", type: "trend", size: 2, title: "Open cases" },
+          { id: "planned-trend", type: "trend", size: 2, title: "Planned work and schedule compliance" }] },
+        { id: "maintenance", panels: [{ id: "backlog-burn", type: "view", view: "backlog-burn", size: 4 }] },
+        { id: "against-the-accounts", panels: [{ id: "accounts", type: "view", view: "accounts", size: 4 }] }] } };
+  const answer = (id) => {
+    const base = { id, title: id, scope, window: win, as_of: "2026-11-26", note: null, scoped: true, refs: [], href: "/metrics/x" };
+    if (id === "summary") return { ...base, type: "summary", summary: null, can_write: false, due: false };
+    if (id === "notes") return { ...base, type: "note", text: null, values: {}, notes: [] };
+    if (id === "by-program" || id === "plan-lines") return { ...base, type: "table", total: 1,
+      columns: [{ key: "program", label: "Program" }, { key: "hours", label: "Planned hours", align: "end" }],
+      rows: [{ key: "a", cells: { program: "Maintenance", hours: 71.9 } }] };
+    if (id.endsWith("-trend")) return { ...base, type: "trend", spec: { title: id, series: [], time: { start: win.start, end: win.end } } };
+    return { ...base, type: "stat", measure: "plan.estimate_hours", value: 458.5, unknown: false, unit: "h", target: null,
+      better: "none", previous: 441.3, source: "business plan lines", history: [] };
+  };
+  return { view, answer };
+}
+const BURN_SOME = { since: "2025-01-01", until: "2025-12-31", source: "SAP work orders", note: "Orders with no notification are left out.",
+  months: [{ month: "2025-12", created: 6, closed: 3, open_at_end: 32, closed_without_finish: 0, by_type: {} }],
+  summary: { created: 6, closed: 3, open_at_start: 29, open_at_end: 32, trend: "growing" },
+  lag: { orders: 6, with_notification: 4, without_notification: 2, ordered_before_notified: 0, median_days: 1, p90_days: 7,
+    max_days: 16, longest: [] } };
+
+async function routePlan(reads, held = null) {
+  const { view, answer } = planReport();
+  await page.route("**/reports/plan?*", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/plan", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/plan/panels/**", (route) => {
+    const id = new URL(route.request().url()).pathname.split("/").pop();
+    reads.push(id);
+    return held ? held.then(() => route.fulfill({ json: answer(id) })) : route.fulfill({ json: answer(id) });
+  });
+  await page.route("**/plant/backlog-burn", (route) => { reads.push("backlog-burn"); return route.fulfill({ json: BURN_SOME }); });
+  await page.route("**/plant/accounting", (route) => { reads.push("accounts"); return route.fulfill({ json: ACCOUNTS_NONE }); });
+}
+
+async function scrollToFoot() {
+  for (let i = 0; i < 20; i++) {
+    const done = await page.evaluate(() => { scrollBy(0, innerHeight); return innerHeight + scrollY >= document.documentElement.scrollHeight - 2; });
+    await page.waitForTimeout(150);
+    if (done && await page.locator(".report-row-waiting").count() === 0) return;
+  }
+}
+
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.30e Plan against actual shows every section, the backlog and Notification to order included (${size})`, async () => {
+    const reads = [];
+    await routePlan(reads);
+    await page.setViewportSize(viewport);
+    await page.goto(`${url}/#/reports/plan`);
+    await page.getByText("458.5 h").first().waitFor();
+    await scrollToFoot();
+    await page.getByRole("table", { name: "Plan lines" }).waitFor();
+    await page.getByText("Is the backlog under control?").waitFor();
+    await page.getByRole("heading", { name: "Notification to order" }).waitFor();
+    await page.getByText("Median 1 days, 90% within 7, longest 16", { exact: false }).waitFor();
+    assert.ok(reads.includes("accounts"), "the accounts are read too");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}
+
+test("P5.30e an iPad reads the panels on its screen first, and the analyses at the foot only when they come near", async () => {
+  // Every read waits, as on the live server: what is asked for before anything has drawn is what the first paint asked.
+  const reads = [];
+  let release;
+  await routePlan(reads, new Promise((r) => { release = r; }));
+  await page.setViewportSize({ width: 834, height: 1194 });
+  await page.goto(`${url}/#/reports/plan`);
+  await page.getByRole("heading", { level: 1, name: "Plan against actual" }).waitFor();
+  await page.waitForTimeout(500);
+  for (const id of ["est-hours", "act-hours", "est-cost", "act-cost"]) assert.ok(reads.includes(id), `${id} read at first paint`);
+  // the rows at the foot wait until they come near, so their reads never queue beside the screen's (a row not asked
+  // for yet stands as a placeholder; the browser's queue lets four reads out at a time, so the network can't say)
+  const waiting = await page.locator(".report-row-block").evaluateAll((ns) => ns.map((n) => !!n.querySelector(".report-row-waiting")));
+  assert.deepEqual(waiting, [false, false, false, true, true, true, true, true], "only the rows on and just below the screen are asked for");
+  release();
+  await page.getByText("458.5 h").first().waitFor();
+  await page.waitForTimeout(500);
+  // what is on the screen draws without scrolling; nothing on it still says Loading…
+  const onScreen = await page.locator(".report-panel").evaluateAll((ns) => ns.filter((n) => n.getBoundingClientRect().top < innerHeight)
+    .map((n) => n.textContent));
+  assert.ok(onScreen.length >= 4, `${onScreen.length} panels on screen`);
+  assert.equal(onScreen.filter((t) => t.includes("Loading")).length, 0);
+  await scrollToFoot();
+  await page.getByRole("heading", { name: "Notification to order" }).waitFor();
+  assert.ok(reads.includes("accounts"));
+  assert.deepEqual(errors, []);
+});
+
 test("a cold open shows the last answers at once, says how old they are, then swaps in the fresh ones", async () => {
   const res = (name) => ({ code: "MECH", name, kind: "crew", unit: "people", capacity: 6, work_center: null, sources: [], counts: [],
     routine: null, routine_load: null, days: [], overloads: [], capacity_windows: [] });

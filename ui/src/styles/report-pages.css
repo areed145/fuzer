@@ -18,7 +18,10 @@
 .report-size-2 { grid-column: span 2; }
 .report-size-3 { grid-column: span 3; }
 .report-size-4 { grid-column: span 4; }
-.report-row-waiting { min-height: 12rem; }
+/* A row stands half a screen tall until its panels have drawn (tour F, E8): a 12rem placeholder, then short Loading…
+   cards, put the whole of Plan against actual within half a screen of an iPad's view at first paint, and all sixteen
+   reads, the two whole-register analyses at its foot among them, queued at once beside the panels on screen. */
+.report-row-waiting, .report-row:has(.report-panel .status[role="status"]) { min-height: 50vh; }
 .report-column { display: flex; flex-direction: column; gap: 1rem; }
 /* above the iOS card margin (:root.ios .ui-card), which otherwise opens a gap under a panel shorter than its row */
 :root .report-row .report-slot > .report-panel { margin: 0; height: 100%; }

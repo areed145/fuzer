@@ -55,6 +55,50 @@ def _run_for(conn, hours: float, step_minutes: int = 15, start=None) -> Counter:
     return did
 
 
+# What each thing the field notices is about, and so what the field says when it is done: tour F (F4) saw a fogged
+# gauge glass answered "Local gauge agrees with the DCS after blowing down the impulse line".
+NOTICED_TOPICS = {
+    "Unusual noise from {tag} ({what})": "noise",
+    "Oil level low in the sight glass on {tag} ({what})": "oil",
+    "Weeping mechanical seal on {tag} ({what})": "seal",
+    "Coupling guard bolt missing on {tag} ({what})": None,
+    "Weeping bonnet flange on {tag} ({what})": "leak",
+    "Local gauge downstream of {tag} ({what}) reads higher than the DCS": "gauge",
+    "Small drip from the drain valve beside {tag} ({what})": "leak",
+    "Corroded flange bolting on {tag} ({what})": "corrosion",
+    "Weeping stem packing on {tag} ({what})": "leak",
+    "Position indicator on {tag} ({what}) disagrees with the DCS": "position",
+    "Weeping channel head flange on {tag} ({what})": "leak",
+    "Corrosion under insulation suspected on {tag} ({what})": "corrosion",
+    "Local outlet temperature gauge on {tag} ({what}) reads higher than the DCS": "temperature",
+    "Level in the sight glass on {tag} ({what}) disagrees with the DCS": "level",
+    "Small drip from a drain valve on {tag} ({what})": "leak",
+    "Loose cable gland and missing cover bolt on {tag} ({what})": "electrical",
+    "Local display on {tag} ({what}) reads higher than the DCS": "gauge",
+    "Weeping impulse line fitting at {tag} ({what})": "leak",
+    "Weeping flange on {tag} ({what})": "leak",
+}
+
+
+def test_the_fields_reply_answers_what_it_was_asked():
+    noticed = {t for ts in sample_crew.NOTICED.values() for t in ts}
+    assert noticed == set(NOTICED_TOPICS)
+    for title, topic in NOTICED_TOPICS.items():
+        assert sample_crew._topic({"title": title}) == topic, title
+    fogged = {"title": "30-V-2001 level gauge glass is fogged inside, cannot read the level locally."}
+    assert sample_crew._topic(fogged) == "glass"
+    for k in range(20):
+        done = sample_crew._note(sample_crew.DONE_NOTES, fogged, k, "note")
+        assert "glass" in done and "impulse line" not in done, done
+    # a level that disagrees is answered at the glass, an indicator at the valve, never as a pressure gauge or an oil top-up
+    for title, word in (("Level in the sight glass on 30-V-2001 disagrees with the DCS", "gauge glass"),
+                        ("Position indicator on 68-HCV-1004 disagrees with the DCS", "indicator")):
+        for k in range(20):
+            assert word in sample_crew._note(sample_crew.DONE_NOTES, {"title": title}, k, "note")
+    for topic in {t for t in NOTICED_TOPICS.values() if t} | {"glass"}:
+        assert topic in sample_crew.DONE_NOTES, topic
+
+
 def test_only_a_project_whose_bundle_asks_gets_a_crew(conn):
     assert not sample_crew.enabled(conn)
     assert sample_crew.run(conn) == {}  # nothing staffed, nothing done

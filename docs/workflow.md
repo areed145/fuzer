@@ -508,7 +508,9 @@ Projects can be added from the page. Saved filters and the last visit are kept i
 `daily_report.py` writes what happened on a production day and what it means, with every line citing its
 records.
 - **Facts:** tools work out the day's facts, never Claude's arithmetic, in a fixed outline:
-  1. headline: production, the biggest loss with its status, the top board item;
+  1. headline: the day's oil against what the facility could deliver, the one capacity its production
+     efficiency is the ratio to (never the reported potential beside it), the biggest loss with its status, the
+     top board item;
   2. production and deferment, against yesterday and the 7-day average (DAY001, EC downtime);
   3. upsets and events (SRE upsets, incidents, log events);
   4. wells (tests 10% or more from the well's previous test);
