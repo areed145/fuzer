@@ -229,8 +229,8 @@ export function startedWith(data: Record<string, unknown> | null | undefined): R
 /** Entities by name, from one lookup. The id stays in the tooltip. */
 export function EntityLinks({ ids }: { ids: string[] }) {
   const names = useEntityNames(ids);
-  // nothing until the names come: display() falls back to the id, so a case first opened "about fz-tag-c8bb45ec62bf"
-  // (tour D8)
+  // Nothing until the names are in: the raw id flashed before its name (P5.28d). A failed lookup is an empty answer,
+  // so the ids still show then.
   if (!names) return null;
   // Equipment reads as the tag it is installed at, so that tag beside it would say the same thing twice.
   const shownAt = new Set(ids.map((id) => names?.[id]?.at).filter(Boolean));

@@ -61,7 +61,7 @@ def test_one_computation_serves_everyone_until_the_database_changes(monkeypatch)
 
     from fuzer.core import shared_reads
 
-    class Conn:  # pg_current_wal_lsn(): moves when anything is written; writing: this transaction has written
+    class Conn:  # pg_current_wal_insert_lsn(): moves when anything is written; writing: this transaction has written
         position, writing = "0/1", False
 
         def execute(self, _sql):

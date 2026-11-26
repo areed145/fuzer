@@ -17,6 +17,10 @@ authentication and dependency wiring, and presentation-only shaping. File reads 
 to a CLI workflow, such as importing or exporting catalog files, also stay at that boundary. These exceptions
 must not introduce a second implementation of domain policy.
 
+A route's database connection commits before its answer is sent (`AuthenticatedRoute`, P5.28d): FastAPI closes a
+`yield` dependency only after the response, so a page that read again at once after an action saw the state from
+before it.
+
 ## Shared operations
 
 For example, the API dataset detail route and `fuzer sources show` both need mapping versions for every

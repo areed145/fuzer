@@ -11284,6 +11284,93 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     const plan = await page.locator("main").innerText();
     for (const raw of ["role:operator", "user:demo"]) assert.ok(!plan.includes(raw), `no "${raw}" on Plan`);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
+
+// ---- P5.28d (#1392): pages follow actions ---------------------------------------------------------------------------
+
+const PHONE_DESK = [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]];
+/** A case worked by the queue_item workflow, its one step with `role`. */
+const queueCase = (role, extra = {}) => ({ id: 21, title: "V-2002 level glass cracked, isolated it", type: "machine_trip", state: "open",
+  subjects: [], created_by: "agent:sre", created_at: "2026-11-22T12:00:00Z", events: [], payload: { exception_id: 7 },
+  processes: [{ id: 1, process_key: "queue_item", state: "running", definition_id: 3, open: [{ id: 50, kind: "user", name: "Work the case",
+    element: "work", role, assignee: null, process_id: 1, due_at: null, created_at: "2026-11-22T12:00:00Z" }] }], ...extra });
+
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.28d after Dispatch the case shows its new owner at once, on a page opened with kept answers too (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    let chosen = 0, visits = 0;
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: queueCase(chosen ? "operator" : "ops_lead") }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: chosen
+      ? caseOptions({ applies: false, why_not: "the field has it", stage: "field", options: [] }) : caseOptions() }));
+    // the second visit's trend never answers: the kept answers it opened with hold the page's fresh answers together
+    await page.route("**/work/items/21/around", (route) => (++visits > 1 ? undefined : route.fallback()));
+    await page.route("**/exceptions/7/options/choose", (route) => {
+      chosen++;
+      return route.fulfill({ json: { choice: { id: 1, chosen: "dispatch", recommended: "dispatch", accepted: true },
+        event: { id: 7, item_id: 21, stage: "field", state: "open" } } });
+    });
+    await page.goto(`${url}/#/cases/21`);
+    const waiting = page.getByLabel("Next step");
+    await waiting.getByText(/With .*ops lead/i).waitFor();
+    await page.waitForTimeout(800);  // the answers are kept
+    await page.evaluate(() => { location.hash = "#/inbox"; });
+    await page.getByRole("navigation", { name: "Show in my work" }).waitFor();
+    await page.evaluate(() => { location.hash = "#/cases/21"; });
+    await page.getByLabel("Options").getByRole("button", { name: "Dispatch now", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "Dispatched to the operator queue" }).waitFor();
+    // the new owner, without a reload, well before the held trend would have let the page change (ten seconds)
+    await waiting.getByText(/With .*operator/i).waitFor({ timeout: 3000 });
+    assert.equal(chosen, 1, "the dispatch went once: only reads repeat");
+    assert.deepEqual(errors, []);
+  });
+
+  test(`P5.28d a case draws without waiting for its evidence, and an entity's name never shows as its id (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => {
+      window.__sawId = false;
+      new MutationObserver(() => { if (document.body?.textContent?.includes("fz-tag-c8bb45ec62bf")) window.__sawId = true; })
+        .observe(document, { subtree: true, childList: true, characterData: true });
+    });
+    let answered = false, askedEarly = false, aroundDone = false;
+    await page.route("**/work/items/21", (route) => { answered = true;
+      return route.fulfill({ json: queueCase("ops_lead", { subjects: ["fz-tag-c8bb45ec62bf"] }) }); });
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: caseOptions({ applies: false, why_not: "desk work", options: [] }) }));
+    await page.route("**/work/items/21/around", (route) => {
+      if (!answered) askedEarly = true;
+      setTimeout(() => { aroundDone = true; route.fulfill({ json: [] }).catch(() => {}); }, 3000);
+    });
+    await page.route("**/entities/names**", (route) => setTimeout(() => route.fulfill({ json: {
+      "fz-tag-c8bb45ec62bf": { label: "40-V-2002", description: "Test separator" } } }).catch(() => {}), 800));
+    await page.goto(`${url}/#/cases/21`);
+    await page.getByRole("heading", { name: "V-2002 level glass cracked, isolated it" }).waitFor();
+    await page.getByLabel("Next step").waitFor();
+    assert.equal(aroundDone, false, "the case drew before its trend answered");
+    assert.equal(askedEarly, false, "the trend is asked once the case has drawn, not ahead of it");
+    await page.locator("main").getByRole("link", { name: "40-V-2002" }).first().waitFor();
+    assert.equal(await page.evaluate(() => window.__sawId), false, "the raw id never showed before its name");
+    assert.deepEqual(errors, []);
+  });
+
+  test(`P5.28d My work's chips are the server's counts, and To dispatch opens those cases (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+    const inbox = { person: "ann", roles: ["ops_lead"], mine: [], queue: [{ ...homeRow(2), bulk: [] }, { ...homeRow(3), bulk: [] }],
+      counts: { mine: { total: 0, overdue: 0 }, queue: { total: 2, overdue: 0 } } };
+    await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+    await page.route("**/work/counts?*", (route) => route.fulfill({ json: workCounts({ dispatch: 4, desk: 5 },
+      { total: 9, overdue: 0, to_dispatch: 4, my_work: 5, assigned: 2, unclaimed: 3 }) }));
+    await page.goto(`${url}/#/inbox`);
+    const chips = page.getByRole("navigation", { name: "Show in my work" });
+    await chips.getByRole("button", { name: "All 5" }).waitFor();
+    // Assigned and Unclaimed add up to All; with To dispatch they make the Work badge (9)
+    await chips.getByRole("button", { name: "Assigned to you 2" }).waitFor();
+    await chips.getByRole("button", { name: "Unclaimed in your roles 3" }).waitFor();
+    const toDispatch = chips.getByRole("link", { name: "To dispatch 4" });
+    assert.equal(await toDispatch.getAttribute("href"), "#/list?stage=dispatch");
+    await toDispatch.click();
+    await page.waitForURL(/#\/list\?stage=dispatch$/);
     assert.deepEqual(errors, []);
   });
 }

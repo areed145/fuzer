@@ -185,9 +185,14 @@ if (typeof window !== "undefined") {
   window.addEventListener("fuzer:unauthorized", forgetSnapshot);
 }
 
-/** Fires when data changes (e.g. after a review decision) so views can refresh. */
+/** Fires when data changes (e.g. after a review decision) so views can refresh. A change ends a wave that is holding
+ * answers (P5.28d): opened by kept answers on the way in, it held the reads made after an action with the rest, up to
+ * ten seconds, so a case just dispatched or answered still showed its old owner, or Open, after the confirmation. */
 export const CHANGED = "fuzer:changed";
-export const notifyChanged = () => window.dispatchEvent(new Event(CHANGED));
+export const notifyChanged = () => {
+  flush();
+  window.dispatchEvent(new Event(CHANGED));
+};
 
 // --- Waves -----------------------------------------------------------------------------------------------------------
 
@@ -250,7 +255,7 @@ export function joinWave(): { settle: (apply: () => void) => void; drop: () => v
  * loads the page afresh instead, so Refresh still picks up an update. */
 export async function refreshAll(): Promise<void> {
   openWave();
-  notifyChanged();
+  window.dispatchEvent(new Event(CHANGED));  // not notifyChanged, which would end the wave just opened
   const loaded = [...document.querySelectorAll<HTMLScriptElement>("script[type=module][src]")].map((s) => new URL(s.src).pathname);
   try {
     const page = await (await fetch("/", { cache: "no-store" })).text();

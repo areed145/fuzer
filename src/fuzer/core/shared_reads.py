@@ -23,7 +23,9 @@ _guard = threading.Lock()
 def _position(conn) -> str | None:
     """Where the database's log stands, or None when this connection's transaction has written something: what it
     reads then includes its own uncommitted changes, which no one else may be served."""
-    row = conn.execute("select pg_current_wal_lsn()::text as position, "
+    # The insert position, not pg_current_wal_lsn (the write position): that can trail a commit already made, and a
+    # read made just after it would be served the answer from before it (P5.28d).
+    row = conn.execute("select pg_current_wal_insert_lsn()::text as position, "
                        "txid_current_if_assigned() is not null as writing").fetchone()
     position, writing = (row["position"], row["writing"]) if isinstance(row, dict) else (row[0], row[1])
     return None if writing else position

@@ -15,6 +15,7 @@ import { ComingUp, FieldJobCard, NoteToIOC, Outbox, RoundsThisShift } from "../F
 import { fieldJobs } from "../../fieldOffline";
 import { cap, person as personName } from "../../wording";
 import { FieldModeOffer } from "../../theme";
+import { workHref } from "../../pageTabs";
 
 /** What My work holds, counted once for this page's badges and for Home (#556), so both show the same numbers.
  * A field job's card carries its case's step, so that case is not counted twice. */
@@ -99,11 +100,13 @@ export function InboxPage() {
   // Escalated first, then the most urgent: one list, as Home's Needs you lists it.
   const ranked = all.filter(keep).sort((a, b) => Number(!!b.escalated_at) - Number(!!a.escalated_at) || byUrgency(a, b));
   const waiting = figures.data?.waiting_on_you;
-  // All, unfiltered, is Home's My work count; a filter's chips count what it keeps
+  // Unfiltered, the chips are the server's counts (P5.28d): All is Home's My work, Assigned to you and Unclaimed add
+  // up to it, and with To dispatch they make the Work badge. A filter's chips count what it keeps.
+  const counted = !q && !type && waiting ? waiting : null;
   const CHIPS: { key: string; label: string; rows: WorkRow[]; danger?: boolean; count?: number }[] = [
-    { key: "", label: "All", rows: ranked, count: !q && !type && waiting ? waiting.my_work : undefined },
-    { key: "mine", label: "Assigned to you", rows: ranked.filter(isMine) },
-    { key: "queue", label: "Unclaimed in your roles", rows: ranked.filter((r) => !isMine(r)) },
+    { key: "", label: "All", rows: ranked, count: counted?.my_work },
+    { key: "mine", label: "Assigned to you", rows: ranked.filter(isMine), count: counted?.assigned },
+    { key: "queue", label: "Unclaimed in your roles", rows: ranked.filter((r) => !isMine(r)), count: counted?.unclaimed },
     { key: "escalated", label: "Escalated", rows: ranked.filter((r) => r.escalated_at), danger: true },
   ];
   const chip = CHIPS.find((c) => c.key === (show ?? "")) ?? CHIPS[0];
@@ -148,7 +151,7 @@ export function InboxPage() {
         {CHIPS.map((c) => <Button key={c.key} className="chip"
           aria-pressed={c === chip} onClick={() => setShow(c.key)}>
           {c.label} {c.danger && c.rows.length ? <UIBadge tone="danger">{c.rows.length}</UIBadge> : <Text muted>{c.count ?? c.rows.length}</Text>}</Button>)}
-        {undispatched > 0 && <a className="chip" href={href("/exceptions")}>To dispatch <UIBadge tone="danger">{undispatched}</UIBadge></a>}
+        {undispatched > 0 && <a className="chip" href={workHref("dispatch")}>To dispatch <UIBadge tone="danger">{undispatched}</UIBadge></a>}
       </nav>
       <Text as="p" small muted>Your roles: {d.roles.map((r) => r.replace(/_/g, " ")).join(", ") || "none"}
         {d.covering?.length ? `. Covering for ${d.covering.join(", ")}` : ""}
@@ -161,7 +164,7 @@ export function InboxPage() {
         </Select>
       </Line>
       {pickedRows.length > 0 && <Bulk rows={pickedRows} person={person} onDone={() => setPicked(new Set())} />}
-      {!all.length && !jobs.length && <Empty>Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={href("/exceptions")}>waiting to be dispatched</a></> : ""}.</Empty>}
+      {!all.length && !jobs.length && <Empty>Nothing waiting for you{undispatched > 0 ? <>, but {undispatched} exceptions are <a href={workHref("dispatch")}>waiting to be dispatched</a></> : ""}.</Empty>}
       {!all.length && !jobs.length && <SampleTeam onAdded={inbox.reload} />}
       {fieldFirst && yours}
       {!offline && fieldRole && <NewForYou person={person} told={told} onCard={onCard} />}
