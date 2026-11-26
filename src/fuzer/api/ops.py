@@ -2110,6 +2110,32 @@ def plan_change_pick(exception_id: int, item_id: int, p: PlanPick, conn=Depends(
     return _plan_call(conn, replan.pick, exception_id, item_id, p.crew, p.by)
 
 
+class PlanOutageWindows(BaseModel):
+    by: str
+
+
+@router.post("/plan/outages/{key}/windows")
+def plan_outage_windows(key: str, a: PlanOutageWindows, conn=Depends(get_conn)):
+    """Windows for an outage (P5.22c): three proposed with their reasons and what each costs the customers it hits, as
+    a plan change to review on the maintenance planner's case."""
+    from ..ops import replan
+    return _plan_call(conn, replan.outage_windows, key, a.by)
+
+
+class PlanWindowPick(BaseModel):
+    by: str
+    n: int
+    reason: str | None = None
+
+
+@router.put("/plan/changes/{exception_id}/window")
+def plan_change_window(exception_id: int, p: PlanWindowPick, conn=Depends(get_conn)):
+    """The planner picks another window on an outage's plan change (n from 0); not the recommended one only with a
+    reason. The plan is worked out again for it."""
+    from ..ops import replan
+    return _plan_call(conn, replan.pick_window, exception_id, p.n, p.by, p.reason)
+
+
 @router.post("/plan/resources/{code}/capacity")
 def plan_capacity_window(code: str, w: CapacityWindow, conn=Depends(get_conn)):
     """A different capacity for a while: leave, a crane's certification lapsing, a vessel in dock."""

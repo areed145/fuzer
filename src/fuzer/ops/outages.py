@@ -214,3 +214,73 @@ def outages(conn, start=None, days: int = HORIZON_DAYS) -> dict:
             "by_asset": sorted(assets.values(), key=lambda a: (a["kind"] != "area", a["label"])),
             "by_person": sorted(people.values(), key=lambda p: (not p["crew"], p["name"])),
             "by_customer": by_customer(out, book), "basis": BASIS}
+
+
+# ---- windows for one outage (P5.22c) ---------------------------------------------------------------------------------
+
+def find(conn, key: str, start=None, days: int = HORIZON_DAYS) -> dict:
+    """One outage as `outages` reads it, by its key (a schedule's code, or item:<id>)."""
+    from ..core.plan import PlanError
+
+    got = next((o for o in outages(conn, start, days)["outages"] if o["key"] == key), None)
+    if got is None:
+        raise PlanError(f"no outage {key} on the plan in the next {days} days")
+    return got
+
+
+def impact(conn, key: str, spans: list[tuple[datetime, datetime]], start=None, days: int = HORIZON_DAYS) -> list[dict]:
+    """What moving outage `key` to each of `spans` costs the customers over the horizon: the contracts it hits there,
+    and against the plan without it, the dollars and barrels it adds (hours it shares with another outage hitting the
+    same contract are lost once), each customer it hits and how many separate times, and the other outages it shares
+    hours with."""
+    t0 = _when(start) if start else datetime.now(UTC)
+    t1 = t0 + timedelta(days=days)
+    book = contracts(conn)
+    groups = _group(conn, _rows(conn, t0, t1))
+    [g] = [x for x in groups if x["key"] == key] or [None]
+    if g is None:
+        return []
+    others = [{"key": x["key"], "title": x["title"], "start": x["start"], "end": x["end"],
+               "hits": _hits(x, (x["start"], x["end"]), book, t0, t1)} for x in groups if x["key"] != key]
+    base = by_customer(others, book)
+    total = lambda rows, f: sum(r[f] or 0 for r in rows)
+    out = []
+    for a, b in spans:
+        hits = _hits(g, (a, b), book, t0, t1)
+        rows = by_customer([*others, {"key": key, "hits": hits}], book)
+        hit = {h["contract"] for h in hits}
+        shared = [o["title"] for o in others if o["start"] < b and o["end"] > a and hit & {h["contract"] for h in o["hits"]}]
+        out.append({"start": a, "end": b, "hours": round(_hours(a, b), 1), "hits": hits,
+                    "usd": round(total(rows, "usd") - total(base, "usd")),
+                    "volume_bbl": round(total(rows, "volume_bbl") - total(base, "volume_bbl")),
+                    "customers": [{k: r[k] for k in ("customer", "times", "flagged")} for r in rows if key in r["outages"]],
+                    "alongside": shared,
+                    "not_running": sorted(c["key"] for c in book if c["point"] in g["reach"] and c["key"] not in hit)})
+    return out
+
+
+def past(conn, o: dict) -> list[dict]:
+    """Similar past work: planned downtime (reason category planned) on the plant the outage takes down, the areas its
+    jobs are in or what they are part of, newest first, with how long each took."""
+    ids = [x["id"] for x in o["units"] + o["areas"]]
+    rows = conn.execute(
+        """
+        with recursive up (id, depth) as (
+            select unnest(%(ids)s::text[]), 0
+            union select e.dst, up.depth + 1 from up join edge e on e.src = up.id and e.rel = 'part_of' where up.depth < 3)
+        select d.fuzer_id as id, (select min(k.key) from entity_key k where k.fuzer_id = d.fuzer_id) as key,
+               (select jsonb_object_agg(g.field, g.value) from golden g where g.fuzer_id = d.fuzer_id) as f
+        from entity d where d.kind = 'downtime' and d.retired_at is null
+          and exists (select 1 from edge e join up on up.id = e.dst where e.src = d.fuzer_id and e.rel in ('affects', 'caused_by'))
+        """, {"ids": ids}).fetchall()
+    out = []
+    for r in rows:
+        f = r["f"] or {}
+        if f.get("reason_category") != "planned" or not f.get("start") or not f.get("end"):
+            continue
+        a, b = _when(f["start"]), _when(f["end"])
+        if b <= a or a >= datetime.now(UTC):
+            continue
+        out.append({"key": r["key"] or r["id"], "start": a, "end": b, "hours": round(_hours(a, b), 1),
+                    "comment": f.get("comment")})
+    return sorted(out, key=lambda x: x["start"], reverse=True)

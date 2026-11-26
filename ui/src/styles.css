@@ -497,5 +497,6 @@ dl.perf-hours dd { margin: 0; font-variant-numeric: tabular-nums; }
 .plan-load-day.over { background: var(--danger, #b91c1c); }
 
 /* A plan change's notice (P5.21c): who it is for, the text to edit, and Send. */
+.replan-window + .replan-window { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
 .replan-notice { padding: 0.5rem 0; border-top: 1px solid var(--line); }
 .replan-notice textarea { display: block; width: 100%; box-sizing: border-box; margin: 0.25rem 0; }

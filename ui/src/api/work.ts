@@ -1004,7 +1004,7 @@ export interface PlanKpis { finish: string | null; deferred_oil: number; deferre
 /** A plan change (GET /plan/changes/{id}): what broke, the constraint it puts on the work, and the plan levelled
  * again around it, with what the planner typed. */
 export interface PlanNotice {
-  n: number; audience: "crew" | "field" | "downstream"; to: string; name: string; jobs: number[]; text: string;
+  n: number; audience: "crew" | "field" | "downstream" | "customer"; to: string; name: string; jobs: number[]; text: string;
   sent_by: string | null; sent_at: string | null;
 }
 export interface PlanChange {
@@ -1019,7 +1019,7 @@ export interface PlanChange {
   writebacks: { id: number; record: string | null; state: string; item_id: number | null; approver_role: string }[];
   notices: PlanNotice[];
   /** The plan change's own case; and on an auto-assign one (P5.23b), the planner's picks by job id. */
-  case: number | null; picks: Record<string, string>;
+  case: number | null; picks: Record<string, string | number | null>;
   proposal: {
     moves: PlanMove[]; schedules: string[]; basis: string;
     pull_forward: { item_id: number; title: string; start: string; end: string; order: string | null; because: string }[];
@@ -1027,13 +1027,21 @@ export interface PlanChange {
     kpis?: { before: PlanKpis; after: PlanKpis; start: string; days: number };
     /** Auto-assign (P5.23b): the crew proposed for each field job with none, why, and anything a pick breaks. */
     assign?: PlanAssign[];
+    /** An outage's windows (P5.22c): three proposed, the one recommended and why, the one picked, similar past work. */
+    windows?: OutageWindow[]; recommended?: number; picked?: number; recommend?: string;
+    past?: { key: string; start: string; end: string; hours: number; comment: string | null }[];
   } | null;
+}
+export interface OutageWindow {
+  n: number; start: string; end: string; hours: number; usd: number; volume_bbl: number; reasons: string[];
+  alongside: string[]; hits: OutageHit[]; customers: { customer: string; times: number; flagged: boolean }[];
 }
 export type PlanChanged =
   | { what: "job"; id: number; title: string; code: string | null; case: number | null; fields: Record<string, [unknown, unknown]> }
   | { what: "booking"; id: number; resource: string; name: string; title: string | null; before: number | null; after: number | null }
   | { what: "capacity"; id: number; resource: string; name: string | null; title: string | null; start: string; end: string;
-      before: null; after: number };
+      before: null; after: number }
+  | { what: "schedule"; id: string; title: string; before: string; after: string };
 export interface PlanAssign {
   item_id: number; title: string; kind: string; start: string; end: string; case: number | null; order: string | null;
   crew: string | null; name: string | null; people: number; because: string; breaks: string[]; picked: boolean;
@@ -1336,6 +1344,10 @@ export const workApi = {
     request<PlanChange>("POST", "/plan/auto-assign", undefined, { by, start, end }),
   planAssignPick: (id: number, by: string, item: number, crew: string | null) =>
     request<PlanChange>("PUT", `/plan/changes/${id}/assign/${item}`, undefined, { by, crew }),
+  planOutageWindows: (key: string, by: string) =>
+    request<PlanChange>("POST", `/plan/outages/${encodeURIComponent(key)}/windows`, undefined, { by }),
+  planWindowPick: (id: number, by: string, n: number, reason?: string | null) =>
+    request<PlanChange>("PUT", `/plan/changes/${id}/window`, undefined, { by, n, reason: reason ?? null }),
   planChangeApprove: (id: number, by: string) => request<PlanChange>("POST", `/plan/changes/${id}/approve`, undefined, { by }),
   planChangeRevert: (id: number, by: string) => request<PlanChange>("POST", `/plan/changes/${id}/revert`, undefined, { by }),
   planNoticeSend: (id: number, n: number, by: string, text: string) =>

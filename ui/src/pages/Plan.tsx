@@ -501,14 +501,19 @@ const loss = (x: { volume_bbl: number | null; usd: number | null }) =>
 
 /** The outages on the plan and the customers they hit (P5.22): one set, read by customer, by asset or by person. A
  * customer hit at more than one time is flagged. Shown where a contract register is loaded. */
-function OutagesCard({ from }: { from: string; person: string | null }) {
+function OutagesCard({ from, person }: { from: string; person: string | null }) {
+  const { busy, error, run } = useAction();
   const got = useAsync(() => api.planOutages(new Date(Math.max(Date.now(), new Date(from).getTime())).toISOString(), 90), [from]);
   const [view, setView] = useState<View>("customer");
   const d: Outages | undefined = got.data && Array.isArray(got.data.outages) ? got.data : undefined;
   if (got.data && !d?.contracts) return null;
   const of = new Map((d?.outages ?? []).map((o) => [o.key, o]));
+  // three windows for it, with what each costs the customers it hits, as a plan change to review (P5.22c)
+  const windows = (o: Outage) => person && run("Proposing windows", () => api.planOutageWindows(o.key, person),
+    (c) => { if (c.case) location.hash = caseHref(c.case); });
   const outage = (o: Outage) => <li key={o.key}><strong>{acronyms(o.title)}</strong>{" "}
-    <Text small muted>{short(o.start)}–{short(o.end)} · {o.hours} h down</Text></li>;
+    <Text small muted>{short(o.start)}–{short(o.end)} · {o.hours} h down</Text>
+    {person && o.hits.length > 0 && <>{" "}<Button size="sm" variant="secondary" disabled={!!busy} onClick={() => windows(o)}>Propose windows</Button></>}</li>;
   const listed = (keys: string[]) => <List small>{keys.map((k) => of.get(k)).filter((o): o is Outage => !!o).map(outage)}</List>;
   return (
     <Card title="Outages" className="plan-area plan-outages">
@@ -530,6 +535,8 @@ function OutagesCard({ from }: { from: string; person: string | null }) {
           {listed(p.outages)}
         </li>)}</List> : <Empty>No crew or person is booked on an outage.</Empty>)}
       </> : <Empty>No outages planned in the next {d.days} days.</Empty>)}
+      {busy && <p role="status">{busy}…</p>}
+      <ErrorText>{error}</ErrorText>
     </Card>
   );
 }

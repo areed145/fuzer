@@ -16,8 +16,12 @@
     auto_assign(conn, by, start, end)  a planner asks for crews (P5.23b): each field job with no crew or person booked
                                  gets the crew that does its work and has room, within the planner's rules, as a plan
                                  change to review; `pick` changes or clears one, and approve books them
-    revert(conn, id, by)         a planner puts back what an approved plan change changed (P5.23c): each job, booking and
-                                 capacity window as it was, and the SAP changes not yet sent dropped
+    revert(conn, id, by)         a planner puts back what an approved plan change changed (P5.23c): each job, booking,
+                                 capacity window and schedule start as it was, and the SAP changes not yet sent dropped
+    outage_windows(conn, key, by)  a planner asks for windows for an outage (P5.22c): three proposed, each with its
+                                 reasons and what it costs the customers it hits; `pick_window` takes another, and
+                                 approve moves the outage there, drafts its crews' and customers' notices and records
+                                 the choice against the recommendation (P5.20)
 
 Each plan change keeps its history (P5.23c): each thing done to it, when and by whom (Fuzer working it out, a
 constraint or a pick, the approval, a notice sent, the revert), and once approved what it changed, before and after.
@@ -60,6 +64,11 @@ CAUSES = (*DOWN_TYPES, materials.TYPE, permits.TYPE)
 ASSIGN = "auto_assign"  # a plan change a planner asked for: a crew for each field job with none (its key's prefix)
 AGENT = "agent:planner"  # who works a plan change out
 ASSIGN_DAYS = 28  # how far ahead auto-assign looks when it is not told
+OUTAGE = "outage_window"  # a plan change a planner asked for: a window for an outage (its key's prefix)
+WINDOWS = 3  # windows proposed for an outage
+NOTICE_DAYS = 7  # a window starts at least this far ahead, so customers are told a week before
+SEARCH_DAYS = 56  # how far ahead a window may start
+TRIED = 12  # candidate windows levelled for real, cheapest first, to find the WINDOWS that keep within capacity
 FORMS = ("keep A0200 on 12 Apr", "no crane work before 10 Apr", "crew MECH max 4")
 
 
@@ -72,7 +81,9 @@ def _type():
                     "it: each job that moves and the constraint behind it, the work worth pulling forward, and the "
                     "finish, deferred oil and overloads before and after. Add a constraint in words and work it out "
                     "again, then approve: the plan moves, SAP's schedule change waits for approval, and the people "
-                    "affected get a notice to send. It clears when nothing on the plan is hit any more.")
+                    "affected get a notice to send. It clears when nothing on the plan is hit any more. A planner's "
+                    "ask is one too: crews for field jobs with none, or three windows for an outage, each with what "
+                    "it costs the customers it hits, one approved and its crews' and customers' notices drafted.")
 
 
 TYPE = _type().name
@@ -138,7 +149,10 @@ _JOBS = """
 
 def hits(conn, d: dict) -> list[dict]:
     """The planned jobs the disruption holds: the order's jobs starting before its parts arrive, the work on a tripped
-    machine inside its window that needs it running, or the work not yet done on the plant a lapsed permit holds."""
+    machine inside its window that needs it running, or the work not yet done on the plant a lapsed permit holds. An
+    outage's window holds nothing: its jobs move with the window picked."""
+    if d["type"] == OUTAGE:
+        return []
     args = {"active": list(ACTIVE), "start": d["start"], "until": d["until"], "subjects": d["subjects"],
             "order": d["order"], "sd": list(SHUTDOWNS)}
     if d["order"]:
@@ -243,7 +257,10 @@ def _apply(conn, d: dict, constraints: list[dict], by: str) -> dict:
     holds: dict[int, tuple[datetime, str]] = {h["id"]: (d["until"], d["constraint"]) for h in hits(conn, d)}
     keeps = set()
     for c in constraints:
-        if c["form"] == "keep":
+        if c["form"] == "window" and c.get("project"):  # the schedule starts with its window, levelled from there
+            conn.execute("update plan_project set start_at = %s, updated_by = %s, updated_at = now() where code = %s",
+                         (_when(c["at"]), by, c["project"]))
+        elif c["form"] in ("keep", "window"):
             for i in c["item_ids"]:
                 holds[i] = (_when(c["at"]), c["text"])
                 keeps.add(i)
@@ -277,6 +294,11 @@ def _apply(conn, d: dict, constraints: list[dict], by: str) -> dict:
                 "select distinct i.project from plan_item i join plan_demand_all x on x.item_id = i.id "
                 "where i.source = 'schedule' and x.resource = %s and i.status = any(%s) and i.start_at < %s and i.end_at > %s",
                 (res, list(ACTIVE), _when(c["from"]) + timedelta(days=HORIZON_DAYS), _when(c["from"])))}
+    for c in constraints:
+        if c["form"] == "window" and c.get("project"):
+            projects.add(c["project"])
+            for i in c["item_ids"]:
+                holds.setdefault(i, (_when(c["at"]), c["text"]))
     for p in sorted(x for x in projects if x):
         schedule.apply(conn, p, by)
     return {"holds": holds, "windows": windows, "projects": sorted(x for x in projects if x)}
@@ -378,6 +400,8 @@ def _store(conn, d: dict, by: str, said: tuple[str, str] | None = None) -> dict:
     the person who asked did, for its history, ahead of Fuzer working it out again."""
     from ..core.exceptions import raise_exception
 
+    if d["type"] == OUTAGE:
+        return _store_window(conn, d, said=said)
     pc = conn.execute("select * from plan_change where key = %s", (d["key"],)).fetchone()
     constraints = list(pc["constraints"]) if pc and pc["state"] == "open" else []
     p = work_out(conn, d, constraints, by)
@@ -418,7 +442,8 @@ def watch(conn, by: str = AGENT) -> dict:
     from ..core.exceptions import ExceptionError, clear_exception
 
     held = [r["key"] for r in conn.execute("select key from exception_record where type = %s and state = 'open' "
-                                           "and key not like %s", (TYPE, f"{ASSIGN}:%"))]
+                                           "and key not like %s and key not like %s",
+                                           (TYPE, f"{ASSIGN}:%", f"{OUTAGE}:%"))]
     raised, cleared, errors, seen = [], [], [], set()
     for row in conn.execute("select * from exception_record where state = 'open' and type = any(%s) order by id",
                             (list(CAUSES),)).fetchall():
@@ -451,6 +476,8 @@ def _open(conn, exception_id: int) -> tuple[dict, dict]:
     if kind == ASSIGN:
         p = pc["proposal"] or {}
         return pc, _asked(pc["key"], _when(p["start"]), _when(p["until"]))
+    if kind == OUTAGE:
+        return pc, _outage((pc["proposal"] or {})["outage"])
     cause = conn.execute("select * from exception_record where type = %s and key = %s "
                          "order by state = 'open' desc, id desc limit 1", (kind, key)).fetchone()
     d = disruption(conn, cause) if cause else None
@@ -563,9 +590,12 @@ def approve(conn, exception_id: int, by: str) -> dict:
         raise PlanError(f"{by} isn't a maintenance planner: a planner approves a plan change")
     if d["type"] == ASSIGN:
         return _approve_assign(conn, pc, d, by)
-    p = work_out(conn, d, list(pc["constraints"]), by)
+    cons = _constraints(pc, d)
+    p = work_out(conn, d, cons, by)
+    if d["type"] == OUTAGE:
+        p = {**pc["proposal"], **p}
     was = _state(conn)
-    _apply(conn, d, list(pc["constraints"]), by)
+    _apply(conn, d, cons, by)
     for m in p["moves"]:
         row = conn.execute("update plan_item set moved_because = %s, released_at = null, released_by = null, "
                            "release_reason = null where id = %s returning *", (d["say"], m["item_id"])).fetchone()
@@ -590,10 +620,17 @@ def approve(conn, exception_id: int, by: str) -> dict:
             continue  # SAP's pack takes no schedule changes: the plan moves, SAP is told by its planner
         queued.append(wb["id"])
     notices = _notices(conn, d, p["moves"])
+    if d["type"] == OUTAGE:
+        notices = _customer_notices(d, p, notices)
+        _chose(conn, pc, p, by)
     conn.execute("update plan_change set state = 'approved', approved_by = %s, approved_at = now(), proposal = %s, "
                  "writebacks = %s, notices = %s, changed = %s, updated_at = now() where key = %s",
                  (by, Jsonb(plain(p)), queued, Jsonb(plain(notices)), Jsonb(_changes(conn, was)), pc["key"]))
-    _did(conn, pc["key"], by, f"Approved: {plural(len(p['moves']), 'job')} moved, {plural(len(queued), 'SAP change')} "
+    what = "Approved"
+    if d["type"] == OUTAGE:
+        what = f"Approved window {p['picked'] + 1}" + (" as recommended" if p["picked"] == p["recommended"]
+                                                        else f" instead of the recommended window {p['recommended'] + 1}")
+    _did(conn, pc["key"], by, f"{what}: {plural(len(p['moves']), 'job')} moved, {plural(len(queued), 'SAP change')} "
                               f"queued, {plural(len(notices), 'notice')} drafted")
     clear_exception(conn, TYPE, pc["key"], by, reason=f"approved by {by}: {plural(len(p['moves']), 'job')} moved")
     events.publish(conn, "plan.changed", f"plan_change:{pc['key']}",
@@ -853,7 +890,8 @@ def _state(conn) -> dict:
                                                       "from plan_item")},
             "demand": {(r["item_id"], r["resource"]): r["quantity"] for r in conn.execute("select * from plan_demand")},
             "windows": {r["id"]: r for r in conn.execute("select id, resource, start_at, end_at, capacity, reason "
-                                                         "from plan_resource_capacity")}}
+                                                         "from plan_resource_capacity")},
+            "projects": {r["code"]: r for r in conn.execute("select code, title, start_at from plan_project")}}
 
 
 def _changes(conn, was: dict) -> list[dict]:
@@ -878,6 +916,11 @@ def _changes(conn, was: dict) -> list[dict]:
         out.append({"what": "capacity", "id": wid, "resource": w["resource"], "name": names.get(w["resource"]),
                     "title": w["reason"], "start": w["start_at"], "end": w["end_at"], "before": None,
                     "after": w["capacity"]})
+    for code, p in now["projects"].items():
+        b = was["projects"].get(code)
+        if b is not None and b["start_at"] != p["start_at"]:
+            out.append({"what": "schedule", "id": code, "title": p["title"], "before": b["start_at"],
+                        "after": p["start_at"]})
     return plain(out)
 
 
@@ -904,7 +947,8 @@ def revert(conn, exception_id: int, by: str) -> dict:
                 stale.append(x["title"])
         elif x["what"] == "booking" and now["demand"].get((x["id"], x["resource"])) != x["after"]:
             stale.append(f"{x['title']} on {x['name']}")
-        elif x["what"] == "capacity" and x["id"] not in now["windows"]:
+        elif (x["what"] == "capacity" and x["id"] not in now["windows"]) or (
+                x["what"] == "schedule" and plain((now["projects"].get(x["id"]) or {}).get("start_at")) != x["after"]):
             stale.append(x["title"])
     if stale:
         raise PlanError(f"changed again since it was approved: {', '.join(sorted(set(stale))[:5])}. Put those back by hand")
@@ -925,6 +969,9 @@ def revert(conn, exception_id: int, by: str) -> dict:
                              (x["id"], x["resource"], x["before"]))
         elif x["what"] == "capacity":
             conn.execute("delete from plan_resource_capacity where id = %s", (x["id"],))
+        elif x["what"] == "schedule":
+            conn.execute("update plan_project set start_at = %s, updated_by = %s, updated_at = now() where code = %s",
+                         (_when(x["before"]), by, x["id"]))
     sent = []
     for wid in pc["writebacks"]:
         try:
@@ -941,3 +988,215 @@ def revert(conn, exception_id: int, by: str) -> dict:
     events.publish(conn, "plan.changed", f"plan_change:{pc['key']}",
                    {"change": "plan change reverted", "by": by, "put_back": len(pc["changed"]), "because": d["say"]})
     return change(conn, exception_id)
+
+
+# ---- windows for an outage (P5.22c): three proposed, one picked, approved as a plan change ---------------------------
+
+def _outage(o: dict) -> dict:
+    """An outage-window plan change's outage, in the shape of a disruption: what the case says it is about."""
+    a, b = _when(o["start"]), _when(o["end"])
+    units = [u["id"] if isinstance(u, dict) else u for u in o["units"]]
+    return {"key": f"{OUTAGE}:{o['key']}", "type": OUTAGE, "cause_id": None, "case": None, "subjects": units,
+            "source": "plan", "order": None, "start": a, "until": b, "say": o["title"],
+            "constraint": f"a window to choose, planned {_say(a)} to {_say(b)}",
+            "outage": {"key": o["key"], "title": o["title"], "project": o["project"], "item_ids": list(o["item_ids"]),
+                       "start": a, "end": b, "units": units}}
+
+
+def _window(o: dict, at: datetime, n: int) -> dict:
+    """The constraint a window puts on the plan: the schedule starts then (or the job does), levelled from there."""
+    return {"text": f"Window {n + 1}: starts {_say(at)}", "form": "window", "project": o["project"],
+            "item_ids": list(o["item_ids"]), "at": at}
+
+
+def _constraints(pc: dict, d: dict) -> list[dict]:
+    """The constraints a plan change is worked out with: those typed, and an outage's window picked."""
+    out = list(pc["constraints"])
+    if d["type"] == OUTAGE:
+        p = pc["proposal"] or {}
+        if p.get("windows"):
+            out.append(p["windows"][p["picked"]]["constraint"])
+    return out
+
+
+def _outage_overloads(conn, ids: list[int]) -> list[dict]:
+    start = clock.aware(clock.now())
+    return [o for o in schedule.constraints(conn, start, HORIZON_DAYS, moves=False)["overloads"]
+            if any(j.get("item_id") in ids for j in o["jobs"])]
+
+
+def _reasons(w: dict, planned: datetime, over: list[dict]) -> list[str]:
+    days = round((w["start"] - planned).total_seconds() / 86400)
+    out = ["as planned" if not days else f"{plural(abs(days), 'day')} {'later' if days > 0 else 'earlier'} than planned"]
+    if w["alongside"]:
+        out.append(f"shares its hours with {', '.join(w['alongside'])}: a contract both hit loses those hours once")
+    if w["not_running"]:
+        out.append(f"{', '.join(w['not_running'])} not running then")
+    twice = [c for c in w["customers"] if c["flagged"]]
+    out.append("; ".join(f"{c['customer']} still hit {c['times']} times" for c in twice) if twice
+               else "no customer it hits is hit at another time")
+    out.append("; ".join(f"{o['name']} over capacity from {_say(_when(o['from']))}" for o in over) if over
+               else "crews within capacity, no rule broken")
+    out.append(f"done {_say(w['end'])}")
+    return out
+
+
+def work_windows(conn, d: dict, typed: list[dict], picks: dict) -> dict:
+    """The proposal for an outage: its jobs moved as one, a day at a time, to every start from NOTICE_DAYS to
+    SEARCH_DAYS ahead, ranked by what each costs the customers it hits (outages.impact: hours it shares with another
+    outage on a contract are lost once), nearest the plan first among equals. The cheapest TRIED are levelled for real
+    with the typed constraints, in a savepoint rolled back; the first WINDOWS that do not overlap, put no crew of its over
+    capacity and break no rule are proposed, the cheapest recommended. The plan is then worked out for the window
+    picked (the recommended one until the planner picks another)."""
+    from ..core.wording import money
+    from . import outages
+
+    o = d["outage"]
+    planned = _when(o["start"])
+    span = _when(o["end"]) - planned
+    now = clock.aware(clock.now())
+    first, last = now + timedelta(days=NOTICE_DAYS), now + timedelta(days=SEARCH_DAYS)
+    starts = [t for t in (planned + timedelta(days=k) for k in range(-SEARCH_DAYS, SEARCH_DAYS + 1)) if first <= t <= last]
+    rigid = outages.impact(conn, o["key"], [(t, t + span) for t in starts])
+    order = sorted(rigid, key=lambda w: (w["usd"], abs((w["start"] - planned).total_seconds()), w["start"]))
+    before = len(_outage_overloads(conn, o["item_ids"]))
+    seen = _rule_breaks(conn)
+    windows, tried, held = [], 0, 0
+    for w in order:
+        if len(windows) >= WINDOWS or tried >= TRIED:
+            break
+        if any(w["start"] < x["end"] and w["end"] > x["start"] for x in windows):
+            continue
+        tried += 1
+        c = _window(o, w["start"], len(windows))
+        conn.execute("savepoint outage_window")
+        try:
+            _apply(conn, d, [*typed, c], AGENT)
+            r = conn.execute("select min(start_at) as a, max(end_at) as b from plan_item where id = any(%s)",
+                             (o["item_ids"],)).fetchone()
+            over = _outage_overloads(conn, o["item_ids"])
+            broke = _rule_breaks(conn) - seen
+        finally:
+            conn.execute("rollback to savepoint outage_window")
+            conn.execute("release savepoint outage_window")
+        if len(over) > before or broke or any(r["a"] < x["end"] and r["b"] > x["start"] for x in windows):
+            held += 1
+            continue
+        [real] = outages.impact(conn, o["key"], [(r["a"], r["b"])])
+        windows.append({**real, "n": len(windows), "constraint": c, "reasons": _reasons(real, planned, over)})
+    windows.sort(key=lambda w: (w["usd"], abs((w["start"] - planned).total_seconds()), w["start"]))
+    for n, w in enumerate(windows):
+        w["n"], w["constraint"] = n, _window(o, w["constraint"]["at"], n)
+    picked = picks.get("window", 0) if windows and picks.get("window", 0) < len(windows) else 0
+    p = (work_out(conn, d, [*typed, windows[picked]["constraint"]], AGENT) if windows
+         else {"moves": [], "pull_forward": [], "schedules": [], "kpis": None})
+    found = outages.find(conn, o["key"])
+    hist = outages.past(conn, found)
+    return {**p, "outage": o, "windows": windows, "recommended": 0, "picked": picked, "reason": picks.get("reason"),
+            "recommend": (f"Costs the customers least ({money(windows[0]['usd'])})"
+                          + (f": it shares its hours with {', '.join(windows[0]['alongside'])}" if windows[0]["alongside"] else "")
+                          if windows else "No window keeps every crew within capacity and every rule: add a constraint"),
+            "past": hist,
+            "basis": f"its jobs moved as one to each start from {NOTICE_DAYS} to {SEARCH_DAYS} days ahead, ranked by what "
+                     f"the customers it hits lose (each contract's daily volume and rate for the hours it is hit, hours "
+                     f"shared with another outage lost once); the {tried} cheapest levelled against every crew and the "
+                     f"planner's rules, {held} of them held back"}
+
+
+def _store_window(conn, d: dict, said: tuple[str, str] | None = None) -> dict:
+    from ..core.exceptions import raise_exception
+    from ..core.wording import money
+
+    pc = conn.execute("select * from plan_change where key = %s", (d["key"],)).fetchone()
+    live = pc is not None and pc["state"] == "open"
+    typed = list(pc["constraints"]) if live else []
+    picks = dict(pc["picks"]) if live else {}
+    p = work_windows(conn, d, typed, picks)
+    ws = p["windows"]
+    found = Finding("replan.outage_window", DETERMINISTIC, method=p["basis"], start=d["start"], end=d["until"],
+                    data={"outage": d["outage"]["key"], "windows": len(ws)},
+                    items=tuple(fact(f"Window {w['n'] + 1}", f"{_say(w['start'])} to {_say(w['end'])}", "")
+                                for w in ws) + tuple(fact(f"Window {w['n'] + 1} cost", w["usd"], "USD") for w in ws))
+    x = raise_exception(conn, TYPE, d["key"], f"{d['say']}: {plural(len(ws), 'window')} to choose", AGENT,
+                        source="plan", refs=d["subjects"], priority=0.5, finding=found)
+    conn.execute(
+        """
+        insert into plan_change (key, exception_id, proposal, picks, state) values (%s, %s, %s, %s, 'open')
+        on conflict (key) do update set exception_id = excluded.exception_id, proposal = excluded.proposal,
+            picks = excluded.picks, state = 'open',
+            constraints = case when plan_change.state = 'open' then plan_change.constraints else '[]' end,
+            changed = case when plan_change.state = 'open' then plan_change.changed else '[]' end,
+            approved_by = case when plan_change.state = 'open' then plan_change.approved_by end,
+            reverted_by = null, reverted_at = null, updated_at = now()
+        """, (d["key"], x["id"], Jsonb(plain(p)), Jsonb(picks)))
+    if said:
+        _did(conn, d["key"], *said)
+    _did(conn, d["key"], AGENT, f"Proposed {plural(len(ws), 'window')}" + (
+        f": window 1 recommended, {money(ws[0]['usd'])} to customers" if ws else ""), again=False)
+    return x
+
+
+def outage_windows(conn, key: str, by: str) -> dict:
+    """A planner asks for windows for an outage on the plan (a schedule's code, or item:<id>): three proposed as a plan
+    change for the maintenance planner, worked out by Fuzer. Asking again works the open one out again."""
+    from . import outages
+
+    if gates.machine(by):
+        raise PlanError("windows for an outage are asked for by a named person")
+    o = outages.find(conn, key)
+    if not o["hits"] and not outages.contracts(conn):
+        raise PlanError("no contract register is loaded: there is no customer to weigh a window by")
+    d = _outage(o)
+    pc = conn.execute("select exception_id, state, proposal from plan_change where key = %s", (d["key"],)).fetchone()
+    if pc and pc["state"] == "open":
+        d = _outage(pc["proposal"]["outage"])
+    x = _store_window(conn, d, said=(by, f"Asked for windows for {o['title']}"))
+    return change(conn, x["id"])
+
+
+def pick_window(conn, exception_id: int, n: int, by: str, reason: str | None = None) -> dict:
+    """The planner picks another of the windows proposed (n counts from 0). Not the recommended one only with a reason,
+    as a choice between options is (P5.20). The plan is worked out again for it."""
+    pc, d = _editable(conn, exception_id, by)
+    if d["type"] != OUTAGE:
+        raise PlanError("a window is picked on an outage's plan change")
+    p = pc["proposal"] or {}
+    if not 0 <= n < len(p.get("windows") or []):
+        raise PlanError(f"plan change {exception_id} has no window {n + 1}")
+    reason = (reason or "").strip() or None
+    if n != p["recommended"] and not reason:
+        raise PlanError(f"say why window {n + 1} rather than the recommended window {p['recommended'] + 1}")
+    conn.execute("update plan_change set picks = %s, updated_at = now() where key = %s",
+                 (Jsonb({"window": n, "reason": reason}), pc["key"]))
+    _store_window(conn, d, said=(by, f"Picked window {n + 1}" + (f": {reason}" if reason else "")))
+    return change(conn, exception_id)
+
+
+def _customer_notices(d: dict, p: dict, notices: list[dict]) -> list[dict]:
+    """A notice for each customer the window hits: when, the contracts it hits there and about how much each loses."""
+    w = p["windows"][p["picked"]]
+    o = d["outage"]
+    by: dict[str, list[dict]] = defaultdict(list)
+    for h in w["hits"]:
+        by[h["customer"] or h["contract"]].append(h)
+    out = list(notices)
+    for name, hs in sorted(by.items()):
+        lines = "; ".join(f"{h['contract']} ({h['service']}) at {h['point']}, about {h['volume_bbl']:,} bbl over "
+                          f"{h['hours']:g} h" for h in hs)
+        out.append({"audience": "customer", "to": name, "name": name, "jobs": list(o["item_ids"]),
+                    "text": f"{o['title']}: planned from {_say(_when(w['start']))} to {_say(_when(w['end']))}. "
+                            f"Your contracts it affects: {lines}."})
+    return [{**x, "n": i, "sent_by": None, "sent_at": None} for i, x in enumerate(out)]
+
+
+def _chose(conn, pc: dict, p: dict, by: str) -> None:
+    """The window approved against the one recommended, kept as a choice between options is (P5.20 option_choice), so
+    how often Fuzer's window is taken is measured with the rest."""
+    kept = {"recommended": p["recommended"], "reason": p["recommend"],
+            "options": [{k: w.get(k) for k in ("n", "start", "end", "usd", "volume_bbl", "reasons")} for w in p["windows"]]}
+    conn.execute(
+        """
+        insert into option_choice (exception_id, item_id, type, chosen, recommended, accepted, reason, by, offered)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (pc["exception_id"], pc["case_id"], TYPE, f"window {p['picked'] + 1}", f"window {p['recommended'] + 1}",
+              p["picked"] == p["recommended"], p.get("reason"), by, Jsonb(plain(kept))))

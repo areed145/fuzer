@@ -190,6 +190,22 @@ The card reads one set of outages three ways:
 - **By person**: each crew and person booked on an outage, flagged over capacity where the constraint check finds
   them over it. The rules typed on Plan mark the jobs breaking them as before, each time a job moves.
 
+### Windows for an outage
+
+**Propose windows** on an outage asks Fuzer for three windows, as a plan change on your case. Fuzer moves the outage's
+jobs as one, a day at a time, to every start from a week to eight weeks ahead, and ranks them by what the customers it
+hits lose (an hour it shares with another outage on the same contract is lost once). The cheapest are levelled for
+real against every crew and your rules; the first three that do not overlap, keep every crew within capacity and break
+no rule are proposed, the cheapest recommended. Each says why: how far from the plan it is, the outage it shares hours
+with, a contract not running then, a customer still hit more than once, the crews, when it is done. The case also
+lists similar past work: planned downtime on the same plant and how long it took.
+
+Pick another window and say why; a typed constraint works the windows out again. **Approve** moves the outage there
+(the schedule starts then and is levelled from there), queues SAP's schedule changes for you, drafts a notice to each
+crew and person on it and to each customer it hits, and keeps your pick against Fuzer's recommendation with the other
+choices between options. Fuzer's proposal and each person's pick are on the case's history. Revert puts the schedule
+back where it was planned.
+
 ## When something breaks
 
 A trip, a late part or a lapsed permit that lands on planned work arrives as routed work, **Plan change to review**,
