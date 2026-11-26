@@ -152,3 +152,32 @@ def test_the_same_failure_on_the_same_asset_inside_the_window_reopens_the_first_
     assert rows[other_asset]["state"] == rows[other_mode]["state"] == "open"
     assert disposition.sweep(conn, PACK)["repeats"] == []
     conn.commit()
+
+
+def test_contained_with_a_follow_up_planned_sends_the_follow_up(conn):
+    """#1385: "Contained, follow-up planned" made no follow-up. Closing it contained sends the follow-up to whoever the
+    IOC names, as a case of its own linked from the closed one; a follow-up without that outcome is refused."""
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "pat", ["maintenance_planner"])
+    case = work.open_case(conn, "manual", "Seal weep on the booster pump", by="ioc-ann")["id"]
+    with pytest.raises(ValueError, match="contained"):
+        disposition.record(conn, PACK, case, "riley", "real", outcome="fixed", follow_up_to="role:maintenance_planner")
+    row = disposition.record(conn, PACK, case, "riley", "real", outcome="contained", note="clamped, seal change due",
+                             follow_up_to="role:maintenance_planner")
+    after = row["follow_up"]
+    assert after and after != case
+    sent = conn.execute("select title, state from work_item where id = %s", (after,)).fetchone()
+    assert sent["title"] == "Follow-up: Seal weep on the booster pump" and sent["state"] != "done"
+    step = conn.execute("select role, assignee from work_token where item_id = %s and state = 'waiting' and kind = 'user'",
+                        (after,)).fetchone()
+    assert step == {"role": "maintenance_planner", "assignee": None}
+    assert disposition.form(conn, PACK, case)["follow_up"] == after
+    said = [e["data"]["text"] for e in conn.execute(
+        "select data from work_event where item_id = %s and kind = 'commented'", (case,))]
+    assert f"Follow-up sent to maintenance planner queue: case {after}" in said
+    # correcting the close-out sends no second one
+    again = disposition.record(conn, PACK, case, "riley", "real", outcome="contained",
+                               follow_up_to="role:maintenance_planner")
+    assert again["follow_up"] == after
+    conn.commit()

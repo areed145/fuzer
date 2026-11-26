@@ -422,6 +422,18 @@ def act_as(conn, roles: list[str], by: str = SYSTEM, token: str = "") -> dict:
     return {"name": name, "roles": roles_of(conn, name), "picked": sorted(set(roles))}
 
 
+def acting_roles(conn, name: str) -> list[str] | None:
+    """The roles the demo account picked to act as in this project (#1068), else None (any other account, or no pick).
+    What is its own follows the pick (#1115, #1380): its notices, its steps and its field jobs count only where the step
+    (else the case) sits in a picked role's queue, so acting as the ops lead it isn't handed an operator's job."""
+    from ..core import db
+
+    if name != access.ACTOR_PREFIX + access.DEMO_ID:
+        return None
+    picked = (access.ACTING.get() or {}).get(db.scope().project or "")  # this session's pick (act_as)
+    return list(picked) if picked else None
+
+
 def roles_of(conn, name: str) -> list[str]:
     # Owners span all present and future human routing roles, never autonomous-agent identities.
     if name.startswith("user:"):

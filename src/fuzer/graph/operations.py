@@ -414,11 +414,17 @@ def corrective_backlog_at(conn, day: str) -> dict:
     return {"open": open_, "unplaced": unplaced, "orders": len(orders)}
 
 
-def preventive_on_time(conn, since: str, until: str) -> dict:
+PREVENTIVE = "f->>'order_type' in ('PM02', 'PM03') and f->>'basic_finish' is not null"
+
+
+def preventive_on_time(conn, since: str, until: str, orders: list[dict] | None = None) -> dict:
     """Preventive and inspection orders (PM02, PM03) due in [since, until), and which of them finished by their due
-    date (basic finish). An order still open past its due date is late (P7.3, #353)."""
-    rows = _rows(conn, "work_order", "f->>'order_type' in ('PM02', 'PM03') and f->>'basic_finish' >= %(s)s "
-                 "and f->>'basic_finish' < %(u)s", {"s": since, "u": until})
+    date (basic finish). An order still open past its due date is late (P7.3, #353). `orders`: every preventive
+    order (`_rows(conn, "work_order", PREVENTIVE)`), read once by a caller that asks for many windows (a trend's
+    days), rather than the register aggregated again for each (#1386)."""
+    if orders is None:
+        orders = _rows(conn, "work_order", PREVENTIVE)
+    rows = [o for o in orders if since <= str(o["f"]["basic_finish"]) < until]
     on_time, late = [], []
     for o in rows:
         f = o["f"]

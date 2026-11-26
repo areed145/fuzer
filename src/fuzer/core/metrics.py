@@ -327,7 +327,7 @@ def value(conn, pack, key: str, scope: str | None = None, window: str | None = N
             "rows": out.get("rows") or [], "refs": out.get("refs") or [],
             "as_of": out.get("as_of"), "note": out.get("note"), "grain": grain, "history": out["history"],
             "scope": out["scope"], "window": out["window"], "previous": out["previous"],
-            "previous_unknown": out["previous_unknown"], "span": out.get("span")}
+            "previous_unknown": out["previous_unknown"], "span": out.get("span"), "parts": out.get("parts")}
 
 
 def series(conn, pack, key: str, scope: str | None = None, window: str | None = None, at=None) -> dict:

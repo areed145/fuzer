@@ -11,7 +11,7 @@ its equipment type:
              (a transmitter or gauge is instrument work, a motor or switchgear electrical) is checked against that
              trade's work center only, not every crew that has worked on the equipment (#1365)
     field    what the field's latest report says the job waits on: a note or could-not-do naming a gas test, a
-             permit, an isolation, a scaffold or parts holds it until a later report (#1365)
+             permit, an isolation, depressurising, a scaffold or parts holds it until a later report (#1365)
 
 A check with no records to read says so and does not block. A blocked job is sent only with a reason (enforced where
 people dispatch: the dispatch route and card), and the reason goes on the case's history.
@@ -465,6 +465,7 @@ PREREQUISITES = {
     "a gas test": re.compile(r"(?i)gas[- ]?test"),
     "a permit": re.compile(r"(?i)\bpermit|\bptw\b"),
     "an isolation": re.compile(r"(?i)\bisolat"),
+    "depressurising": re.compile(r"(?i)\bde-?pressuri[sz]|\bblow ?down|\bbleed (it )?down"),
     "a scaffold": re.compile(r"(?i)scaffold"),
     "parts": re.compile(r"(?i)\b(parts?|spares?)\b"),
 }

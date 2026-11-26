@@ -16,6 +16,7 @@ from .definitions import (
     _definition,
     _event,
     _op,
+    acting_roles,
     form,
     is_agent,
     roles_of,
@@ -307,20 +308,30 @@ _ITEMS = """
 ALL_ROWS = 100_000  # counting every open row; lists still stop at their own limit
 
 
-def my_work(conn, person: str, roles: list[str] | None = None, limit: int = 200, now: datetime | None = None) -> dict:
+_ACTING = object()
+# A step (or case) of the person's own counts in the roles they act as, or when it sits in no role's queue (#1380).
+OWN_IN_ACTING = "(%(acting)s::text[] is null or {r} is null or {r} = any(%(acting)s))"
+
+
+def my_work(conn, person: str, roles: list[str] | None = None, limit: int = 200, now: datetime | None = None,
+            acting=_ACTING) -> dict:
     """A person's open tasks ('mine': claimed by or assigned to them, or to someone away whom they cover) and their
-    roles' queue (unclaimed)."""
+    roles' queue (unclaimed). `acting`: the roles the demo account acts as (acting_roles, the default), outside which
+    its own steps don't count: acting as the ops lead, it isn't shown an operator's job (#1380)."""
     from . import roles as roles_
 
     now = now or utcnow()
     roles = roles if roles is not None else roles_of(conn, person)
+    acting = acting_roles(conn, person) if acting is _ACTING else acting
     covering = roles_.covered_by(conn, person, now)
     # Counted over every open row, listed up to `limit`: a count taken from the listed page read "200
     # unclaimed" when the queue held more.
     args = {"person": person, "people": [person, *covering], "roles": roles, "now": now, "limit": ALL_ROWS,
-            "kinds": ["user", "fix"]}
-    parts = {"mine": (conn.execute(_TASKS.format(checklist=PROGRESS_SQL, who="t.assignee = any(%(people)s)"), args).fetchall(),
-                      conn.execute(_ITEMS.format(checklist=PROGRESS_SQL, who="i.assignee = any(%(people)s)"), args).fetchall()),
+            "kinds": ["user", "fix"], "acting": acting}
+    mine_tasks = "t.assignee = any(%(people)s) and " + OWN_IN_ACTING.format(r="t.role")
+    mine_items = "i.assignee = any(%(people)s) and " + OWN_IN_ACTING.format(r="i.role")
+    parts = {"mine": (conn.execute(_TASKS.format(checklist=PROGRESS_SQL, who=mine_tasks), args).fetchall(),
+                      conn.execute(_ITEMS.format(checklist=PROGRESS_SQL, who=mine_items), args).fetchall()),
              "queue": (conn.execute(_TASKS.format(checklist=PROGRESS_SQL, who="t.assignee is null and t.role = any(%(roles)s)"), args).fetchall(),
                        conn.execute(_ITEMS.format(checklist=PROGRESS_SQL, who="i.assignee is null and i.role = any(%(roles)s)"), args).fetchall())}
     mine, queue = (parts["mine"][0] + parts["mine"][1]), (parts["queue"][0] + parts["queue"][1])
@@ -447,13 +458,17 @@ def work_across(person: str, allowed: list[str] | None = None) -> list[dict]:
 
     with db.connect() as conn:
         names = [n for n in projects.stored(conn) if allowed is None or n in allowed]
+        # The roles the demo account acts as here hold in its other fields too (#1380): acting as an operator, it
+        # isn't shown another site's planner and ops lead work.
+        here = acting_roles(conn, person)
     out = []
     for name in names:
         with db.connect() as conn, projects.use(conn, name), db.connect() as scoped:
-            roles = roles_of(scoped, person)
+            acting = acting_roles(scoped, person) or here
+            roles = [r for r in roles_of(scoped, person) if acting is None or r in acting]
             if not roles:
                 continue
-            w = my_work(scoped, person, roles)
+            w = my_work(scoped, person, roles, acting=acting)
             out.append({"project": name, "roles": roles, "mine": w["mine"], "queue": w["queue"],
                         "counts": w["counts"]})
     return out

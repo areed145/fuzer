@@ -14,6 +14,11 @@ matched to entities, routed to a case through the Work port, and published on th
 States: open (the condition holds), cleared (it went away) and closed (its case finished while it held; the next
 raise opens a new exception and a new case, so a closed case never hides a condition that came back).
 
+A close-out holds (#1379): a raiser that passes a `signal` (what the condition looks like: a machine's status and
+flags) keeps a closed exception closed while its raises carry the same signal, counting them without a case. A
+different signal reopens the closed exception and its case, rather than opening a fresh one. The hold ends when the
+condition clears (`clear`), and a later raise opens as usual.
+
 One event, one case (#464): a new exception about the same asset as an open one from another source (the same
 entity, or one sharing the equipment or unit it is part of), raised within `exceptions.join_hours` of it, joins that
 one's case instead of opening another. The first is the host (`joined_to` null); the others point at it and share its
@@ -390,11 +395,11 @@ def on_case(conn, item_id: int) -> list[dict]:
 def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: float | None = None,
            value_usd: float | None = None, finding: findings.Finding | None = None, source: str | None = None,
            assignee: str | None = None, role: str | None = None, first_role: str | None = None,
-           mute: str | None = None) -> dict:
+           mute: str | None = None, signal: str | None = None) -> dict:
     """Open an exception of `type` for `key`, or update the open one, from a finding (the contract in
     core.findings; with none, a bare one from the source that says only who raised it). `first_role` sends the case
     it opens there instead of its type's role, and still joins an open case; `mute` (the reason) counts and keeps a
-    new condition with no case (a provider set so, P3.8b)."""
+    new condition with no case (a provider set so, P3.8b). With `signal`, a person's close-out holds (`_held`)."""
     t = _type(conn, type)
     evidence = (finding or findings.external(source or by)).evidence()
     if not key:
@@ -403,6 +408,15 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
     current = _close_if_case_finished(conn, conn.execute(
         "select * from exception_record where type = %s and key = %s and state = %s for update",
         (type, key, OPEN)).fetchone())
+    if current is None and signal is not None:
+        current = _held(conn, type, key, signal, by)
+    if current:
+        evidence = _first_found(current["evidence"], evidence)
+        if current["state"] != OPEN:  # held: the same condition its close-out answered, counted with no case
+            row = conn.execute("update exception_record set raised_count = raised_count + 1, last_seen = now(), "
+                               "evidence = evidence || %s, updated_at = now() where id = %s returning *",
+                               (Jsonb(evidence), current["id"])).fetchone()
+            return {**row, "raised": False, "held": True, "unmatched_note": _unmatched_note(conn, unmatched)}
     if current:
         row = conn.execute(
             """
@@ -410,9 +424,9 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
                 value_usd = coalesce(%s, value_usd), evidence = evidence || %s,
                 subjects = array(select distinct unnest(subjects || %s::text[])),
                 unmatched = array(select distinct unnest(unmatched || %s::text[])),
-                raised_count = raised_count + 1, last_seen = now(), updated_at = now()
+                raised_count = raised_count + 1, last_seen = now(), updated_at = now(), signal = coalesce(%s, signal)
             where id = %s returning *
-            """, (title, priority, value_usd, Jsonb(evidence), subjects, unmatched, current["id"])).fetchone()
+            """, (title, priority, value_usd, Jsonb(evidence), subjects, unmatched, signal, current["id"])).fetchone()
         if title != current["title"] and row.get("item_id"):
             # the case took the exception's title when it opened: a source that rewords the title rewords its case,
             # unless a person has since retitled it
@@ -435,10 +449,10 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
     row = conn.execute(
         """
         insert into exception_record (type, key, title, source, priority, value_usd, subjects, unmatched, evidence,
-                                      joined_to, item_id, need)
-        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) returning *
+                                      joined_to, item_id, need, signal)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) returning *
         """, (type, key, title, source or by, priority, value_usd, subjects, unmatched, Jsonb(evidence),
-              host["id"] if host else None, host["item_id"] if host else None, t.need)).fetchone()
+              host["id"] if host else None, host["item_id"] if host else None, t.need, signal)).fetchone()
     if host:
         return _joined(conn, t, row, host, by, unmatched)
     # The work engine runs each operation as its own transaction: a case that can't open rolls this insert back
@@ -454,11 +468,49 @@ def raise_(conn, type: str, key: str, title: str, by: str, refs=(), priority: fl
     return {**row, "raised": True, "unmatched_note": _unmatched_note(conn, unmatched)}
 
 
+def _first_found(old: dict | None, new: dict) -> dict:
+    """New evidence for a condition already raised, still saying when it was first found (#1384): a later raise's
+    finding starts at its own scan, and the case opened on the first would read "found this on Nov 21" under "opened
+    Nov 14", its trend and alarms moved to the last scan."""
+    was, now = ((old or {}).get("finding") or {}).get("start"), (new.get("finding") or {}).get("start")
+    first, latest = clock.wall(was), clock.wall(now)
+    if first and latest and first < latest:
+        return {**new, "finding": {**new["finding"], "start": was}}
+    return new
+
+
+def _holding(conn, type: str, key: str) -> dict | None:
+    """The closed exception of `type` and `key` whose close-out holds: the latest for the key, closed when its case
+    finished while a signal was on it, the condition not cleared since."""
+    row = conn.execute("select * from exception_record where type = %s and key = %s order by id desc limit 1 "
+                       "for update", (type, key)).fetchone()
+    return row if row and row["state"] == "closed" and row["signal"] is not None and row["item_id"] else None
+
+
+def _held(conn, type: str, key: str, signal: str, by: str) -> dict | None:
+    """A raise carrying `signal` with no exception open (#1379): the closed exception whose close-out still holds, as
+    it is while the signal is the same, or reopened with its case when the signal changed, so the condition comes
+    back to the case that worked it rather than a fresh one. None when nothing holds."""
+    row = _holding(conn, type, key)
+    if row is None or row["signal"] == signal:
+        return row
+    was = row["signal"]
+    row = conn.execute("update exception_record set state = 'open', closed_at = null, updated_at = now() "
+                       "where id = %s returning *", (row["id"],)).fetchone()
+    item = conn.execute("select state from work_item where id = %s", (row["item_id"],)).fetchone()
+    if item and item["state"] in ("done", "cancelled"):
+        work.close_case(conn, row["item_id"], "open", by, reason=f"Came back changed: was {was}, now {signal}")
+    events.publish(conn, "exception.reopened", f"exception:{row['id']}", {**_payload(row), "signal": signal})
+    return row
+
+
 def clear(conn, type: str, key: str, by: str, reason: str | None = None, closeout: str | None = None) -> dict | None:
     t = _type(conn, type)
     row = conn.execute("select * from exception_record where type = %s and key = %s and state = %s for update",
                        (type, key, OPEN)).fetchone()
     if row is None:
+        if held := _holding(conn, type, key):  # the condition its close-out answered went away: the hold ends
+            conn.execute("update exception_record set signal = null, updated_at = now() where id = %s", (held["id"],))
         return None
     row = conn.execute("update exception_record set state = 'cleared', closed_at = now(), updated_at = now() "
                        "where id = %s returning *", (row["id"],)).fetchone()
@@ -493,7 +545,7 @@ def clear(conn, type: str, key: str, by: str, reason: str | None = None, closeou
 
 def reconcile(conn) -> dict:
     """Close open exceptions whose case finished (a person closed it, its process ended). If the condition
-    still holds, its next raise opens a new exception and case. Shelved ones whose expiry passed go back on the list."""
+    still holds, its next raise opens a new exception and case, unless a signal holds the close-out (`_held`). Shelved ones whose expiry passed go back on the list."""
     rows = conn.execute(
         """
         update exception_record e set state = 'closed', closed_at = now(), updated_at = now()
@@ -889,7 +941,8 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
             # a field step of its own (the upset's Field check) has it completed with what they found, and the step
             # it returns to goes to that step's own queue. Done comes back too (#1115): the IOC closes it out,
             # saying what it was, so the field's work is counted.
-            back = f"Back from the field: {said.lower()}" + (f": {note.strip()[:140]}" if note else "")
+            told = (note or "").strip() or latest_said([*((row["evidence"] or {}).get("field") or []), entry])
+            back = f"Back from the field: {said.lower()}" + (f": {told[:140]}" if told else "")
             # a field step of the case's process (an upset's, or queue_item's since #1145) takes the report
             if not work.report_field_step(conn, row["item_id"], by, status, note, back, IOC_QUEUE):
                 sent = _dispatcher(conn, row["item_id"], by)
@@ -907,6 +960,16 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
     closeout.on_field_report(conn, row, by, status, note)  # the system that raised it hears what the field did (#466)
     events.publish(conn, "exception.reported", f"exception:{row['id']}", {**_payload(row), **entry})
     return row
+
+
+def latest_said(field: list[dict]) -> str:
+    """What the field last said in words or a reading (#1385): a Done whose reading came in a note before it reads
+    with that reading, not a bare "done"."""
+    for f in reversed(field):
+        parts = [x for x in ((f.get("note") or "").strip(), reading_text(f["reading"]) if f.get("reading") else "") if x]
+        if parts:
+            return "; ".join(parts)
+    return ""
 
 
 def _dispatcher(conn, item_id: int, person: str) -> dict | None:
@@ -980,13 +1043,17 @@ def field_jobs(conn, person: str, brief: bool = False) -> list[dict]:
                or (%(field)s and t.id is not null and t.assignee is null and t.role = %(op)s)
                or (%(field)s and t.id is null and w.assignee is null and w.role = %(op)s)
                or (e.evidence->'handover'->>'to' = %(p)s and e.evidence->'handover'->>'accepted_at' is null))
+          -- acting as some roles (the demo account), only the jobs in those roles' queues (#1380): an operator's
+          -- job is not the ops lead's
+          and (%(acting)s::text[] is null or coalesce(t.role, w.role) is null
+               or coalesce(t.role, w.role) = any(%(acting)s))
         order by coalesce(e.evidence->'handover'->>'to' = %(p)s and e.evidence->'handover'->>'accepted_at' is null,
                           false) desc,
                  coalesce(t.assignee = %(p)s, false) or (t.id is null and coalesce(w.assignee = %(p)s, false)) desc,
                  coalesce(w.priority, e.priority) desc nulls last, coalesce(t.due_at, w.due) nulls last,
                  e.value_usd desc nulls last
         """, {"p": person, "field": OPERATOR_ROLE in (roles := work.roles_of(conn, person)),
-              "op": OPERATOR_ROLE}).fetchall()
+              "op": OPERATOR_ROLE, "acting": work.acting_roles(conn, person)}).fetchall()
     out, known = [], types(conn)
     if brief:
         return [{**r, "label": known[r["type"]].label if r["type"] in known else r["type"].replace("_", " "),

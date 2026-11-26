@@ -99,6 +99,25 @@ def test_a_case_closed_while_the_condition_holds_does_not_hide_it(conn, types):
     conn.commit()
 
 
+def test_a_condition_raised_again_still_says_when_it_was_first_found(conn, types):
+    """#1384: a rule re-raising a standing condition each scan moved its finding's start to the last scan, so a case
+    opened Nov 14 read "A rule found this on Nov 21" and its trend opened on Nov 21. Later evidence keeps the first
+    start; an earlier one (a source correcting itself) still moves it back."""
+    from fuzer.core.findings import Finding
+
+    types("hot_bearing", role="role:engineer")
+    raise_exception(conn, "hot_bearing", "B-1384", "Bearing hot", "rules",
+                    finding=Finding("test", "deterministic", start="2026-11-14T14:07"))
+    again = raise_exception(conn, "hot_bearing", "B-1384", "Bearing hot", "rules",
+                            finding=Finding("test", "deterministic", start="2026-11-21T09:00", data={"peak": 193}))
+    assert again["evidence"]["finding"]["start"] == "2026-11-14T14:07" and again["evidence"]["peak"] == 193
+    earlier = raise_exception(conn, "hot_bearing", "B-1384", "Bearing hot", "rules",
+                              finding=Finding("test", "deterministic", start="2026-11-13T22:00"))
+    assert earlier["evidence"]["finding"]["start"] == "2026-11-13T22:00"
+    clear_exception(conn, "hot_bearing", "B-1384", "rules")
+    conn.commit()
+
+
 def test_an_exception_nobody_is_routed_to_waits_on_the_board(conn, types):
     types("field_report", audience=("ioc", "field"))
     e = raise_exception(conn, "field_report", "walkdown-3", "Leak at well A-12 flowline", "olga",
@@ -1519,4 +1538,90 @@ def test_an_event_from_before_every_need_had_a_case_gets_one_at_reconcile(conn, 
     assert impl.reconcile(conn)["cases_opened"] >= 1
     assert waits(conn, impl._row(conn, e["id"]))
     assert impl.open_missing_cases(conn) == 0
+    conn.commit()
+
+
+def _acting(roles):
+    """The demo session's pick of roles to act as here (act_as), as the request middleware sets it."""
+    from fuzer.core import access
+
+    return access.ACTING.set({db.scope().project or "": roles} if roles else None)
+
+
+def test_the_demo_account_acting_as_a_desk_role_is_not_shown_an_operators_job(conn, types):
+    """#1380 (tour C7): every role's My work opened with "Your field jobs", an operator's job shown to the ops lead and
+    the steward. Acting as some roles, the demo account's field jobs and its own steps are those in the roles it acts
+    as; acting as the operator (or as every role) the job is still there."""
+    from fuzer.core import access
+    from fuzer.ops import worklist
+    from fuzer.workflow import engine
+
+    demo = "user:demo"
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    engine.set_person(conn, demo, ["ops_lead", "operator", "data_steward"])
+    types("gauge_high", role="role:ops_lead", audience=("ioc", "field"))
+    e = raise_exception(conn, "gauge_high", "PG-7", "Outlet gauge reads high on P-101", "rounds", refs=["tag:P-101"])
+    impl.dispatch(conn, e["id"], "ivy", "role:operator", reason="Go and read the gauge")
+    token = _acting(["operator"])  # acting as the operator, the demo account takes it from the field's queue
+    try:
+        assert e["id"] in {j["id"] for j in impl.field_jobs(conn, demo) if j["queued"]}
+        impl.dispatch(conn, e["id"], demo, demo, "taken from the queue")
+    finally:
+        access.ACTING.reset(token)
+    step = conn.execute("select id, role, assignee from work_token where item_id = %s and kind = 'user' and "
+                        "state = 'waiting'", (e["item_id"],)).fetchone()
+    assert (step["role"], step["assignee"]) == ("operator", demo)
+
+    def seen():
+        jobs = {j["id"] for j in impl.field_jobs(conn, demo)}
+        mine = {r["item_id"] for r in engine.my_work(conn, demo)["mine"]}
+        waiting = {r["item_id"] for r in worklist.rows(conn, waiting_on=demo)["rows"]}
+        return e["id"] in jobs, e["item_id"] in mine, e["item_id"] in waiting
+
+    for roles, shown in ((None, True), (["operator"], True), (["ops_lead"], False), (["data_steward"], False)):
+        token = _acting(roles)
+        try:
+            assert seen() == (shown, shown, shown), roles
+        finally:
+            access.ACTING.reset(token)
+    conn.commit()
+
+
+def test_a_done_after_a_reading_in_a_note_goes_back_with_that_reading(conn, types):
+    """#1385 (tour C15): Done after the reading went in its own note came back as a bare "Back from the field: done".
+    It comes back with what the field last said."""
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    engine.set_person(conn, "olly", ["operator"])
+    types("level_drift", role="role:ops_lead", audience=("ioc", "field"))
+    e = raise_exception(conn, "level_drift", "LT-9", "Level transmitter drifting on P-101", "rounds",
+                        refs=["tag:P-101"])
+    impl.dispatch(conn, e["id"], "ivy", "olly", reason="Compare the gauge glass with the DCS")
+    impl.report(conn, e["id"], "olly", "on_site")
+    impl.report(conn, e["id"], "olly", "note", note="gauge glass agrees with the DCS",
+                reading={"value": 41, "unit": "%", "what": "level"})
+    impl.report(conn, e["id"], "olly", "done")
+    back = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind = 'handed_off' "
+                        "order by id desc limit 1", (e["item_id"],)).fetchone()["r"]
+    assert back == "Back from the field: done: gauge glass agrees with the DCS; level 41 %"
+    assert impl.latest_said([{"note": None}, {"note": " ", "reading": None}]) == ""
+    conn.commit()
+
+
+def test_a_message_case_waits_at_to_dispatch_and_is_counted_there(conn):
+    """#1385 (tour C14): To dispatch read 0 while new message cases waited in the ops lead's queue, never sent. A
+    message's case waits at To dispatch for the IOC to send it, and To dispatch counts it."""
+    from fuzer.ops import messages, worklist
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "ivy", ["ops_lead"])
+    before = worklist.figures(conn, "ivy")
+    e = raise_exception(conn, messages.MESSAGE_REPORT, "MSG-T1", "P-101 seal weeping", messages.SOURCE,
+                        refs=["tag:P-101"])
+    assert waits(conn, e)
+    assert next(r for r in impl.listing(conn) if r["id"] == e["id"])["stage"] == "dispatch"
+    after = worklist.figures(conn, "ivy")
+    assert after["stages"]["dispatch"] == before["stages"]["dispatch"] + 1
+    assert after["waiting_on_you"]["to_dispatch"] == before["waiting_on_you"]["to_dispatch"] + 1
     conn.commit()

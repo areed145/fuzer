@@ -14,7 +14,8 @@ The Workflows section is where people do it and manage it:
 - **My work** (`#/inbox`): what's waiting for you, most urgent first: escalated to you, jobs the IOC sent you,
   assigned to you (or to someone away you cover for), unclaimed in your roles' queues, field jobs waiting in the operator queue and
   what you're planned onto. It replaces the separate Inbox and My jobs pages (#503); `#/field` redirects here, and a
-  case with a field job shows once, as its job card. A task opens as a page: its form and evidence,
+  case with a field job shows once, as its job card. A field operator's page opens with the **Note to the IOC**, then
+  their jobs; anyone else's opens with what waits on them, its chips on a phone too. A task opens as a page: its form and evidence,
   claim / release / hand off (to a person, a role's queue or an agent), where it sits in its process, the case's
   history. Who you are is set once, in the sidebar.
 - **Cases** (All work's In progress and Closed views, `#/exceptions?list=progress`; `#/cases` redirects there): every
@@ -183,6 +184,10 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   suppression for planned work other than shutdowns. A person can set a window of their own on some assets with a
   reason (`POST /exceptions/suppressions`) and end it early (`POST /exceptions/suppressions/{id}/end`). A condition
   still holding when its window ends opens as usual on its next raise.
+- **A close-out holds** (#1379). A detector that says what the condition looks like (machine health: the machine's
+  status and flags) doesn't reopen a case a person closed while the condition looks the same: the next scans count on
+  the closed exception and open nothing. When it changes, the closed case reopens with its history, rather than a new
+  case. When the detector stops seeing it the hold ends, and a later raise opens a case as usual.
 - **Shelving.** A standing condition that can wait (a known seal weep until the next outage) can be shelved from
   All work with a reason and an expiry, at most `exceptions.max_shelve_days` (30) ahead
   (`POST /exceptions/{id}/shelve`). It leaves the open list, and shows under the **shelved** state with who shelved it
@@ -199,7 +204,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   priority, lower for a short wait, or a hazard to people (gas escaping, H2S, fire or smoke in what was reported, or a
   safety or HSE type), which is high to wait on and never reads low; with neither, no risk word is shown and the
   criticality is named as not known. A field report that says the job needs a gas test, a permit, an isolation, a
-  scaffold or parts holds Dispatch now until a later report, and says what it waits on. The crew checked is the one
+  scaffold, depressurising or parts holds Dispatch now and a ride along until a later report, and says what it waits
+  on (#1381). The crew checked is the one
   the job's words need (a transmitter or gauge is the instrument crew's), and a full crew is one line with its count.
   What it defers now is the producing wells it reaches at their latest test, all of it while a machine is stopped (a
   trip, with its share where parallel trains carry the rest), else the pack's share for a process upset still going
@@ -209,14 +215,21 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   site at the same asset (riding along sends it to them, and their job is not a clash), else the next scheduled plan
   item under way or starting on the same equipment (its assets or what they are part of, short of the area, which can
   be half a plant) within `options.window_days`; the area's next turnaround or shutdown, at most
-  `exceptions.max_shelve_days`, for a shelf; the engineer queue's SLA and then a dispatch to escalate. Prices are the
+  `exceptions.max_shelve_days`, for a shelf, never offered when what was reported (its title, the message, the
+  field's notes) is past or heading past a limit, or a leak, with production behind it (#1381); the engineer queue's
+  SLA and then a dispatch to escalate, the ops lead's for what waits on a gas test, a permit, an isolation or
+  depressurising, and never to a role the reader acts as (an owner holding every role narrows nothing). A ride along
+  never rides a field job that came back done or could not do. Prices are the
   pack's value config. One option is **recommended** by one rule, the same on every case: wait while it leaves no high
   risk and defers less than a separate trip costs (`options.trip_usd`); dispatch now when waiting costs more or leaves
-  a high risk; escalate when it should go now and can't. What is not known is named. The recommended option is one
+  a high risk; escalate when it should go now and can't, or nothing when that escalation would come back to the
+  reader (the reason says to clear the blocker, then dispatch). A message case that only says what happened and that
+  it is over ("closed again at 09:10") has no options: close it out. What is not known is named. The recommended option is one
   tap (a dispatch goes to the operator queue, or **Choose who…** for a person, what to do, when it is wanted back and a
   priority); any choice takes one optional why, and nothing holds the button back, a dispatch that is not ready included
   (`POST /exceptions/{id}/options/choose`). Once the field reports it done the options go and the case leads with Close out. The dispatch carries what to check or do
-  to the field job ("Go and have a look, report what you find" when the IOC writes nothing) and nothing else: why it goes
+  to the field job (when the IOC writes nothing, the message a message case came from, word for word, else "Go and
+  have a look, report what you find"; a ride along prefixes it with "While you are there:") and nothing else: why it goes
   now, the IOC's or the recommendation's costing, stays on the case, not on the field's instruction; the choice, the recommendation and the reason go on the case's history, and Work performance by work type
   shows how often the recommendation was taken (`GET /options/acceptance`).
 - **Dispatch.** The IOC sends an exception to a person, with what to check or do. Its case (or the case's open
@@ -225,7 +238,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   (**Take it**), each by priority, then due, with the IOC's instruction, where to go, what was seen and what happened
   there lately. They report **On site**, **Done**, **Could not do** (with why) or a note; every report lands on the
   exception and the case history. Done and Could not do are never greyed out: tapped without a note (or, for Done,
-  before On site, a reading or a photo), they ask for it at the note box.
+  with no On site, note, reading or photo on this visit, said now or earlier), they ask for it at the note box. A job
+  taken from the queue moves up into their own jobs at once.
 - **Back to the IOC.** Done or Could not do ends the field's part (#1364): the job leaves the operator's list for the
   ops lead queue, not the dispatcher in person, who may be off shift, so it reappears on the IOC's My work with the
   field's note as "Back from the field". A step a process returns to that has a desk queue of its own goes there
@@ -240,7 +254,11 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   and Triage comes back to the engineer queue. Any process can do the same with the **Field check** component in the
   modeler and `fuzer:dispatch` on the step that sends to it.
 - **Seeing it come back.** The task page shows a **From the field** box above the form, My work says why a step
-  came back ("Back from the field: done: gauge reads 13 barg"), and All work has a **Back from the field** view.
+  came back ("Back from the field: done: gauge reads 13 barg"; a Done after a reading sent in its own note comes back
+  with that note and reading), and All work has a **Back from the field** view, whose rows show the field's latest note.
+- **A follow-up planned is sent.** Closing out a real problem as **Contained, follow-up planned** offers **Send the
+  follow-up to** a person or a role's queue: the follow-up opens as a case of its own, linked from the closed case.
+  The case page's **Send to someone else** says where it went and folds away.
   A field job card only offers to open a step in the operator's own roles.
 - **Picked, not typed.** Dispatch picks a person (shown with their roles) or a role's queue; a new exception type
   picks its queue from the person roles under Settings > Users, and the API refuses a queue that isn't one. Equipment

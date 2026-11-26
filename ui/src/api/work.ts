@@ -74,7 +74,7 @@ export interface MessageSaid {
 export interface MessagePayload {
   message: MessageSaid; why: string; question: string;
   /** the entities it might be about that work can be about, each with its kind, description and place (P5.26f) */
-  candidates: { fuzer_id: string; kind: string; label: string | null; description: string | null; parent_label: string | null }[];
+  candidates: { fuzer_id: string; kind: string; label: string | null; description: string | null; parent_label: string | null; at?: string | null }[];
   /** the kinds a message's case can be about: the register search for another is limited to them */
   kinds?: string[];
 }
@@ -298,6 +298,8 @@ export interface CloseoutSuggestion {
 export interface CloseoutInput {
   by: string; disposition: string; failure_mode?: string; mechanism?: string; cause?: string; activity?: string;
   outcome?: string; note?: string; duplicate_of?: number; suggested?: CloseoutSuggestion;
+  /** Contained, follow-up planned: who the follow-up goes to, a person or role:<role> (#1385). */
+  follow_up_to?: string;
 }
 
 export interface PerfCell {
@@ -343,7 +345,7 @@ export interface CaseOptions {
   loss?: { oil_bbld: number; gas_mscfd: number; usd_per_day: number; wells: number; basis: string } | null;
   if_it_trips?: { oil_bbld: number; gas_mscfd: number; usd_per_day: number; wells: number; basis: string } | null;
   criticality?: string | null; prices?: { oil_bbl: number; gas_mscf: number; source: string };
-  options: CaseOption[]; recommended?: CaseOption["key"]; reason?: string; unknown?: string[];
+  options: CaseOption[]; recommended?: CaseOption["key"] | null; reason?: string; unknown?: string[];
   decided?: OptionDecision[] | null;
 }
 
@@ -795,7 +797,7 @@ export interface ExceptionRow {
   /** Set aside by a person until then, with why (P3.5c). */
   shelved_until?: string | null; shelved_by?: string | null; shelved_reason?: string | null;
   /** What the source sent with it, and what the field has reported back (`field`). */
-  evidence?: { field?: { at: string; by: string; status: string; note: string | null }[]; [k: string]: unknown };
+  evidence?: { field?: { at: string; by: string; status: string; note: string | null; reading?: FieldReading }[]; [k: string]: unknown };
   /** Other systems' exceptions about the same event, which joined this one's case (#464). */
   joined?: JoinedException[];
 }
@@ -1300,7 +1302,8 @@ export const workApi = {
     request<unknown>("PUT", `/work/people/${encodeURIComponent(name)}/away`, undefined, { by, until, delegate, note }),
   workload: () => request<Workload>("GET", "/work/workload"),
   workHome: (person: string, mark = false) => request<WorkHome>("GET", "/work/home", { person, mark: mark ? "true" : undefined }),
-  caseCloseout: (id: number) => request<{ item_id: number; record: CaseCloseout | null; suggestion: CloseoutSuggestion;
+  caseCloseout: (id: number) => request<{ item_id: number; record: CaseCloseout | null;
+    /** The follow-up case sent when it closed contained. */ follow_up?: number | null; suggestion: CloseoutSuggestion;
     vocabulary: CloseoutVocabulary; repeats: { again: number; at: string }[]; equipment?: boolean;
     /** Work someone asked for: it closes as done as asked. */ asked?: boolean;
     /** A message's case: one that only said what was done closes as log only. */ message?: boolean }>("GET", `/work/items/${id}/closeout`),
@@ -1367,7 +1370,13 @@ export const workApi = {
   /** One open question, as a list of one (none once it is answered). */
   review: (kind: ReviewKind, item: number) => request<ReviewItem[]>("GET", "/review", { kind, item }),
   /** `case` is the case a message question's answer opened (P5.26a). */
-  decide: (id: number, d: Decision) => request<{ decided: number; case?: number | null }>("POST", `/review/${id}`, undefined, d),
+  /** A message's answer says the case it opened and what that case is about (#1382). */
+  decide: (id: number, d: Decision) => request<{ decided: number; case?: number | null;
+    about?: { fuzer_id: string; label: string }[] }>("POST", `/review/${id}`, undefined, d),
+  /** Change the entities a message case is about: a wrong match, redone on the case (#1382). */
+  changeMessageEntities: (exceptionId: number, by: string, fuzerIds: string[]) =>
+    request<{ case: number | null; about: { fuzer_id: string; label: string }[] }>(
+      "POST", `/exceptions/${exceptionId}/message/entities`, undefined, { by, fuzer_ids: fuzerIds }),
   reviewGroups: (kind: ReviewKind) => request<ReviewGroup[]>("GET", "/review/groups", { kind }),
   decideGroup: (body: { key: string; decision: Decision["decision"]; source?: string; value?: unknown; standing: boolean; by: string }) =>
     request<{ decided: number[]; skipped: { id: number; why: string }[] }>("POST", "/review/groups", undefined, body),

@@ -174,7 +174,9 @@ pins and the event card read times as the rest of Fuzer does. On a phone the cha
 with the rest one tap away, and the controls are one row: the window, earlier and later.
 
 A case's trend is about the case (`GET /entities/{id}/trend-spec?case=<id>`, `ops.around.trend`): it opens on the
-points the case's findings were seen on and the points that alarmed in its window, shades the event (to the window's
+points the case's findings were seen on (a reported tag's own points: a case about a thermocouple charts that
+thermocouple, not a suction flow that alarmed in the same hours), or the points that alarmed in its window when the
+findings name none, shades the event (to the window's
 end when it is still going) and marks its start with what it was, read from the title ("Step change", "Low alarm").
 Every other value is behind Show all.
 

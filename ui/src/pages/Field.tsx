@@ -319,10 +319,12 @@ let justTaken: number | null = null;
 
 /** One field job on My work (#1344): its title, what the IOC asked and the next button; where, the permit and what
  * was found wait under Details. Take it turns the card into the job's own in place: On site, Done, Could not do. */
-export function FieldJobCard({ job, person, onChange, onReported }: {
+export function FieldJobCard({ job, person, onChange, onReported, onTaken }: {
   job: FieldJob; person: string; onChange: () => void;
   /** Told when Done or Could not do reached the IOC, so the page can say so where the card was. */
   onReported?: (said: string) => void;
+  /** Told when it was taken from the queue, so the page moves it to the person's own jobs at once (#1380). */
+  onTaken?: () => void;
 }) {
   const { busy, error, run } = useAction();
   const [note, setNote] = useState("");
@@ -357,7 +359,7 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
     if (taking.current) return;
     taking.current = true;
     justTaken = job.id;
-    void run("Taking it", () => api.dispatch(job.id, person, person, "taken from the queue"), () => { setTaken(true); onChange(); })
+    void run("Taking it", () => api.dispatch(job.id, person, person, "taken from the queue"), () => { setTaken(true); onTaken?.(); onChange(); })
       .finally(() => { taking.current = false; });
   };
   // Done and Could not do stay enabled, since a tap has no hover to read a greyed button's reason by (#1364): without
@@ -395,10 +397,13 @@ export function FieldJobCard({ job, person, onChange, onReported }: {
   };
   const last = job.field[job.field.length - 1];
   const desk = DESK_ROLES.has(job.role ?? "");
-  // On site since their last report: Done is the next step then, not before. Before it, Done needs something to say
-  // (a note, a reading or a photo), so one stray tap can't close a job with no evidence.
-  const onSite = last?.status === "on_site" && last.by === person;
-  const evidence = !!note.trim() || !!reading || photos.length > 0;
+  // What they said on this job since it was sent to them: an On site or a note before then was an earlier visit's
+  const said = job.field.filter((f) => f.by === person && !(job.sent?.at && Date.parse(f.at) < Date.parse(job.sent.at)));
+  // On site on this visit, even with notes said since: Done is the next step then, not before. Before it, Done needs
+  // something to say (a note, a reading or a photo, now or earlier on this visit), so one stray tap can't close a job
+  // with no evidence (#1380: On site then Add note left Done asking for On site again).
+  const onSite = said.some((f) => f.status === "on_site");
+  const evidence = !!note.trim() || !!reading || photos.length > 0 || said.some((f) => f.status === "note");
   // A permit that holds On site back sits by the button; any other waits under Details.
   const gating = !queued && !desk && !!job.permit && (blocked || !!job.permit.unchecked);
   return (

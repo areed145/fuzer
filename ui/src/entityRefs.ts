@@ -1,3 +1,5 @@
+import { kindWord } from "./wording";
+
 // Citations in text a person reads: `OK-J09-04 [fz-well-2526585e8224]` should read as a linked name.
 // This rewrites them into tokens Markdown renders as links. It's only about display: the text the
 // agents wrote, what's stored and what the evals count all keep their ids.
@@ -19,8 +21,20 @@ const token = (id: string, text: string) => `${OPEN}${id}${MID}${text}${CLOSE}`;
 export const display = (id: string, names?: EntityNames) => {
   const n = names?.[id];
   // An entity with no label (equipment a source never tagged) reads as its description, not its id (#16).
-  return n?.at ? [n.at, n.description].filter(Boolean).join(" ") : n?.label || n?.description || id;
+  return n?.at ? [n.at, n.description].filter(Boolean).join(" ") : n?.label || n?.description || unnamed(id, names);
 };
+
+/** Whether the names know what to call it: a label, a description or the tag it is installed at. */
+export const named = (id: string, names?: EntityNames) => !!(names?.[id]?.at || names?.[id]?.label || names?.[id]?.description);
+
+/** An entity the register holds but has no name for reads by its kind, never by its id (#1383): equipment with
+ * neither a serial number, a description nor a tag is "Equipment with no name". An id the names don't know (they
+ * failed to load, or a citation of nothing in the register) stays visible as itself; the server already reads an id a
+ * rebuild merged as the entity it is now. */
+function unnamed(id: string, names?: EntityNames): string {
+  const kind = /^fz-([a-z_]+)-[0-9a-f]{12}$/.exec(id)?.[1];
+  return kind && names && id in names ? `${kindWord(kind)} with no name` : id;
+}
 
 /** What people call a thing, when its description says more than its tag: "Crude Cooler" for 10-E-3001, "Okan
  * Production Platform" for OKAN-10 (described "OKA_PP Okan Production Platform"). A leading source code is dropped

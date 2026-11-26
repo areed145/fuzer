@@ -25,8 +25,10 @@ Read from what Fuzer already has, never from equipment type:
                             operator already sent to or on site at the same asset (#1365), else a plan item on its
                             equipment (its assets or what they are part of, short of the area) under way or starting
                             within `options.window_days`; shelve: until the next
-                            turnaround or shutdown of the area, at most `exceptions.max_shelve_days`; escalate: the
-                            engineer queue's SLA, then a dispatch
+                            turnaround or shutdown of the area, at most `exceptions.max_shelve_days`, never for a limit
+                            or a leak with production behind it (#1381); escalate: the engineer queue's SLA (the ops
+                            lead's for a gas test or permit), then a dispatch, never to a role the reader acts as
+    what the field is asked the IOC's words, else the message the case came from, else ASK (#1381)
     readiness and clashes   readiness.check (the field's last report, crew, permit, spares, simultaneous operations,
                             MOC) for dispatch now, less the visit it can ride along with: someone already at the
                             asset is the ride along, not a clash; the visit's own clashes on the plan for riding along
@@ -55,6 +57,11 @@ SHARE_TYPES = ("upset",)  # a process upset still going: the pack's share of wha
 HAZARD = re.compile(r"(?i)\b(h2s|hydrogen sul[pf]hide|smoke|flames?|explosion|lel)\b"
                     r"|\bfire\b(?!\s*(water|pump|main|hydrant))|gas (smell|leak|release|escap\w*|detector|alarm)"
                     r"|smell(s|ing|ed)? (of )?gas|(leaking|escaping) gas")
+# Past or heading past a limit, or leaking: on kit with production behind it, never one to shelve (#1381).
+LIMIT_OR_LEAK = re.compile(r"(?i)\blimits?\b|\b(hi ?hi|lo ?lo|high|low)[- ](alarm|limit)\b"
+                           r"|\b(leak\w*|weep\w*|seep\w*|drip\w*)\b|\b(dropping|falling|rising|climbing|crept up|down to)\b")
+# What the field's report says it waits on that the ops lead arranges, not an engineer: the permit holder's work.
+PERMIT_WORK = ("a gas test", "a permit", "an isolation", "depressurising")
 OPEN_STAGES = ("dispatch", "desk", "back", "planned")
 JOB_HOURS = 4.0  # the job itself, once someone is there: added after a wait for a visit or a shelf
 LEVELS = ("Low", "Medium", "High")
@@ -215,11 +222,33 @@ def _hazard(conn, row: dict) -> str | None:
     t = exceptions.types(conn).get(row["type"])
     if t is not None and t.role == "role:hse_specialist":
         return "HSE work"
-    reports = (row.get("evidence") or {}).get("field") if isinstance(row.get("evidence"), dict) else None
-    for text in [row.get("title") or "", *[(f or {}).get("note") or "" for f in reports or []]]:
+    for text in _said(conn, row):
         if m := HAZARD.search(text):
             return f"{m.group(0).lower()} reported"
     return None
+
+
+def _said(conn, row: dict) -> list[str]:
+    """What the record says of the event in words: its title, the message it came from, the field's notes."""
+    from . import messages
+
+    reports = (row.get("evidence") or {}).get("field") if isinstance(row.get("evidence"), dict) else None
+    text = messages.text_of(conn, row["id"])
+    return [row.get("title") or "", *([text] if text else []), *[(f or {}).get("note") or "" for f in reports or []]]
+
+
+def _no_shelf(conn, row: dict, now: dict | None, behind: dict | None) -> str | None:
+    """Why a shelf is not offered: past or heading past a limit, or a leak, on kit with production behind it (#1381).
+    None when it can wait on a shelf."""
+    flow = now or behind
+    if not flow or not (flow["oil_bbld"] or flow["gas_mscfd"]):
+        return None
+    m = next((m for t in _said(conn, row) if (m := LIMIT_OR_LEAK.search(t))), None)
+    if m is None:
+        return None
+    said = (f"about {_n(about(flow['oil_bbld']))} bbl/d" if flow["oil_bbld"]
+            else f"about {_n(about(flow['gas_mscfd']))} Mscf/d")
+    return f"“{m.group(0)}” with {said} behind it can't be shelved"
 
 
 def _base(priority: float | None, crit: str | None, hazard: str | None = None) -> dict | None:
@@ -286,9 +315,9 @@ def _alongside(conn, row: dict, at: datetime) -> dict | None:
         order by e.updated_at desc, e.id
         """, (row["id"], list(row["subjects"] or []), sorted(field))).fetchall():
         reports = ((r["evidence"] or {}).get("field") or []) if isinstance(r["evidence"], dict) else []
-        last = reports[-1] if reports else {}
+        last = next((f for f in reversed(reports) if (f or {}).get("status") != "note"), None) or {}
         if last.get("status") in ("done", "could_not_do"):
-            continue  # back from the field: nobody there now
+            continue  # back from the field (a note after it changes nothing): nobody there now
         there = "on site" if last.get("status") == "on_site" and last.get("by") == r["assignee"] else "sent there"
         return {"id": None, "exception": r["id"], "person": r["assignee"], "title": f"{r['assignee']}, {there} for "
                 f"“{r['title']}”", "kind": "field_job", "start_at": at, "end_at": at + timedelta(hours=JOB_HOURS),
@@ -301,8 +330,8 @@ def _visit(conn, row: dict, at: datetime, days: int) -> dict | None:
     """The next visit to the event's own equipment that it could ride along with: a field operator at the same asset
     now (`_alongside`), else a plan item scheduled or under way, ending after now and starting within `days`, not this
     event's own, on one of its assets or on what they are part of short of an area (an instrument's exchanger, a
-    well's tags). An area can be half a plant (one demo field's compression area holds half its tags), so a job
-    elsewhere in it is not a visit to this one (#1358)."""
+    well's tags), never a field job that came back done or could not do (#1381). An area can be half a plant (one
+    demo field's compression area holds half its tags), so a job elsewhere in it is not a visit to this one (#1358)."""
     from .plan import ACTIVE
 
     subjects = list(row["subjects"] or [])
@@ -321,6 +350,11 @@ def _visit(conn, row: dict, at: datetime, days: int) -> dict | None:
         select p.id, p.title, p.kind, p.start_at, p.end_at, p.crew from plan_item p, mine
         where p.status = any(%(active)s) and p.status <> 'proposed' and p.end_at > %(at)s
           and p.start_at <= %(until)s and p.exception_id is distinct from %(e)s
+          and not exists (select 1 from exception_record v  -- a field job that came back (a note after changes nothing)
+                          where v.id = p.exception_id and jsonb_typeof(v.evidence->'field') = 'array'
+                          and (select f.r->>'status' from jsonb_array_elements(v.evidence->'field')
+                               with ordinality f(r, n) where f.r->>'status' <> 'note' order by f.n desc limit 1)
+                              in ('done', 'could_not_do'))
           and (p.subjects && mine.ids or exists (select 1 from edge x where x.src = any(p.subjects)
                                                  and x.rel = 'part_of' and x.dst = any(mine.ids)))
         order by p.start_at, p.id limit 1
@@ -371,19 +405,40 @@ def _plan_clashes(conn, item_id: int, start: datetime, end: datetime) -> list[st
     return []
 
 
-def _escalate_to(conn, row: dict) -> str:
-    """The engineer, unless the engineer already has it: then where the engineer queue escalates (the ops lead)."""
-    if row.get("role") == "engineer" or (row.get("assignee") and "engineer" in work.roles_of(conn, row["assignee"])):
-        r = conn.execute("select escalate_to from work_role where name = 'engineer'").fetchone()
-        return (r and r["escalate_to"]) or "ops_lead"
-    return "engineer"
+def _above(conn, role: str) -> str:
+    """Where a queue escalates (work_role.escalate_to); the ops lead when it names nowhere."""
+    r = conn.execute("select escalate_to from work_role where name = %s", (role,)).fetchone()
+    return (r and r["escalate_to"]) or "ops_lead"
+
+
+def _escalate_to(conn, row: dict, waits_on: list[str], viewer: list[str] | None = None) -> str | None:
+    """Who an escalation goes to: the ops lead for what the field says waits on a gas test, a permit, an isolation or
+    depressurising (the permit holder's work, never the engineer's); else the engineer, unless the engineer already has
+    it, then where the engineer queue escalates. Never a role the viewer acts as (#1381): past it, or None when there
+    is nowhere further. A viewer holding every person role (an owner) narrows nothing."""
+    if any(w in PERMIT_WORK for w in waits_on):
+        to = "ops_lead"
+    elif row.get("role") == "engineer" or (row.get("assignee") and "engineer" in work.roles_of(conn, row["assignee"])):
+        to = _above(conn, "engineer")
+    else:
+        to = "engineer"
+    if not viewer or {r["name"] for r in conn.execute("select name from work_role where kind = 'person'")} <= set(viewer):
+        return to
+    seen = set()
+    while to in viewer:
+        seen.add(to)
+        to = _above(conn, to)
+        if to in seen:
+            return None
+    return to
 
 
 # ---- the options -------------------------------------------------------------------------------------------------
 
 def _applies(conn, row: dict) -> str | None:
-    """Why options don't apply to this event, or None when they do: work the field does, still to be decided."""
-    from . import exceptions
+    """Why options don't apply to this event, or None when they do: work the field does, still to be decided. A
+    message that only says what happened and that it is over is no field work to dispatch (#1381)."""
+    from . import exceptions, messages
 
     t = exceptions.types(conn).get(row["type"])
     if t is not None and "field" not in t.audience:
@@ -394,6 +449,8 @@ def _applies(conn, row: dict) -> str | None:
         return "the field has it" if row["stage"] == "field" else f"it is {row['stage']}"
     if row["stage"] == "back" and _last_report(row) == "done":
         return "the field reported it done: close it out"
+    if (text := messages.text_of(conn, row["id"])) and messages.info_only(text):
+        return "the message says what happened and that it is over: close it out"
     return None
 
 
@@ -403,15 +460,16 @@ def _last_report(row: dict) -> str | None:
     return (reports[-1] or {}).get("status") if reports else None
 
 
-def for_case(conn, item_id: int) -> dict:
+def for_case(conn, item_id: int, viewer: list[str] | None = None) -> dict:
     r = conn.execute("select id from exception_record where item_id = %s and joined_to is null order by id limit 1",
                      (item_id,)).fetchone()
     if r is None:
         return {"applies": False, "why_not": "no event behind this case", "exception_id": None, "options": []}
-    return for_exception(conn, r["id"])
+    return for_exception(conn, r["id"], viewer=viewer)
 
 
-def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
+def for_exception(conn, exception_id: int, at: datetime | None = None, viewer: list[str] | None = None) -> dict:
+    """The options for an event; `viewer` is the roles of whoever reads them, so none escalates to themselves."""
     from . import readiness
 
     row = _event(conn, exception_id)
@@ -446,10 +504,13 @@ def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
         "basis": f"the operator queue answers within {respond:g} h (its SLA)"})
 
     # ride along with the next visit
+    field = next((c for c in ready["checks"] if c["check"] == "field"), {"blockers": [], "waits_on": []})
     if visit:
         hours = (visit["start_at"] - at).total_seconds() / 3600 + JOB_HOURS
         parts = readiness.spares(conn, list(row["subjects"] or []))
-        short = [b for b in parts["blockers"] if not _arrives_by(b, visit["start_at"])]
+        # what the field said it waits on holds a ride along as it holds a dispatch (#1381)
+        short = ([f"Field: {b}" for b in field["blockers"]]
+                 + [b for b in parts["blockers"] if not _arrives_by(b, visit["start_at"])])
         options.append({
             "key": "window", "label": "Ride along with the next visit",
             "detail": f"{visit['title']}, {visit['start_at']:%a %d %b}", "plan_item": visit["id"],
@@ -470,29 +531,35 @@ def for_exception(conn, exception_id: int, at: datetime | None = None) -> dict:
     ta = _turnaround(conn, row, at)
     until = min(ta["start_at"], at + timedelta(days=longest)) if ta else at + timedelta(days=longest)
     safety = row["type"] in _safety_types(conn)
+    held = None if safety else _no_shelf(conn, row, now, behind)
     hours = (until - at).total_seconds() / 3600 + JOB_HOURS
     to_ta = bool(ta) and until == ta["start_at"]
     shelve = {"key": "shelve", "label": "Shelve until the turnaround" if to_ta else f"Shelve for {(until - at).days} days",
               "detail": f"{until:%a %d %b}" + (f", {ta['title']}" if to_ta else ""),
               "until": until.isoformat(), "hours": round(hours, 1), "by": (at + timedelta(hours=hours)).isoformat(),
               "deferred": _deferred(now, hours, prices), "risk": _risk(base, hours, crit, behind),
-              "ready": True, "blockers": [], "warnings": [], "clashes": [], "unknown": [], "available": not safety,
+              "ready": True, "blockers": [], "warnings": [], "clashes": [], "unknown": [],
+              "available": not safety and not held,
               "basis": (f"the next {ta['kind']} of its area starts {ta['start_at']:%d %b}" if ta else
                         "no turnaround of its area on the plan") +
                        (f"; shelving is for at most {longest} days" if not to_ta else "")}
-    if safety:
-        shelve["unavailable"] = "a safety case type can't be shelved"
+    if safety or held:
+        shelve["unavailable"] = held or "a safety case type can't be shelved"
     options.append(shelve)
 
     # escalate
-    to = _escalate_to(conn, row)
-    hours = _hours(conn, to, 24.0) + respond
-    options.append({
-        "key": "escalate", "label": f"Escalate to the {to.replace('_', ' ')}", "detail": "decides what happens next",
-        "to": f"role:{to}", "hours": round(hours, 1), "by": (at + timedelta(hours=hours)).isoformat(),
-        "deferred": _deferred(now, hours, prices), "risk": _risk(base, hours, crit, behind),
-        "ready": True, "blockers": [], "warnings": [], "clashes": [], "unknown": [], "available": True,
-        "basis": f"the {to.replace('_', ' ')} queue answers within {_hours(conn, to, 24.0):g} h, then a dispatch"})
+    to = _escalate_to(conn, row, field.get("waits_on") or [], viewer)
+    if to is None:
+        options.append({"key": "escalate", "label": "Escalate", "available": False,
+                        "unavailable": "it would come back to you"})
+    else:
+        hours = _hours(conn, to, 24.0) + respond
+        options.append({
+            "key": "escalate", "label": f"Escalate to the {to.replace('_', ' ')}", "detail": "decides what happens next",
+            "to": f"role:{to}", "hours": round(hours, 1), "by": (at + timedelta(hours=hours)).isoformat(),
+            "deferred": _deferred(now, hours, prices), "risk": _risk(base, hours, crit, behind),
+            "ready": True, "blockers": [], "warnings": [], "clashes": [], "unknown": [], "available": True,
+            "basis": f"the {to.replace('_', ' ')} queue answers within {_hours(conn, to, 24.0):g} h, then a dispatch"})
 
     key, reason, deciding = recommend(options, now, float(settings.get(conn, "options.trip_usd")))
     return {**head, "applies": True, "why_not": None, "at": at.isoformat(), "loss": now, "if_it_trips": behind,
@@ -516,10 +583,11 @@ def _safety_types(conn) -> set[str]:
     return set(gates.safety_case_types(conn))
 
 
-def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[str, str, str]:
+def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[str | None, str, str]:
     """One option, by one rule, the reason and the factor that decided it (one of FACTORS). Waiting is preferred while
     it leaves no high risk and defers less than a separate trip costs; dispatch now when waiting costs more, or the
-    risk of waiting is high or not known; escalate when it should go now and can't."""
+    risk of waiting is high or not known; escalate when it should go now and can't. When it can't go now and an
+    escalation would come back to whoever reads it, none: the blocker is theirs to clear."""
     from ..core.wording import money
 
     by = {o["key"]: o for o in options if o.get("available")}
@@ -568,7 +636,10 @@ def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[s
     if "window" in by and by["window"]["ready"] and level(by["window"]) != "High":
         return "window", f"It can't go now ({blocked}); the next visit can take it.", "readiness"
     high = " and waiting leaves the risk high" if any(level(o) == "High" for o in waiting) else ""
-    return "escalate", f"It can't go now ({blocked}){high}: an engineer decides the way round.", "readiness"
+    if "escalate" not in by:
+        return None, f"It can't go now ({blocked}){high}: clear that, then dispatch it.", "readiness"
+    to = by["escalate"]["label"].removeprefix("Escalate to ")
+    return "escalate", f"It can't go now ({blocked}){high}: {to} decides the way round.", "readiness"
 
 
 def about(v: float) -> float:
@@ -595,6 +666,15 @@ def _bbl(o: dict) -> str:
 # ---- carrying out a choice ---------------------------------------------------------------------------------------
 
 ASK = "Go and have a look, report what you find"  # what a dispatch asks when the IOC writes nothing (as the sample crew)
+
+
+def _ask(conn, exception_id: int) -> str:
+    """What the field is asked when the IOC writes nothing: the message the case came from, word for word, so the
+    field reads what was reported (#1381); else ASK."""
+    from . import messages
+
+    return messages.text_of(conn, exception_id) or ASK
+
 
 def choose(conn, exception_id: int, by: str, option: str, reason: str | None = None, *, to: str | None = None,
            ask: str | None = None, due=None, priority: float | None = None, override: str | None = None) -> dict:
@@ -623,7 +703,7 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
         override = (override or "").strip() or why
         # The field reads only what to check or do (#1344). Why it goes now, the IOC's or the recommendation's, is kept
         # on the case's history below, not sent as the instruction.
-        told = (ask or "").strip() or ASK
+        told = (ask or "").strip() or _ask(conn, eid)
         row = exceptions.dispatch(conn, eid, by, to or "role:operator", told,
                                   override=override if not ready["ready"] else None, blockers=ready["blockers"])
         if row["item_id"] and due:
@@ -631,7 +711,8 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
         if row["item_id"] and priority is not None:
             work.set_priority(conn, row["item_id"], by, priority, "set when dispatched")
     elif option == "window" and o.get("person"):  # someone already at the asset takes it with them
-        told = (ask or "").strip() or f"While you are there: {ASK[0].lower()}{ASK[1:]}"
+        said = _ask(conn, eid)
+        told = (ask or "").strip() or f"While you are there: {said[0].lower()}{said[1:]}"
         row = exceptions.dispatch(conn, eid, by, o["person"], told)
     elif option == "window":
         from ..core.plan import PlanError
@@ -651,7 +732,7 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
         row = exceptions.dispatch(conn, eid, by, o["to"], f"Escalated: {why}")
     row = _event(conn, eid)
     accepted = option == rec
-    rec_label = next(x["label"] for x in offered["options"] if x["key"] == rec)
+    rec_label = next((x["label"] for x in offered["options"] if x["key"] == rec), None)
     kept = {k: offered[k] for k in ("loss", "if_it_trips", "criticality", "recommended", "reason", "deciding",
                                     "unknown")}
     kept["options"] = [{k: x.get(k) for k in ("key", "label", "detail", "hours", "deferred", "risk", "ready")}
@@ -670,7 +751,8 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
         cost = (o.get("deferred") or {}).get("usd")
         text = (f"Chose {o['label'].lower()}" + (f" ({o['detail']})" if o.get("detail") else "")
                 + (f", deferring about {_money(cost)}" if cost else "")
-                + (", as recommended" if accepted else f" instead of the recommended {rec_label.lower()}")
+                + (", as recommended" if accepted
+                   else f" instead of the recommended {rec_label.lower()}" if rec_label else "")
                 + f". Why: {why}")
         work.comment(conn, row["item_id"], by, text)
     events.publish(conn, "exception.option_chosen", f"exception:{eid}",

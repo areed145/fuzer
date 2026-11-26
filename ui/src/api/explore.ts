@@ -22,6 +22,8 @@ export interface SearchHit {
   /** what it sits in (its nearest container), when it sits in anything */
   parent?: string | null;
   parent_label?: string | null;
+  /** equipment: the tag it is installed at, what people know it by */
+  at?: string | null;
 }
 
 export interface Edge {
@@ -347,6 +349,9 @@ export const exploreApi = {
   stats: () => request<Stats>("GET", "/stats"),
   entityNames: (ids: string[]) => request<EntityNames>("GET", `/entities/names?${new URLSearchParams(ids.map((id) => ["id", id]))}`),
   search: (q: string, kind?: string, limit = 200) => request<SearchHit[]>("GET", "/entities", { q, kind, limit }),
+  /** The first `limit` matches and how many there are, for a picker that says "12 of N" (#1382). */
+  searchCounted: (q: string, kind?: string, limit = 12) =>
+    request<{ hits: SearchHit[]; total: number }>("GET", "/entities", { q, kind, limit, total: "true" }),
   entity: (id: string, asOf?: string) =>
     request<EntityDetail>("GET", `/entities/${encodeURIComponent(id)}`, { as_of: asOf }),
   trace: (id: string, direction: "up" | "down", asOf?: string, depth?: number, rel?: string) =>

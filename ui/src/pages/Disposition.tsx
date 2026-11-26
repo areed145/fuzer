@@ -7,7 +7,7 @@ import { api, type CaseCloseout, type CloseoutVocabulary } from "../api";
 import { Button, Card, Disclosure, Field, Input, Select, ErrorText, Line, Text, Notice } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
 import { Actor } from "../work";
-import { caseHref } from "./workflows/shared";
+import { AssignPicker, caseHref } from "./workflows/shared";
 import { say } from "../wording";
 
 type Draft = Partial<Record<"disposition" | "failure_mode" | "mechanism" | "cause" | "activity" | "outcome" | "note", string>>
@@ -39,6 +39,7 @@ export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload, sta
         <Text as="p" small>{closeoutLine(record, v)}{record.note && <Text muted> · {say(record.note)}</Text>}</Text>
         <Text as="p" small muted>by <Actor who={record.by} /> {when(record.at)}
           {!readOnly && <> · <Button variant="link" onClick={() => setOpen(true)}>Correct it</Button></>}</Text>
+        {form.data.follow_up != null && <Text as="p" small>Follow-up: <a href={caseHref(form.data.follow_up)}>case {form.data.follow_up}</a></Text>}
         {record.held != null
           ? <Text as="p" small>{record.held ? "The fix held" : "The fix did not hold"}, said <Actor who={record.held_by ?? ""} />
             {record.held_note && <Text muted>: {record.held_note}</Text>}</Text>
@@ -73,6 +74,7 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
         // off equipment the failure terms sit in a folded, optional section: left for the person to open and set
         ? { failure_mode: s.failure_mode, mechanism: s.mechanism, cause: s.cause, activity: s.activity } : {}) } : {};
   const [d, setD] = useState<Draft>(start);
+  const [followTo, setFollowTo] = useState("");
   const a = useAction();
   const set = (k: keyof Draft) => (e: { target: { value: string } }) => setD({ ...d, [k]: e.target.value || undefined });
   const real = d.disposition === "real";
@@ -105,7 +107,11 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
     by: person, disposition: d.disposition!, failure_mode: d.failure_mode, mechanism: d.mechanism, cause: d.cause,
     activity: d.activity, outcome: d.outcome, note: d.note, duplicate_of: d.duplicate_of ? Number(d.duplicate_of) : undefined,
     suggested: data.record ? undefined : s,
+    follow_up_to: d.outcome === "contained" && followTo && data.follow_up == null ? followTo : undefined,
   }), onDone);
+  // Contained means a follow-up is planned: it is sent from here, as a case of its own, unless one already went
+  const followUp = d.outcome === "contained" && data.follow_up == null && <Field label="Send the follow-up to" width="full">
+    <AssignPicker value={followTo} onChange={setFollowTo} label="Send the follow-up to" /></Field>;
   return (
     <Card className="closeout-form" title={missing ? "Close-out missing" : data.asked ? "Finish" : "Close out"}>
       {openItems > 0 && !missing && <Notice tone="warn">{openItems === 1 ? "1 checklist item is" : `${openItems} checklist items are`} still
@@ -118,9 +124,11 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
         {list("activity", "Action taken", v.activities, true)}
         {list("mechanism", "Mechanism", v.mechanisms)}
         {list("outcome", "Outcome", v.outcomes)}
+        {followUp}
       </>}
       {real && !needsTerms && <>
         {list("outcome", "Outcome", v.outcomes)}
+        {followUp}
         <Disclosure className="small" label={<>Equipment failure details (optional)</>}>
           {list("failure_mode", "Failure mode", v.failure_modes)}
           {list("cause", "Cause", v.causes)}

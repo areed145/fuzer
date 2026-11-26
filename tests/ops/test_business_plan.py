@@ -70,3 +70,18 @@ def test_lines_are_matched_to_real_cases_and_read_against_actual_with_the_unplan
     assert business_plan.unmatch(conn, c_case, "olga")
     assert [u["id"] for u in business_plan.against_actual(conn, bp["id"])["unplanned"]] == [c_case]
     conn.commit()
+
+
+def test_planned_hours_to_date_count_the_part_of_each_line_in_the_window():
+    """#1386 (tour C, A9): the quarter to date showed each line's whole-quarter estimate (740 h) and the window before
+    it the lines of two quarters it touched (1,408 h). Each estimate counts for the days of its period in the window."""
+    from fuzer.core import metrics, windows
+    from fuzer.ops.metrics import _in_window
+
+    q = metrics.Query(None, windows.span("qtd", date(2026, 11, 25)))
+    q4 = {"period_start": date(2026, 10, 1), "period_end": date(2026, 12, 31)}
+    assert _in_window(q4, q) == pytest.approx(56 / 92)
+    before = q.at(windows.before(q.span))  # 6 Aug to 30 Sep
+    q3 = {"period_start": date(2026, 7, 1), "period_end": date(2026, 9, 30)}
+    assert _in_window(q3, before) == pytest.approx(56 / 92) and _in_window(q4, before) == 0
+    assert _in_window({"period_start": None, "period_end": None}, q) == 1.0

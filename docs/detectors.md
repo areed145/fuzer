@@ -191,7 +191,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 
 ## machine_health
 
-**A rotating machine whose condition needs attention.** The fleet screen at `until` raised as `machine_health` exceptions: one per machine whose condition is flagged (failure-history flags stay with the reliability review), kept while the screen flags it (new evidence updates the open one), cleared when it doesn't. `act` machines come at priority 2, `watch` ones at 0.5 (left out with `watch_level=False`). Each carries its status, the flags in words, the first recommendation and the findings behind them, so the engineer the case reaches starts from the evidence.
+**A rotating machine whose condition needs attention.** The fleet screen at `until` raised as `machine_health` exceptions: one per machine whose condition is flagged (failure-history flags stay with the reliability review), kept while the screen flags it (new evidence updates the open one), cleared when it doesn't. A machine whose case a person closed stays closed while the screen flags it the same way (its status and flags), listed as `held`; a change reopens that case (#1379). `act` machines come at priority 2, `watch` ones at 0.5 (left out with `watch_level=False`). Each carries its status, the flags in words, the first recommendation and the findings behind them, so the engineer the case reaches starts from the evidence.
 
 - **Kind:** Model
 - **Runs:** Every hour

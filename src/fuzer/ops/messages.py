@@ -4,7 +4,8 @@ Teams posts and a field operator's note from the phone. Each is read once, into 
     case      it names an entity the register knows, for certain: a `message_report` exception about that entity, with
               the message as its evidence and a short summary of it as its title, routed like any other. A message
               is its own work: it opens its own case and never joins an older one about the same asset, where its
-              news would read as a second report under someone else's title (#1363)
+              news would read as a second report under someone else's title (#1363). The case waits at To dispatch
+              for the IOC to send it, so To dispatch counts it (#1385)
     steward   it names nothing for certain (a short tag in several areas, a tag the register lacks, only a place, or
               nothing at all): a question in the data steward's queue, who says which entity it is about (a case
               follows) or that it needs no work
@@ -14,7 +15,9 @@ Teams posts and a field operator's note from the phone. Each is read once, into 
     read_new(conn, pack)                 every loaded message not read yet (after each register build)
     receive(conn, pack, by, text)        a note posted from the phone, read the same way
     sync_answers(conn)                   steward answers to message questions: a case, or handled
-    case_for(conn, review_item_id)       the case a steward's answer opened, for the line that confirms it
+    answer_of(conn, review_item_id)      the case a steward's answer opened and what it is about, for the line that
+                                         confirms it
+    change_entities(conn, id, ids, by)   a message case matched to the wrong entity: what it is about, changed (#1382)
     read(text, pack, register, subject)  the reading itself, without a database (what the eval scores)
     reader(conn, pack)                   the pack and register a reading takes
 
@@ -35,7 +38,7 @@ from ..core.exceptions import exception_type, match, raise_exception
 from ..core.findings import EXTERNAL, Finding, at, fact
 
 MESSAGE_REPORT = exception_type(
-    "message_report", "Reported in a message", role="role:ops_lead", audience=("ioc", "field"), joins=False,
+    "message_report", "Reported in a message", audience=("ioc", "field"), joins=False,
     description="A message to the IOC (mail, radio, Teams or a field note) about an entity in the register.").name
 SOURCE = "messages"
 REVIEW_KIND = "message"
@@ -59,6 +62,13 @@ CONCERN = re.compile(r"\?|\b(please|can (you|someone|we|anyone)|could (you|someo
                      r"stuck|stick\w*|fail\w*|fault\w*|broke\w*|crack\w*|damage\w*|cavitat\w*|bypass\w*|gas|fire|"
                      r"spill\w*|zero|wrong|problem|issue|not)\b", re.IGNORECASE)
 LOG_ONLY = "log only: it says what was done and asks for nothing"
+# A message that says what happened is already over, and one that asks for something or says it is still wrong.
+OVER = re.compile(r"\b(closed again|(is |are )?back (to normal|in service|online|on line)|returned to normal|"
+                  r"cleared( again)?|reset (and|ok)|recovered|restored|normal again|stable again|for info(rmation)?|"
+                  r"fyi|no action (needed|required))\b", re.IGNORECASE)
+ASKS = re.compile(r"\?|\b(please|can (you|someone|we|anyone)|could (you|someone)|needs?|needed|check|look at|"
+                  r"have a look|urgent|asap|help|still|keeps?|leak\w*|weep\w*|drip\w*|smell\w*|"
+                  r"fire|smoke|h2s)\b", re.IGNORECASE)
 GREETING = re.compile(r"^((good )?(morning|afternoon|evening)|hi|hello|hey|dear)\b[^,.:;!]{0,30}[,.:;!]\s*",
                       re.IGNORECASE)
 
@@ -74,6 +84,7 @@ class Reading:
     candidates: list[str] = field(default_factory=list)  # what the steward chooses among
     confidence: float | None = None
     why: str = ""                                        # how it was matched, or why a person must say
+    chosen_by: str | None = None                         # the steward who said which entity, when one did
 
 
 def _noise(text: str, subject: str | None) -> bool:
@@ -86,6 +97,19 @@ def _noise(text: str, subject: str | None) -> bool:
 def _log_only(text: str, subject: str | None) -> bool:
     """Whether a message only says what was done: an operating move, with nothing wrong or asked in it."""
     return bool(DONE.search(text)) and not CONCERN.search(f"{subject or ''} {text}")
+
+
+def info_only(text: str) -> bool:
+    """Whether a message only says what happened and that it is over ("bypass opened during the restart, closed again
+    at 09:10"), asking for nothing: no field work to dispatch, though it opened a case (#1381)."""
+    return bool(OVER.search(text)) and not ASKS.search(text)
+
+
+def text_of(conn, exception_id: int) -> str | None:
+    """The text of the message an exception came from; None for one raised another way."""
+    row = conn.execute("select text from message where exception_id = %s order by received_at limit 1",
+                       (exception_id,)).fetchone()
+    return row["text"] if row else None
 
 
 def read(text: str, pack, register, subject: str | None = None, min_confidence: float = 0.8) -> Reading:
@@ -170,7 +194,9 @@ def _finding(m: dict, reading: Reading) -> Finding:
                    start=_when(m["received_at"]), confidence=reading.confidence, data={"message": _message(m)}, items=(
                        fact("Channel", CHANNELS[m["channel"]]), fact("From", m["sender"]),
                        fact("Subject", m.get("subject")), fact("Message", m["text"]),
-                       at("Received", m["received_at"]), fact("Matched by", reading.why)))
+                       at("Received", m["received_at"]),
+                       # who chose it is an actor, which a page names (#1383): never "Matched by chosen by user:demo"
+                       fact("Chosen by", reading.chosen_by) if reading.chosen_by else fact("Matched by", reading.why)))
 
 
 def _raise_case(conn, m: dict, reading: Reading, by: str) -> dict:
@@ -287,12 +313,13 @@ def sync_answers(conn, by: str = SOURCE) -> dict:
             where m.outcome = 'steward' and q.status = 'decided'
             """).fetchall():
         d = r["decision"] or {}
-        chosen = d.get("value") if d.get("decision") == "choose" else None
+        value = d.get("value") if d.get("decision") == "choose" else None
+        chosen = [value] if isinstance(value, str) else list(value or [])  # one entity, or several (#1382)
         if chosen:
-            reading = Reading("case", refs=[chosen], why=f"chosen by {r['decided_by']}")
+            reading = Reading("case", refs=chosen, why=f"chosen by {r['decided_by']}", chosen_by=r["decided_by"])
             ex = _raise_case(conn, dict(r), reading, r["decided_by"] or by)
             conn.execute("update message set outcome = 'case', refs = %s, why = %s, exception_id = %s where id = %s",
-                         ([chosen], reading.why, ex["id"], r["id"]))
+                         (chosen, reading.why, ex["id"], r["id"]))
             out["case"] += 1
         else:
             conn.execute("update message set outcome = 'handled', why = %s where id = %s",
@@ -301,8 +328,47 @@ def sync_answers(conn, by: str = SOURCE) -> dict:
     return out
 
 
-def case_for(conn, review_item_id: int) -> int | None:
-    """The case a steward's answer to a message question opened, once `sync_answers` has run; None for no work."""
-    row = conn.execute("select e.item_id from message m join exception_record e on e.id = m.exception_id "
+def answer_of(conn, review_item_id: int) -> dict:
+    """What a steward's answer to a message question did, once `sync_answers` has run: the case it opened (None for
+    no work) and the entities that case is about, each with its label, so the line that confirms it links both."""
+    row = conn.execute("select e.item_id, e.subjects from message m join exception_record e on e.id = m.exception_id "
                        "where m.review_item_id = %s", (review_item_id,)).fetchone()
-    return row["item_id"] if row else None
+    return {"case": row["item_id"] if row else None, "about": _named(conn, list(row["subjects"] or []) if row else [])}
+
+
+def _named(conn, ids: list[str]) -> list[dict]:
+    labels = {r["fuzer_id"]: r["label"] for r in conn.execute(
+        "select fuzer_id, label from entity_label where fuzer_id = any(%s)", (ids,))}
+    return [{"fuzer_id": i, "label": labels.get(i) or i} for i in ids]
+
+
+def change_entities(conn, exception_id: int, ids: list[str], by: str) -> dict:
+    """A message case matched to the wrong entity, by the reader or a steward (#1382): it is about `ids` now. The
+    case keeps its history and whoever has it; the message, the event and the case all say the new entities, and the
+    case's history says what it was about before. Returns the case and what it is about."""
+    from ..core import events, work
+
+    row = conn.execute("select e.id, e.item_id, e.state, e.subjects, m.id as message from exception_record e "
+                       "join message m on m.exception_id = e.id where e.id = %s for update of e", (exception_id,)).fetchone()
+    if row is None:
+        raise MessageError(f"no message case for exception {exception_id}")
+    if row["state"] != "open":
+        raise MessageError(f"the case is {row['state']}: what it is about can't change now")
+    from ..graph.hierarchy import work_entities
+
+    try:
+        ids = work_entities(conn, ids)
+    except ValueError as e:
+        raise MessageError(str(e)) from e
+    before = _named(conn, list(row["subjects"] or []))
+    after = _named(conn, ids)
+    conn.execute("update exception_record set subjects = %s, unmatched = '{}', updated_at = now() where id = %s",
+                 (ids, exception_id))
+    conn.execute("update message set refs = %s, why = %s where id = %s", (ids, f"changed by {by}", row["message"]))
+    if row["item_id"]:
+        conn.execute("update work_item set subjects = %s, updated_at = now() where id = %s", (ids, row["item_id"]))
+        say = lambda xs: ", ".join(x["label"] for x in xs) or "nothing"
+        work.comment(conn, row["item_id"], by, f"Changed what it is about from {say(before)} to {say(after)}")
+    events.publish(conn, "exception.updated", f"exception:{exception_id}",
+                   {"id": exception_id, "item_id": row["item_id"], "subjects": ids, "by": by})
+    return {"case": row["item_id"], "about": after}

@@ -368,6 +368,7 @@ class Closeout(BaseModel):
     note: str | None = None
     duplicate_of: int | None = None
     suggested: dict[str, Any] | None = None   # what the form was pre-filled with, kept beside what was confirmed
+    follow_up_to: str | None = None           # contained: who the follow-up goes to (a person or role:<role>)
 
 
 @router.get("/work/items/{item_id}/closeout")
@@ -789,7 +790,7 @@ def exception_options(exception_id: int, conn=Depends(get_conn)):
     from ..ops import options
     _loaded_types()
     try:
-        return options.for_exception(conn, exception_id)
+        return options.for_exception(conn, exception_id, viewer=_viewer_roles(conn))
     except options.OptionsError as e:
         raise HTTPException(404, str(e)) from e
 
@@ -799,7 +800,15 @@ def case_options(item_id: int, conn=Depends(get_conn)):
     """The options for the event a case works (P5.20)."""
     from ..ops import options
     _loaded_types()
-    return options.for_case(conn, item_id)
+    return options.for_case(conn, item_id, viewer=_viewer_roles(conn))
+
+
+def _viewer_roles(conn) -> list[str] | None:
+    """The routing roles the signed-in person acts as, so an option never escalates to them (#1381); None signed out."""
+    from ..core import work
+    from .security import current
+    who = current.get()
+    return work.roles_of(conn, who.actor) if who is not None else None
 
 
 @router.post("/exceptions/{exception_id}/options/choose")
@@ -914,6 +923,26 @@ def message_note(m: MessageNote, conn=Depends(get_conn)):
         raise HTTPException(400, str(e)) from e
     conn.commit()
     return plain(out)
+
+
+class MessageEntities(BaseModel):
+    by: str
+    fuzer_ids: list[str]
+
+
+@router.post("/exceptions/{exception_id}/message/entities")
+def message_entities(exception_id: int, m: MessageEntities, conn=Depends(get_conn)):
+    """Change the entities a message case is about (#1382): a wrong match, by the reader or a steward, redone on the
+    case. Returns the case and what it is about now."""
+    from ..ops import messages
+    _loaded_types()
+    try:
+        out = messages.change_entities(conn, exception_id, m.fuzer_ids, m.by)
+    except messages.MessageError as e:
+        conn.rollback()
+        raise HTTPException(404 if str(e).startswith("no message case") else 400, str(e)) from e
+    conn.commit()
+    return out
 
 
 @router.get("/exceptions/{exception_id}/photos/{photo_id}")

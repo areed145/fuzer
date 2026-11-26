@@ -65,8 +65,29 @@ def test_efficiency_is_the_registered_metric_for_the_report_day(conn):
     assert reg["value"] is not None and reg["as_of"] == day
     eff = [f for f in lines if f["text"].startswith("Production efficiency")]
     assert len(eff) == 1 and eff[0]["values"]["eff"] == reg["value"] and eff[0]["cites"] == reg["refs"], eff
+    # with the volumes it is the ratio of (#1386), which agree with it
+    v = eff[0]["values"]
+    assert v["oil"] == reg["parts"]["allocated_bbl"] and v["cap"] == reg["parts"]["capacity_bbl"]
+    assert round(100 * v["oil"] / v["cap"], 1) == pytest.approx(reg["value"], abs=0.1)
+    assert f"{v['oil']:,} bbl of the {v['cap']:,} bbl the facility could deliver" in eff[0]["text"]
     assert "against a potential of" in lines[0]["text"] and "%" not in lines[0]["text"]
     assert metrics.value(conn, PACK, "production.efficiency")["as_of"] != day  # the latest is another period
+
+
+def test_a_gas_figure_frozen_for_a_week_is_said_not_reported(conn):
+    """#1386 (tour C, A8): gas 109,476 Mscf on both days read as a reading. Okan's daily reports give the same gas
+    export and flare every day of late December; lift gas changes. The report says the frozen ones are not reported,
+    and the Gas produced and Gas flared stats are unknown with that said, not a total of the stuck figure."""
+    from fuzer.core import metrics
+
+    day = "2025-12-30"
+    lines = [f["text"] for f in daily_report.facts(conn, PACK, day)["sections"]["Production and deferment"]]
+    assert any(t.startswith("Lift gas ") and "Gas export" not in t for t in lines), lines
+    assert "Gas export and flare not reported: the same figure on each of the last 14 daily reports" in lines
+    for key in ("production.gas", "production.flare"):
+        v = metrics.value(conn, PACK, key, window="1d", at=date.fromisoformat(day))
+        assert v["unknown"] and v["value"] is None and "the reading looks frozen" in v["note"], v
+    assert metrics.value(conn, PACK, "production.oil", window="1d", at=date.fromisoformat(day))["value"] == 46997
 
 
 def test_late_records_make_a_new_version(conn):

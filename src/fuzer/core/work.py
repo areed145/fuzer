@@ -135,6 +135,11 @@ def roles_of(conn, person: str) -> list[str]:
     return _engine().roles_of(conn, person)
 
 
+def acting_roles(conn, person: str) -> list[str] | None:
+    """The roles the demo account picked to act as here, else None: what is its own counts only in those roles."""
+    return _engine().acting_roles(conn, person)
+
+
 def comment(conn, item_id: int, by: str, text: str, attachments: list[dict] | None = None) -> dict:
     """A note on a case's history (what a field operator reported, say), with any photos it carries."""
     return _engine().comment(conn, item_id, by, text, attachments)

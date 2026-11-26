@@ -6,8 +6,8 @@ shown on it, beside the detections and notifications that did.
     context(conn, item_id) -> {"window", "units", "alarms", "log", "basis"}
     trend(conn, item_id) -> {"focus": [point id, ...], "marks": [...]} | None
 
-`trend` is what the case's trend opens on: the points its findings were seen on and the points that alarmed in its
-window, with the event itself shaded on the chart and its start marked with what it was ("Step change", "Low
+`trend` is what the case's trend opens on: the points its findings were seen on (a reported tag's own points), or,
+when they name none, the points that alarmed in its window, with the event itself shaded on the chart and its start marked with what it was ("Step change", "Low
 alarm"), so the chart is about the case, not every value of its unit.
 
 The event's window runs from the earliest start to the latest end of the findings on the case (a finding that gives
@@ -147,8 +147,14 @@ def trend(conn, item_id: int, src=None) -> dict | None:
     a, b, subjects = w
     kinds = {r["fuzer_id"]: r["kind"] for r in conn.execute(
         "select fuzer_id, kind from entity where fuzer_id = any(%s)", (subjects,))}
+    # The reported tag's own points first (#1384): a case about a thermocouple charts that thermocouple, not the
+    # compressor's suction flow that alarmed in the same window. Only a case naming no point opens on what alarmed.
     points = [s for s in subjects if kinds.get(s) == "timeseries"]
-    points += [x["point_id"] for x in alarms(conn, anchors(conn, subjects), a, b, src)]
+    points += [r["dst"] for r in conn.execute(
+        "select dst from edge where rel = 'has_timeseries' and src = any(%s) and valid_to is null order by src, dst",
+        ([s for s in subjects if kinds.get(s) == "tag"],))]
+    if not points:
+        points = [x["point_id"] for x in alarms(conn, anchors(conn, subjects), a, b, src)]
     marks, seen = [], set()
     for r in rows:
         start, end = _t(r["s"]) if r["s"] and "T" in r["s"] else None, _t(r["e"]) if r["e"] and "T" in (r["e"] or "") else None

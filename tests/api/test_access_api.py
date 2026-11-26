@@ -591,6 +591,34 @@ def test_overarching_people_work_every_field_they_cover_but_open_only_granted_on
         work.remove_person(conn, "vera", by="test")
 
 
+def test_the_demo_account_acting_as_operator_sees_only_operator_work_in_its_other_fields(runtime, second_project,
+                                                                                        monkeypatch):
+    """#1380 (tour C12): acting as the operator, the demo account's My work listed other sites' planner and ops lead
+    work. The roles it acts as here hold in its other fields too."""
+    from fuzer.core import projects
+
+    monkeypatch.setenv("FUZER_DEMO_TOKEN", DEMO_TOKEN)
+    demo_signed_in(runtime)
+    with db.connect() as conn, projects.use(conn, second_project), db.connect() as ridge:
+        walk = work.create_item(ridge, "check", "Ridge separator walkdown", "test", role="operator")
+        plan = work.create_item(ridge, "check", "Ridge pump overhaul plan", "test", role="maintenance_planner")
+        ridge.commit()
+    here = db.scope().project or ""
+
+    def ridge_work():
+        return next(f for f in work.work_across("user:demo") if f["project"] == second_project)
+
+    every = ridge_work()  # no pick: every role, everywhere
+    assert {walk["id"], plan["id"]} <= {r["item_id"] for r in every["queue"]}
+    token = access.ACTING.set({here: ["operator"]})
+    try:
+        acting = ridge_work()
+    finally:
+        access.ACTING.reset(token)
+    assert acting["roles"] == ["operator"]
+    assert {r["item_id"] for r in acting["queue"]} & {walk["id"], plan["id"]} == {walk["id"]}
+
+
 def test_audit_record_is_owner_only_and_per_project(runtime, second_project):
     client = runtime
     reader, _ = signed_in(client, roles=("administrator",), subject=str(uuid.UUID(int=21)))

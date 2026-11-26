@@ -816,3 +816,22 @@ def test_history_collapses_repeats_and_drops_same_queue_hand_offs():
     assert out[1]["count"] == 3 and out[1]["at"] == "2026-11-25T03:00Z" and out[1]["data"]["due"]["to"] == "d4"
     assert out[2]["data"]["from"] == out[2]["data"]["to"] == "role:operator"
     assert all("count" not in e for e in out if e["id"] != 3)
+
+
+def test_history_leaves_out_bookkeeping_and_a_first_send_is_not_sent_again():
+    """#1383 (tour C, B-N17): "picked up the current version of its workflow" and "fuzer undetermined" are the engine's
+    and the gap report's, and the first dispatch to the operator queue read "sent Field check again"."""
+    def ev(i, kind, data, element=None, actor="riley"):
+        return {"id": i, "kind": kind, "actor": actor, "element": element, "data": data, "at": f"2026-11-25T0{i}:00Z"}
+
+    events = [ev(0, "created", {}), ev(1, "migrated", {"version": 3}),
+              ev(2, "step_started", {"role": "operator", "assignee": None}, element="field_check"),
+              ev(3, "handed_off", {"from": "role:operator", "to": "role:operator", "reason": "Look at the gland"},
+                 element="field_check"),
+              ev(4, "undetermined", {"asked": "What production does it defer?"}, actor="system"),
+              ev(5, "handed_off", {"from": "role:operator", "to": "role:operator", "reason": "And the seal"},
+                 element="field_check")]
+    out = work_items.history(events)
+    assert [e["id"] for e in out] == [0, 2, 3, 5]
+    assert out[2]["data"]["from"] is None and out[2]["data"]["to"] == "role:operator"  # the first send
+    assert out[3]["data"]["from"] == "role:operator"  # sent again

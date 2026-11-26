@@ -186,12 +186,15 @@ def _place(conn, rows: list[dict]) -> dict[str, str]:
     return labels
 
 
-def _waits_on(r: dict, person: str, roles: set[str]) -> bool:
+def _waits_on(r: dict, person: str, roles: set[str], acting: list[str] | None = None) -> bool:
+    """A step of theirs (in a role they act as, when the demo account picked some: work.acting_roles), or one waiting
+    unclaimed in their roles' queues."""
     steps = r["waiting"] or ([{"assignee": r.get("assignee"), "role": r.get("role")}] if r.get("item_id") else [])
     for s in steps:
-        if s.get("assignee") == person:
+        role = (s.get("role") or "").removeprefix("role:")
+        if s.get("assignee") == person and (acting is None or not role or role in acting):
             return True
-        if not s.get("assignee") and (s.get("role") or "").removeprefix("role:") in roles:
+        if not s.get("assignee") and role in roles:
             return True
     return "ops_lead" in roles and r["stage"] == "dispatch"  # the ops lead sends what nothing routed
 
@@ -232,8 +235,8 @@ def figures(conn, person: str | None = None) -> dict:
     out = {"open": len(everything), "overdue": sum(1 for r in everything if r["overdue"]), "stages": stages,
            "waiting_on_you": None}
     if person:
-        roles = set(work.roles_of(conn, person))
-        mine = [r for r in everything if _waits_on(r, person, roles)]
+        roles, acting = set(work.roles_of(conn, person)), work.acting_roles(conn, person)
+        mine = [r for r in everything if _waits_on(r, person, roles, acting)]
         # an ops lead's includes what waits to be dispatched; Needs you and My work list that part on its own, and
         # `my_work` is the rest, so Home's My work and the My work page read one number (#1352)
         to_dispatch = sum(1 for r in mine if r["stage"] == "dispatch")
@@ -263,10 +266,11 @@ def rows(conn, state: str = "open", kind=None, stage=None, holder=None, queue=No
               "area": set(_list(area)), "asset": set(_list(asset))}
     inside = set(_list(within))
     roles = set(work.roles_of(conn, waiting_on)) if waiting_on else set()
+    acting = work.acting_roles(conn, waiting_on) if waiting_on else None
     words = "".join(ch for ch in (q or "").lower() if ch.isalnum())
 
     def fixed(r: dict) -> bool:  # every filter that is not a dimension with facets
-        if waiting_on and not _waits_on(r, waiting_on, roles):
+        if waiting_on and not _waits_on(r, waiting_on, roles, acting):
             return False
         if overdue and not r["overdue"]:
             return False

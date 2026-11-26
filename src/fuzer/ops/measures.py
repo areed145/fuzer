@@ -7,6 +7,11 @@ scope every scoped metric and row set uses.
     ancestors(conn, ids, kind, c)  each id's nearest entity of a kind at or above it, for a kind grain
     compute(m, conn, pack, q)      a YAML measure's value, refs and rows
     rows(spec, conn, pack, q)      a YAML row set's rows
+    frozen(values)                 the figure a run of daily figures is stuck at, or None
+
+A daily report's figure that reads the same on FROZEN_DAYS reports running has stopped being read (a meter or a
+report template stuck on one number): a measure over it is unknown with that said, never a total of the stuck figure
+(#1386: gas 109,476 Mscf on every day of the window).
 """
 
 from statistics import mean
@@ -134,6 +139,32 @@ def _aggregate(m: dict, rows: list[dict], q) -> float | None:
     return round(mean(ages), 1) if ages else None
 
 
+FROZEN_DAYS = 14  # a figure at a cap can sit still for a week or so; a stuck meter does for weeks
+
+
+def frozen(values: list) -> float | None:
+    """The figure the last FROZEN_DAYS of a run of daily figures (oldest first) are all stuck at, or None: fewer of
+    them, a missing one, a change, or 0 (no injection or no flaring for a week is a reading, not a stuck one)."""
+    tail = [_number(v) for v in values[-FROZEN_DAYS:]]
+    if len(tail) < FROZEN_DAYS or not tail[0] or any(v != tail[0] for v in tail):
+        return None
+    return tail[0]
+
+
+def _stuck(m: dict, every: list[dict], q) -> dict | None:
+    """Unknown, with why, for a daily report figure that is frozen up to the window's end."""
+    src = m["from"]
+    if m.get("cutoff") != "production_day" or m.get("aggregate") not in ("sum", "mean") or not src.get("value"):
+        return None
+    upto = sorted((r for r in every if r["at"] and r["at"] < q.span.end), key=lambda r: r["at"])
+    values = [_number(r["f"].get(src["value"])) for r in upto]
+    if (stuck := frozen(values)) is None:
+        return None
+    run = next((k for k in range(len(values) - 1, -1, -1) if values[k] != stuck), -1) + 1
+    return {"note": f"every daily report since {upto[run]['at']:%-d %b %Y} gives the same {stuck:,.0f} {m['unit']}: "
+                    "the reading looks frozen", "unknown": True, "refs": [r["id"] for r in upto[run:]][-REFS:]}
+
+
 def _unknown(conn, src: dict, q, every: list[dict]) -> str | None:
     """Why a measure or row set over these records can't be said, or None when it can (0 or no rows is then the
     answer): the register holds no record of the kind at all (its source isn't loaded: `missing`), or none in the
@@ -169,6 +200,8 @@ def compute(m: dict, conn, pack, q) -> dict:
         rows = [r for r in every if q.span.holds(r["at"])]
     if not rows and src.get("empty"):  # only the records state it: none in the window is unknown, not 0
         return {"note": src["empty"], "unknown": True}
+    if rows and (stuck := _stuck(m, every, q)):
+        return stuck
     out = {"value": _aggregate(m, rows, q), "refs": [r["id"] for r in rows][:REFS], "as_of": q.span.at.isoformat()}
     if out["value"] is None and not rows:  # a mean or an age of nothing: there is none to average
         out["note"] = "none open at the window's end" if m.get("stock") else "none in the window"

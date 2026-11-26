@@ -47,20 +47,33 @@ _PARENT = """left join lateral (
                 select x.dst as id, coalesce(pl.label, x.dst) as label from edge x
                 left join entity_label pl on pl.fuzer_id = x.dst
                 where x.src = e.fuzer_id and x.rel = any(%(rels)s) and x.valid_to is null
-                order by x.rel, x.dst limit 1) p on true"""
+                order by x.rel, x.dst limit 1) p on true
+            left join lateral (
+                select tl.label from edge x join entity_label tl on tl.fuzer_id = x.dst
+                where x.src = e.fuzer_id and x.rel = 'installed_at' and x.valid_to is null
+                order by tl.label limit 1) t on e.kind = 'equipment'"""
 
 
-def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 50) -> list[dict]:
+def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 50, total: bool = False):
     """Exact key matches first (any tag / well style), then labels that start with the text, shortest first (so part
     of a tag finds the tag before the incidents named after it), then anything whose label, source key or searchable
     field contains the text, places and drawings before equipment and instrument tags (KIND_ORDER). Each part stops
-    early, so common words stay fast on large registers."""
+    early, so common words stay fast on large registers. A trailing separator is part of a tag still being typed
+    ("20-P-" finds what "20-P" does, #1382). With `total`, {hits, total}: how many match, so a picker that shows the
+    first few says "12 of N"; each part then probes up to TOTAL_PROBE rows, the most N says."""
+    if total:
+        hits = search(conn, pack, q, kind, TOTAL_PROBE)
+        return {"hits": hits[:limit], "total": len(hits)}
+    q = q.strip()
+    q = q.rstrip("-_./: ") or q
     kinds = [k for k in (kind or "").split(",") if k] or None
+    if kinds == ["work"]:  # what work can be about (a message case's entity, #1382): the one list, held there
+        kinds = list(WORK_KINDS)
     params = {"kinds": kinds, "limit": limit, "order": KIND_ORDER, "last": LAST_KINDS, "rels": list(CONTAINMENT)}
     if not q:
         return conn.execute(
             """
-            select e.fuzer_id, e.kind, l.label, g.value as description, p.id as parent, p.label as parent_label
+            select e.fuzer_id, e.kind, l.label, g.value as description, p.id as parent, p.label as parent_label, t.label as at
             from entity_label l
             join entity e on e.fuzer_id = l.fuzer_id
             left join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
@@ -92,7 +105,7 @@ def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 
         ), best as (
             select fuzer_id, min(rank) as rank from hits group by fuzer_id
         )
-        select e.fuzer_id, e.kind, l.label, g.value as description, p.id as parent, p.label as parent_label
+        select e.fuzer_id, e.kind, l.label, g.value as description, p.id as parent, p.label as parent_label, t.label as at
         from best b
         join entity e on e.fuzer_id = b.fuzer_id
         left join entity_label l on l.fuzer_id = e.fuzer_id
@@ -105,6 +118,9 @@ def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 
         """,
         params,
     ).fetchall()
+
+
+TOTAL_PROBE = 500  # the most a search counts for "12 of N"
 
 
 def resolve_ref(conn, pack: Pack, ref: str) -> str | None:
@@ -273,7 +289,7 @@ def _message_choices(conn, rows: list[dict]) -> list[dict]:
         return rows
     found = {r["fuzer_id"]: r for r in conn.execute(
         """
-        select e.fuzer_id, e.kind, l.label, g.value #>> '{}' as description, p.label as parent_label
+        select e.fuzer_id, e.kind, l.label, g.value #>> '{}' as description, p.label as parent_label, t.label as at
         from entity e
         left join entity_label l on l.fuzer_id = e.fuzer_id
         left join golden g on g.fuzer_id = e.fuzer_id and g.field = 'description'
@@ -374,16 +390,22 @@ def record_history(conn, pack: Pack, fuzer_id: str, limit: int = 50) -> list[dic
 
 def names(conn, ids: list[str]) -> dict:
     """What to call each entity: its label and description, and for a physical item (equipment, labelled by its
-    serial number) the tag it is installed at (`at`), which is what people in the field know it by. Ids that aren't
-    entities are left out."""
+    serial number) the tag it is installed at (`at`), which is what people in the field know it by. An id a rebuild
+    merged into another (a case or a citation keeps the id it was given) reads as the entity it is now, so it is never
+    shown as its id (#1383). Ids that aren't entities are left out."""
     rows = conn.execute(
-        """select e.fuzer_id as id, l.label, d.value #>> '{}' as description, t.label as at
-           from entity e left join entity_label l using (fuzer_id)
+        """with recursive now (id, cur, depth) as (
+               select fuzer_id, fuzer_id, 0 from entity where fuzer_id = any(%s)
+               union all
+               select n.id, e.merged_into, n.depth + 1 from now n join entity e on e.fuzer_id = n.cur
+               where e.merged_into is not null and n.depth < 10
+           ), live as (select distinct on (id) id, cur from now order by id, depth desc)
+           select n.id, l.label, d.value #>> '{}' as description, t.label as at
+           from live n join entity e on e.fuzer_id = n.cur left join entity_label l on l.fuzer_id = e.fuzer_id
            left join golden d on d.fuzer_id = e.fuzer_id and d.field = 'description'
            left join lateral (select tl.label from edge x join entity_label tl on tl.fuzer_id = x.dst
                               where x.src = e.fuzer_id and x.rel = 'installed_at' and x.valid_to is null
-                              order by tl.label limit 1) t on e.kind = 'equipment'
-           where e.fuzer_id = any(%s)""", (ids,)).fetchall()
+                              order by tl.label limit 1) t on e.kind = 'equipment'""", (ids,)).fetchall()
     return {r["id"]: {"label": r["label"], "description": r["description"], **({"at": r["at"]} if r["at"] else {})}
             for r in rows}
 

@@ -243,7 +243,9 @@ settings and never in the repository or chat. Microsoft stays the sign-in for pe
   queue, until someone picks one under **Acting as** in the sidebar (an operator, the
   ops lead, a data steward). The pick is kept on that sign-in's session, per project, so
   two people demonstrating at once each keep their own role, queue and Tower
-  (`PUT /work/me/roles`, demo account only; an empty list is every role again).
+  (`PUT /work/me/roles`, demo account only; an empty list is every role again). What is
+  its own follows the pick: acting as the ops lead it isn't shown an operator's field job,
+  and the pick holds in its other fields' lists too.
 - A lead covers for another lead: a case in a lead's queue (the ops lead's, or one a site
   has other queues escalate to) that another person holds can be acted on by anyone holding
   that role, so the IOC lead on shift can close out a job that came back from the field

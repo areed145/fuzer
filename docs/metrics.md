@@ -152,9 +152,9 @@ A **scoped** metric answers for any entity (`?scope=<id>`) and rolls up everythi
 
 ## plan.estimate_cost
 
-**Planned cost.** The cost the business plan's lines estimate for their work.
+**Planned cost.** The cost the business plan's lines estimate for their work, each line's estimate spread evenly over its period, for the part of it in the window.
 
-- **Formula:** sum(estimate_cost) over plan lines in the window
+- **Formula:** sum(estimate_cost x days of the line's period in the window / days in its period) over plan lines
 - **Unit:** USD (neither better nor worse)
 - **Records:** business plan lines (estimates, period, assets) and the cases matched to them, their jobs and orders
 - **Cut by:** program
@@ -164,9 +164,9 @@ A **scoped** metric answers for any entity (`?scope=<id>`) and rolls up everythi
 
 ## plan.estimate_hours
 
-**Planned hours.** The hours the business plan's lines estimate for their work.
+**Planned hours.** The hours the business plan's lines estimate for their work, each line's estimate spread evenly over its period, for the part of it in the window.
 
-- **Formula:** sum(estimate_hours) over plan lines in the window
+- **Formula:** sum(estimate_hours x days of the line's period in the window / days in its period) over plan lines
 - **Unit:** h (neither better nor worse)
 - **Records:** business plan lines (estimates, period, assets) and the cases matched to them, their jobs and orders
 - **Cut by:** program

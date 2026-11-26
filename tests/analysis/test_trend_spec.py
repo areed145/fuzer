@@ -108,6 +108,33 @@ def test_a_compressor_spec_reads_its_template(okan_db):
     assert len(by) == len(s["series"])
 
 
+def test_a_case_about_a_tag_charts_that_tag_not_what_alarmed_beside_it(okan_db):
+    """#1384: a field report of corrosion under insulation on 20-TT-2106B, a thrust bearing thermocouple on 20-K-2100B,
+    opened its trend on the compressor's suction flow, which alarmed in the same hours. The case's trend opens on the
+    reported tag's own point; only a case naming no point opens on what alarmed."""
+    from psycopg.types.json import Jsonb
+
+    from fuzer.core.pack import load_pack
+    from fuzer.graph import queries
+    from fuzer.ops import around
+
+    conn = okan_db.conn
+    tag = queries.resolve_ref(conn, load_pack("okan"), "20-TT-2106B")
+    point = conn.execute("select dst from edge where src = %s and rel = 'has_timeseries'", (tag,)).fetchone()["dst"]
+    try:
+        conn.execute("insert into exception_record (type, key, title, source, subjects, evidence, item_id) values "
+                     "('field_report', 'cui-1384', 'Corrosion under insulation suspected on 20-TT-2106B', 'field', "
+                     "%s, %s, -1384)", ([tag], Jsonb({"finding": {"start": "2026-11-14T14:35"}})))
+        t = around.trend(conn, -1384)
+        assert t["focus"] == [point]
+        unit = around.context(conn, -1384)["units"][0]["id"]
+        s = trend_spec.spec(conn, unit, "2026-11-14T14:35", focus=t["focus"])
+        by = {x["key"]: x for x in s["series"]}
+        assert s["focus"] == [point] and by[point]["tag"].startswith("20-TT-2106B")
+    finally:
+        conn.rollback()
+
+
 @pytest.mark.unit
 def test_a_pages_own_marks_are_drawn_beside_the_trends():
     case = {"kind": "time", "at": "2024-07-24T13:20", "label": "Step change", "tone": "danger"}

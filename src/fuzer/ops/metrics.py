@@ -45,8 +45,10 @@ def production_efficiency(conn, pack, q) -> dict:
         alloc, top = alloc + a, top + m
     if not rows:
         return {"note": "no facility with daily production reports " + ("in this scope" if q.scope else "yet")}
+    # the volumes it is the ratio of, so a page that states it states them too (#1386): 100% read against "46,997 of
+    # 47,086 bbl" (the reported potential), when the binding capacity that day was 46,999 bbl
     return {"value": round(100 * alloc / top, 1) if top else None, "rows": _rows(rows) if q.grain else [],
-            "refs": [r[0] for r in rows]}
+            "refs": [r[0] for r in rows], "parts": {"allocated_bbl": round(alloc), "capacity_bbl": round(top)}}
 
 
 PE_BLOCK = 14  # days read at a time: the analysis reads a long window far slower than its blocks
@@ -447,9 +449,11 @@ def _concerns(conn, q, ids: list[str]) -> dict[str, list[str]]:
 def schedule_compliance(conn, pack, q) -> dict:
     from ..graph import operations
 
+    if "preventive" not in q.cache:  # read once: a quarter's trend asks for each of its days (#1386)
+        q.cache["preventive"] = operations._rows(conn, "work_order", operations.PREVENTIVE)
     p = operations.preventive_on_time(conn, q.span.start.date().isoformat(), q.span.end.date().isoformat()
                                       if q.span.end.time() == datetime.min.time() else
-                                      (q.span.end.date() + timedelta(days=1)).isoformat())
+                                      (q.span.end.date() + timedelta(days=1)).isoformat(), q.cache["preventive"])
     near = _concerns(conn, q, [*p["on_time"], *p["late"]])
     on_time = [i for i in p["on_time"] if q.within(near[i])]
     late = [i for i in p["late"] if q.within(near[i])]
@@ -631,9 +635,22 @@ def _lines(conn, q) -> list[dict]:
             and (q.within(r["subjects"]) if q.scope else True)]
 
 
-def _plan_measure(key: str, label: str, unit: str, definition: str, formula: str, read, better: str = "none"):
+def _in_window(line: dict, q) -> float:
+    """The share of a plan line's period inside the window, by days: an estimate is for the line's whole period, so the
+    quarter to date reads the part of it planned to date, and the window before reads its own part (#1386). 1 for a line
+    with an open end."""
+    start, end = line["period_start"], line["period_end"]
+    if start is None or end is None:
+        return 1.0
+    inside = (min(end, q.span.at) - max(start, q.span.start.date())).days + 1
+    return max(0, inside) / ((end - start).days + 1)
+
+
+def _plan_measure(key: str, label: str, unit: str, definition: str, formula: str, read, better: str = "none",
+                  estimate: bool = False):
     @metric(key, label, unit=unit, better=better, definition=definition, formula=formula,
-            period="plan lines whose period meets the window (the quarter to date by default)", **PLAN)
+            period="plan lines whose period meets the window (the quarter to date by default)"
+                   + (", each for the part of its period in the window" if estimate else ""), **PLAN)
     def compute(conn, pack, q) -> dict:
         from . import business_plan
 
@@ -644,7 +661,7 @@ def _plan_measure(key: str, label: str, unit: str, definition: str, formula: str
             return {"note": "no business plan line " + ("on this scope " if q.scope else "") + "in the window"}
 
         def total(ls):
-            vals = [v for v in (read(x) for x in ls) if v is not None]
+            vals = [v * (_in_window(x, q) if estimate else 1) for v in (read(x) for x in ls) if v is not None]
             return round(sum(vals), 1) if vals else None
         groups: dict[str, list] = {}
         for x in lines:
@@ -657,13 +674,17 @@ def _plan_measure(key: str, label: str, unit: str, definition: str, formula: str
     return compute
 
 
-_plan_measure("plan.estimate_hours", "Planned hours", "h", "The hours the business plan's lines estimate for their work.",
-              "sum(estimate_hours) over plan lines in the window", lambda x: x["estimate_hours"])
+_plan_measure("plan.estimate_hours", "Planned hours", "h", "The hours the business plan's lines estimate for their work, "
+              "each line's estimate spread evenly over its period, for the part of it in the window.",
+              "sum(estimate_hours x days of the line's period in the window / days in its period) over plan lines",
+              lambda x: x["estimate_hours"], estimate=True)
 _plan_measure("plan.actual_hours", "Actual hours", "h", "The hours worked and still booked on the jobs of the cases "
               "matched to the plan's lines.", "sum(hours done + hours booked) over the matched cases' jobs",
               lambda x: x["actual"]["hours_done"] + x["actual"]["hours_booked"] if x["cases"] else None)
-_plan_measure("plan.estimate_cost", "Planned cost", "USD", "The cost the business plan's lines estimate for their work.",
-              "sum(estimate_cost) over plan lines in the window", lambda x: x["estimate_cost"])
+_plan_measure("plan.estimate_cost", "Planned cost", "USD", "The cost the business plan's lines estimate for their work, "
+              "each line's estimate spread evenly over its period, for the part of it in the window.",
+              "sum(estimate_cost x days of the line's period in the window / days in its period) over plan lines",
+              lambda x: x["estimate_cost"], estimate=True)
 _plan_measure("plan.actual_cost", "Actual cost", "USD", "The cost SAP records on the orders of the jobs of the cases "
               "matched to the plan's lines.", "sum(order cost) over the matched cases' jobs",
               lambda x: x["actual"]["cost"])

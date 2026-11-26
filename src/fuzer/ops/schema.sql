@@ -308,6 +308,9 @@ alter table exception_record add column if not exists shelved_by text;
 alter table exception_record add column if not exists shelved_reason text;
 -- why the work should happen (docs/work-model.md, step 4): condition, obligation or intent
 alter table exception_record add column if not exists need text not null default 'condition';
+-- What the condition looked like at its last raise (a machine's status and flags), for a raiser that says (#1379): a
+-- closed exception holds while each raise carries the same signal, and a new signal reopens its case.
+alter table exception_record add column if not exists signal text;
 -- Photos the field attached to a report (P5.3b): resized on the phone, kept with the exception they were taken for.
 create table if not exists field_photo (
     id           bigserial primary key,

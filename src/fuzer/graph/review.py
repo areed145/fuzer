@@ -79,16 +79,13 @@ def decide(conn, item_id: int, decision: str, value, by: str, extra: dict | None
     elif item["kind"] == "message":  # a message that named no entity for certain (P2.8): which, or no work needed
         if decision not in ("choose", "reject"):
             raise ReviewError("messages take choose with the entity it is about, or reject (no work needed)")
-        if decision == "choose":
-            from .hierarchy import WORK_KINDS
+        if decision == "choose":  # the Fuzer ID of the entity it is about, or a list of several (#1382)
+            from .hierarchy import work_entities
 
-            row = conn.execute("select kind from entity where fuzer_id = %s and retired_at is null and merged_into is null",
-                               (value,)).fetchone() if isinstance(value, str) else None
-            if not row:
-                raise ReviewError("choose needs the Fuzer ID of the entity the message is about")
-            if row["kind"] not in WORK_KINDS:  # a log entry or a work order is a record, not what work is about (P5.26f)
-                raise ReviewError(f"a message's case is about a {', '.join(WORK_KINDS[:-1])} or {WORK_KINDS[-1]}, "
-                                  f"not a {row['kind'].replace('_', ' ')}")
+            try:
+                value = work_entities(conn, value)
+            except ValueError as e:
+                raise ReviewError(str(e)) from e
     elif item["kind"] == "match":
         if decision == "choose":
             raise ReviewError("match items take accept or reject")

@@ -1,7 +1,7 @@
 /** The integrated plan (Turnaround is a window on it, #554): every planned activity from every source on one timeline, by area. SAP work orders,
  * turnaround work, inspections and the exceptions the IOC chose to plan sit side by side, so two jobs on one asset,
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
-import { acronyms } from "../wording";
+import { acronyms, say } from "../wording";
 import { money, whenDay, estimate } from "../format";
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem, type ResourceLoad } from "../api";
@@ -225,7 +225,7 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
           {p.satisfied ? "✓" : "✗"} {p.label}{p.detail.length ? `: ${p.detail.join("; ")}` : ""}</li>)}</List>
       </Text>}
       {item.clashes.map((c, n) => <p key={n} className={`small ${c.kind === "bundle" ? "" : "error"}`}>
-        {c.kind === "bundle" ? "Bundle: " : c.kind === "simops" ? "Simultaneous operations: " : "Clash: "}{c.say}</p>)}
+        {c.kind === "bundle" ? "Bundle: " : c.kind === "simops" ? "Simultaneous operations: " : "Clash: "}{say(c.say)}</p>)}
       {!!item.parts_short?.length && <Text as="p" small>
         Parts with no stock on record (check with stores before it starts): {item.parts_short.map((p) =>
           `${p.label ?? p.id}${p.description ? ` (${p.description})` : ""}`).join(", ")}</Text>}

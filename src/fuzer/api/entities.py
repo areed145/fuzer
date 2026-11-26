@@ -19,8 +19,9 @@ router = APIRouter(route_class=AuthenticatedRoute)
 
 
 @router.get("/entities")
-def search(q: str = "", kind: str | None = None, limit: int = 50, conn=Depends(get_conn)):
-    return queries.search(conn, deps.pack(), q, kind, limit)
+def search(q: str = "", kind: str | None = None, limit: int = 50, total: bool = False, conn=Depends(get_conn)):
+    """Entities matching `q`; with `total`, {hits, total} so a picker can say how many it is not showing (#1382)."""
+    return queries.search(conn, deps.pack(), q, kind, limit, total)
 
 
 @router.get("/entities/names")

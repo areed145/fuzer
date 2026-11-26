@@ -214,3 +214,7 @@ def test_what_a_brief_cannot_settle_is_kept_for_what_would_answer_it(conn, class
     skill = groups["machine health brief on this equipment"]
     assert skill["needs"]["kind"] == "skill" and vessel in {c["id"] for c in skill["cases"]}
     assert skill["reasons"].get("no_skill")
+    # #1384: kept for what would answer them, not printed on the case's history as "Could not check ..." lines
+    from fuzer.workflow import work_items
+
+    assert not any(e["kind"] == "undetermined" for e in work_items.item(conn, item)["events"])

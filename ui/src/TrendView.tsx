@@ -183,6 +183,9 @@ export function TrendView({ id, start, end, linked = false, focus, focusKeys, ca
       );
   // Nothing measured here (a document, a pipeline without points): no card at all, the page's other views carry on.
   if (d && !d.error && !at && !d.series.length) return null;
+  // On a case the trend sits under the decision and its evidence: it takes one line until it has drawn, not a chart's
+  // height of blank space under "Loading…" (#1384).
+  if (caseId !== undefined && pending) return <Card as="section" className="trend-view" title="Trend"><Status loading /></Card>;
   const hiddenSeries = [...all].filter((k) => !k.startsWith("lane:") && !on.has(k)).length;
   const opened = focused && !picked; // opened on what the page is about: the chips wait behind Show all
   return (

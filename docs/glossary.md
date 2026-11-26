@@ -74,6 +74,9 @@ See [agents](agents.md).
 it on the page and shares it with everyone or a workflow role; each save is a new version, and an earlier one can be
 restored. See [reports](reports.md).
 
+**Demo crew.** The synthetic field operators a demonstration facility runs (the sample crew, `ops/sample_crew.py`),
+shown as the source of the field reports they raise. A real deployment has none.
+
 **Dataset.** One table or feed a system delivers: where it is, its key, how it loads (snapshot, incremental,
 append), its schedule, owner and status (draft, active, paused, retired).
 

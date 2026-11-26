@@ -5,11 +5,11 @@ import { confirmDialog } from "../../ui";
 import { OpportunityPanel } from "./OpportunityPanel";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
  * open steps, its history, and the actions on it (assign, priority, due date, close, cancel). */
-import { cap, say, workKind } from "../../wording";
+import { cap, person as personName, say, workKind } from "../../wording";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { api, type CaseSource, type MessageSaid, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
 import { CaseQuestion } from "../Review";
-import { Status, href, useAsync, useAction } from "../../lib";
+import { Status, href, notifyChanged, useAsync, useAction } from "../../lib";
 import { Actor, DataView, Due, ENGINE_FIELDS, EntityLinks, describe, holder, usePerson } from "../../work";
 import { AgentIdle, AssignPicker, GENERIC_STEP, PriorityBadge, SendToField, StepBadges, caseHref, priorityLevel, processHref } from "./shared";
 import { CaseChecklist } from "./Checklist";
@@ -28,6 +28,7 @@ import { usePermission } from "../../Auth";
 import { WatchButton } from "../../Watch";
 import { CaseCloseoutCard, RecheckCard } from "../Disposition";
 import { CaseOptionsCard } from "./Options";
+import { MatchRef } from "../masterdata/MatchRef";
 
 const BpmnView = lazy(() => import("../../BpmnView"));
 
@@ -78,6 +79,9 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
   const [person] = usePerson();
   const people = useAsync(() => api.workPeople(), []);
   const canAsk = usePermission("ai");  // the assistant runs a paid model: no link for an account that can't ask
+  // A question answered here closes its case: its confirmation, with the case and entities it links, stays through
+  // the reload that follows (#1382).
+  const [answered, setAnswered] = useState<ReactNode>(null);
   const it = item.data;
   // The options decide where Waiting on sits and the roster whether the evidence folds (a field operator): the page
   // waits for both, failures included, so case 1136 no longer moved under the reader as they answered (P5.26h).
@@ -154,7 +158,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
             <UIBadge>{workKind(it.type)}</UIBadge>
             <UIBadge tone={closed ? "ok" : "muted"}>{cap(it.state)}{it.outcome ? `: ${say(it.outcome)}` : ""}</UIBadge>
             {!closed && <Due at={it.due} />}
-            {level && <span><PriorityBadge p={it.priority} type={it.type} low /> <Text muted>priority, {level.why}</Text></span>}
+            {level && <span><PriorityBadge p={it.priority} type={it.type} low /> <Text muted>priority{level.why && `, ${level.why}`}</Text></span>}
             {(it.subjects.length > 0 || dataset) && <span><Text muted>about</Text>{" "}
               <EntityLinks ids={it.subjects} />
               {dataset && <> source dataset <a href={href("/sources", { view: "dataset", name: dataset })}>{dataset}</a></>}
@@ -166,10 +170,13 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
           {it.parent && <Text as="p" small>Part of <a href={caseHref(it.parent.id)}>{say(it.parent.title)}</a></Text>}
         </div>
       </div>
-      {message && <CaseMessage m={message} matched={matchedBy(it.sources)} />}
+      {message && <CaseMessage m={message} matched={matchedBy(it.sources)} person={person}
+        exceptionId={!closed && !demo && typeof raised.exception_id === "number" ? raised.exception_id : null}
+        onChanged={item.reload} />}
       {/* The decision first (#1071): who has it, what it waits on, how late, and the one next action, above the
           evidence it is decided on. */}
-      {asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={item.reload} />}
+      {answered ? <Notice role="status">{answered}</Notice>
+        : asks && !demo && <CaseQuestion id={asks.id} kind={asks.kind} onDone={(said) => { setAnswered(said); item.reload(); }} />}
       {/* the choices side by side, with what each costs (P5.20): the IOC's decision on field work comes first */}
       {!backFromField && optionsCard}
       <NextStep it={it} person={person} demo={demo} fieldOnly={fieldOnly} answered={!!asks && !demo} reload={item.reload}
@@ -198,19 +205,36 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
 const messageOf = (m: unknown): MessageSaid | null =>
   m && typeof m === "object" && typeof (m as MessageSaid).text === "string" ? m as MessageSaid : null;
 
-/** How the reader placed a message's case: its finding's "Matched by". */
+/** How a message's case was placed: the reader's "Matched by", or the steward's "Chosen by", whose value is an actor
+ * and reads as their name (#1383). */
 const matchedBy = (sources?: CaseSource[]): string | null => {
-  const item = sources?.find((x) => x.type === "message_report")?.finding.items.find((i) => i.label === "Matched by");
-  return item ? String(item.value) : null;
+  const items = sources?.find((x) => x.type === "message_report")?.finding.items ?? [];
+  const chosen = items.find((i) => i.label === "Chosen by");
+  if (chosen) return `Chosen by ${personName(String(chosen.value))}`;
+  const item = items.find((i) => i.label === "Matched by");
+  return item ? `Matched by ${String(item.value)}` : null;
 };
 
 /** The message a case was opened from, first on the case (P5.26a): "Radio call · GGCP CRO · Nov 23, 6:52 AM", then
  * everything it said. The title above it is a short summary. */
-function CaseMessage({ m, matched }: { m: MessageSaid; matched: string | null }) {
-  return <UICard className="case-message" title={`${m.channel_label} · ${m.sender} · ${when(m.received_at)}`}>
+function CaseMessage({ m, matched, person, exceptionId, onChanged }: {
+  m: MessageSaid; matched: string | null; person: string;
+  /** The open message case's event, where its entities can be changed (a wrong match, #1382); null when they can't. */
+  exceptionId: number | null; onChanged: () => void;
+}) {
+  // a field note's sender is the operator's actor, named like anyone else (#1383)
+  const operate = usePermission("operate");
+  const a = useAction();
+  const [changes, setChanges] = useState(0);  // a change made closes the picker: it opens fresh for the next
+  return <UICard className="case-message" title={`${m.channel_label} · ${personName(m.sender)} · ${when(m.received_at)}`}>
     {m.subject && <Text as="p" small>{m.subject}</Text>}
     <p>{say(m.text)}</p>
-    {matched && <Text as="p" small muted>Matched by {matched}</Text>}
+    {matched && <Text as="p" small muted>{matched}</Text>}
+    {exceptionId != null && operate && person && <MatchRef key={changes} value="" label="Change the entity"
+      canRemember={false} kinds={["work"]} multiple busy={!!a.busy} onPick={(_, __, all) => a.run("Changing the entity…",
+        () => api.changeMessageEntities(exceptionId, person, all),
+        () => { setChanges((n) => n + 1); notifyChanged(); onChanged(); })} />}
+    <ActionStatus busy={a.busy} error={a.error} />
   </UICard>;
 }
 
@@ -357,18 +381,25 @@ function CaseActions({ it, person, reload }: { it: WorkItem; person: string; rel
   const [priority, setPriority] = useState(it.priority?.toString() ?? "");
   const [due, setDue] = useState("");
   const [reason, setReason] = useState("");
+  // Sent: the form closes (a new key folds the Disclosure) and says where it went (#1385)
+  const [sent, setSent] = useState<string | null>(null);
+  const [sends, setSends] = useState(0);
   const a = useAction();
+  const send = () => a.run("to", () => api.reassignCase(it.id, person, to, reason || undefined), () => {
+    setSent(to); setSends((n) => n + 1); setTo(""); setReason(""); reload();
+  });
+  const role = sent?.startsWith("role:");
   return (
     <div className="case-actions">
-      <Disclosure className="small" label={<>Send to someone else</>}>
+      <Disclosure key={sends} className="small" label={<>Send to someone else</>}>
       <Line wrap>
-        <Field label="Send to" width="md"><AssignPicker value={to} onChange={setTo} /></Field>
+        <Field label="Send to" width="md"><AssignPicker value={to} onChange={(v) => { setTo(v); setSent(null); }} /></Field>
         <Field label="Why (kept in its history)" width="md">
           <Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-        <Button variant="secondary" disabled={!to || !!a.busy}
-          onClick={() => a.run("to", () => api.reassignCase(it.id, person, to, reason || undefined), () => { setTo(""); reload(); })}>Send</Button>
+        <Button variant="secondary" disabled={!to || !!a.busy} onClick={send}>Send</Button>
       </Line>
       </Disclosure>
+      {sent && !a.busy && !a.error && <Text as="p" small role="status">Sent to {holder(role ? null : sent, role ? sent : null)}.</Text>}
       <Disclosure className="small" label={<>Change priority or due time</>}>
         <Line wrap>
           <Field label="Priority" width="xs"><Input value={priority} onChange={(e) => setPriority(e.target.value)} /></Field>

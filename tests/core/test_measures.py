@@ -66,3 +66,14 @@ def test_spans_end_on_their_day_and_today_ends_now():
     assert windows.parse_time("2024-12-16 06:00") == datetime(2024, 12, 16, 6)
     with pytest.raises(windows.WindowError):
         windows.span("1000d", date(2026, 11, 24))
+
+
+def test_a_daily_figure_the_same_for_a_week_is_frozen_and_zero_or_a_change_is_not():
+    """#1386: gas 109,476 Mscf on every daily report read as a reading."""
+    from fuzer.ops.measures import FROZEN_DAYS, frozen
+
+    assert frozen([109476.0] * FROZEN_DAYS) == 109476.0
+    assert frozen([1.0, *[109476.0] * FROZEN_DAYS]) == 109476.0
+    assert frozen([109476.0] * (FROZEN_DAYS - 1)) is None  # too few to say
+    assert frozen([0.0] * 30) is None  # no injection for a month is a reading
+    assert frozen([*[5.0] * (FROZEN_DAYS - 1), 6.0]) is None and frozen([*[5.0] * 6, None]) is None
