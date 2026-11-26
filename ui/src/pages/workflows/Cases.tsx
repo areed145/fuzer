@@ -1,6 +1,6 @@
 import { AskOpsIq } from "../../OpsIq";
 import { ActionStatus, Button, ButtonLink, ConfirmAction, Field, Input, PageHeader, Card as UICard, Select, Badge as UIBadge, Disclosure, Textarea, ErrorText, Line, Text, Notice } from "../../ui";
-import { when } from "../../format";
+import { when, whenDay } from "../../format";
 import { confirmDialog } from "../../ui";
 import { OpportunityPanel } from "./OpportunityPanel";
 /** Cases: every work item, open or closed, and one case's page: what it's about, where its process is, who has its
@@ -93,6 +93,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
     {it && !item.error ? <Status loading /> : <Status of={item} />}
     <a href={href("/list")}>Return to All work</a></section>;
   const closed = !!it.closed_at;
+  const shelved = closed ? null : it.sources?.find((x) => x.joined_to == null && x.shelved_until)?.shelved_until;
   const payload = (it as WorkItem & { payload?: Record<string, unknown> }).payload ?? {};
   // a process case (queue_item, #509) keeps what was raised under payload.start
   const raised = (payload.start && typeof payload.start === "object" ? payload.start : payload) as Record<string, unknown>;
@@ -158,8 +159,10 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
               entity it is about each took a line of their own, and Watch sat between them. */}
           <Line small wrap>
             <UIBadge>{workKind(it.type)}</UIBadge>
-            <UIBadge tone={closed ? "ok" : "muted"}>{cap(it.state)}{it.outcome ? `: ${say(it.outcome)}` : ""}</UIBadge>
-            {!closed && <Due at={it.due} />}
+            {/* a shelved case is off every queue until its date: that, not "Open, overdue" (#1400) */}
+            <UIBadge tone={closed ? "ok" : "muted"}>{shelved ? `Shelved until ${whenDay(shelved)}`
+              : `${cap(it.state)}${it.outcome ? `: ${say(it.outcome)}` : ""}`}</UIBadge>
+            {!closed && !shelved && <Due at={it.due} />}
             {level && <span><PriorityBadge p={it.priority} type={it.type} low /> <Text muted>priority{level.why && `, ${level.why}`}</Text></span>}
             {(it.subjects.length > 0 || dataset) && <span><Text muted>about</Text>{" "}
               <EntityLinks ids={it.subjects} />

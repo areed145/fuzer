@@ -87,6 +87,12 @@ def dispatch(conn, item_id: int, by: str, to: str, reason: str | None = None) ->
     return _engine().dispatch_item(conn, item_id, by, to, reason)
 
 
+def reassign(conn, item_id: int, by: str, to: str, reason: str | None = None) -> dict:
+    """Give everything open on a case to a person or `role:<role>`: each open person step, or the case when no
+    process runs it."""
+    return _engine().reassign_item(conn, item_id, by, to, reason)
+
+
 def return_to(conn, item_id: int, person: str, fallback: str, reason: str | None = None) -> dict | None:
     """Give back what `person` holds on a case to its step's (or its) desk queue, else `fallback` (the IOC's queue),
     without sending it on to the field. None when nothing on the case is with them."""

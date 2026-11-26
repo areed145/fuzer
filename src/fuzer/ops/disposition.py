@@ -40,8 +40,9 @@ ACTION_WORDS = (("1", r"\breplac"), ("10", r"\boverhaul"), ("2", r"\brepair|\bfi
                 ("7", r"\bservic|\bclean|\bgrease|\blubric"), ("8", r"\btest"), ("9", r"\binspect"),
                 ("3", r"\bmodif"), ("6", r"\bcheck"))
 # the field's own answer ("Field: Done: ...") is a comment, so these read it too (#34)
+# "no leak or damage found" is nothing found, though it names a leak (#1400)
 FALSE_WORDS = (r"\bfalse alarm\b|\bspurious\b|\bnothing (was )?(wrong|found)\b|\bno fault\b|(?<!not )\bas it should be\b"
-               r"|\ball (good|ok|normal)\b|\bno (leaks?|issues?|problems?) found\b")
+               r"|\ball (good|ok|normal)\b|\bno [a-z]+( or [a-z]+)? (was |were )?found\b")
 DATA_WORDS = (r"\bbad (data|value|reading)\b|\bstale\b|\bwrong unit|\bsensor (fault|drift)\b|\bdata (problem|issue)\b"
               r"|\bimpulse line\b|\b(agrees|agreed|matches|matched) with the (dcs|scada|local gauge)\b|\brecalibrat"
               r"|\breads? wrong\b|\breading wrong\b")
@@ -175,11 +176,16 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
            suggested: dict | None = None, follow_up_to: str | None = None) -> dict:
     """Record the close-out and close the case if it is still open. A real problem on equipment needs its failure mode,
     cause and action from the lists (elsewhere they are optional); a duplicate names its case. Recording again
-    corrects it. Contained with a follow-up planned, `follow_up_to` (a person or `role:<role>`) is sent that follow-up
-    as a case of its own (#1385); the row says which (`follow_up`)."""
+    corrects it. Only a real problem keeps an outcome (#1400). Contained with a follow-up planned names `follow_up_to`
+    (a person or `role:<role>`), unless one already went, and it is sent that follow-up as a case of its own (#1385);
+    the row says which (`follow_up`)."""
     item, _ = _text(conn, item_id)
+    if disposition != "real":
+        outcome = follow_up_to = None  # an outcome is what came of a real problem's fix: nothing else keeps one (#1400)
     if follow_up_to and outcome != "contained":
         raise ValueError("a follow-up is sent when the outcome is contained, follow-up planned")
+    if outcome == "contained" and not follow_up_to and not follow_up(conn, item_id):
+        raise ValueError("contained, follow-up planned says who the follow-up goes to")
     v = vocabulary(pack)
     if disposition not in DISPOSITIONS or disposition in ANSWERED:
         raise ValueError(f"say what it was: {', '.join(d for d in DISPOSITIONS if d not in ANSWERED)}")
@@ -246,10 +252,14 @@ def _send_follow_up(conn, item: dict, by: str, to: str, note: str | None = None)
     if have := follow_up(conn, item["id"]):
         return have
     queue = to.startswith("role:")
+    # a person's follow-up runs in a queue of theirs with its step handed to them, so they have a step open (#1400)
+    lane = to if queue else next((f"role:{r}" for r in work.roles_of(conn, to) if r in work.person_roles(conn)), None)
     subjects = conn.execute("select subjects from work_item where id = %s", (item["id"],)).fetchone()["subjects"]
     case = routing.open_task(conn, "task", f"Follow-up: {item['title']}", by, key=f"follow-up:{item['id']}",
-                             role=to if queue else None, assignee=None if queue else to,
+                             role=lane, assignee=None if lane else to,
                              data={FOLLOW_UP: item["id"], **({"summary": note} if note else {})}, subjects=list(subjects or []), source=f"case:{item['id']}")
+    if lane and lane != to:
+        work.reassign(conn, case["id"], by, to)
     work.comment(conn, item["id"], by, f"Follow-up sent to {to.removeprefix('role:').replace('_', ' ')}"
                  f"{' queue' if queue else ''}: case {case['id']}")
     work.comment(conn, case["id"], by, f"Follows up case {item['id']}, contained when it closed")
@@ -334,7 +344,10 @@ def reopen_as_repeat(conn, first: int, again: int, by: str, why: str) -> dict:
     conn.execute("insert into case_repeat (again, first) values (%s, %s) on conflict do nothing", (again, first))
     state = conn.execute("select state from work_item where id = %s", (first,)).fetchone()["state"]
     if state in ("done", "cancelled"):
+        from . import exceptions
+
         work.close_case(conn, first, "open", by, reason=f"Repeat: {why} (case {again})")
+        exceptions.reopen_with_case(conn, first)
     work.comment(conn, first, by, f"Repeat: {why}. See case {again}.")
     return {"first": first, "again": again}
 

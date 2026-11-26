@@ -388,7 +388,7 @@ def on_case(conn, item_id: int) -> list[dict]:
     rows = conn.execute("select * from exception_record where item_id = %s order by joined_to nulls first, first_seen",
                         (item_id,)).fetchall()
     return [{**{k: r[k] for k in ("id", "type", "key", "title", "source", "state", "value_usd", "first_seen",
-                                  "last_seen", "joined_to", "subjects")},
+                                  "last_seen", "joined_to", "subjects", "shelved_until")},
              "label": _label(conn, r["type"]), "finding": f}
             for r, f in zip(rows, _findings(conn, rows), strict=True)]
 
@@ -507,6 +507,22 @@ def _held(conn, type: str, key: str, signal: str, by: str) -> dict | None:
         work.close_case(conn, row["item_id"], "open", by, reason=f"Came back changed: was {was}, now {signal}")
     events.publish(conn, "exception.reopened", f"exception:{row['id']}", {**_payload(row), "signal": signal})
     return row
+
+
+def reopen_with_case(conn, item_id: int) -> list[dict]:
+    """A closed case opened again (a repeat, a fix that did not hold): the events it closed open with it, so the case
+    is worked like any open one, with its options (#1400). Not one whose condition cleared, nor one whose type and key
+    another open event now holds."""
+    rows = conn.execute(
+        """
+        update exception_record e set state = 'open', closed_at = null, updated_at = now()
+        where e.item_id = %s and e.state = 'closed'
+          and not exists (select 1 from exception_record o where o.type = e.type and o.key = e.key and o.state = 'open')
+        returning *
+        """, (item_id,)).fetchall()
+    for row in rows:
+        events.publish(conn, "exception.reopened", f"exception:{row['id']}", _payload(row))
+    return rows
 
 
 def clear(conn, type: str, key: str, by: str, reason: str | None = None, closeout: str | None = None) -> dict | None:

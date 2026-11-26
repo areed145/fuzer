@@ -883,6 +883,8 @@ export interface CaseSource {
   id: number; type: string; key: string; title: string; source: string | null; state: string;
   value_usd: number | null; first_seen: string; last_seen: string; joined_to: number | null; subjects: string[];
   label: string; finding: Finding;
+  /** Set aside by a person until then (P3.5c): the case says so in place of Open (#1400). */
+  shelved_until?: string | null;
 }
 
 /** An exception type: declared by a module in code, or defined as data for another system's exceptions. */

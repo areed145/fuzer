@@ -7314,12 +7314,12 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     assert.equal(await form.getByLabel("What it was").inputValue(), "real");
     assert.equal(await form.getByText("Filled in from what the case says").count(), 1);  // beside What it was only
     assert.equal(await form.getByLabel("Failure mode").count(), 0);  // folded away
-    await form.getByLabel("Outcome").selectOption("contained");
+    await form.getByLabel("Outcome").selectOption("fixed");
     await form.getByRole("button", { name: "Close the case" }).click();
     await form.getByText("kept here").waitFor();
     assert.equal(posts.length, 1);
     assert.deepEqual([posts[0].disposition, posts[0].outcome, posts[0].failure_mode, posts[0].activity, posts[0].cause],
-      ["real", "contained", undefined, undefined, undefined]);
+      ["real", "fixed", undefined, undefined, undefined]);
     // opened, the folded fields are blank and claim nothing; what the person sets there is sent
     await form.getByRole("button", { name: "Equipment failure details (optional)" }).click();
     assert.equal(await form.getByLabel("Failure mode").inputValue(), "");
@@ -7372,10 +7372,57 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     const form = page.locator(".closeout-form");
     assert.equal(await form.getByLabel("Send the follow-up to").count(), 0);
     await form.getByLabel("Outcome").selectOption("contained");
+    // #1400 (E4): contained names who the follow-up goes to before it closes
+    assert.equal(await form.getByRole("button", { name: "Close the case" }).isDisabled(), true);
+    await form.getByText("Say who the follow-up goes to.").waitFor();
     await form.getByLabel("Send the follow-up to").selectOption("role:maintenance_planner");
     await form.getByRole("button", { name: "Close the case" }).click();
     await expectReports(posts, 1);
     assert.deepEqual([posts[0].outcome, posts[0].follow_up_to], ["contained", "role:maintenance_planner"]);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
+
+// P5.29a (#1400, E1): 1155 closed False alarm but saved "False alarm: fixed": Outcome, hidden once False alarm was
+// chosen, was still sent. A shelved case said "Open · overdue 8 d" (437): it says "Shelved until …".
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`a false alarm saves no outcome, and a shelved case says until when (P5.29a, ${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const item = { ...demoTask.item, title: "PT-2001 reading erratic", state: "open", closed_at: null, processes: [], events: [],
+      due: "2026-01-01T00:00:00Z",
+      sources: [{ id: 5, type: "drawing_disagreement", key: "k", title: "PT-2001 reading erratic", source: "test", state: "open",
+        value_usd: null, first_seen: "2026-11-20T00:00:00Z", last_seen: "2026-11-20T00:00:00Z", joined_to: null, subjects: [],
+        label: "Drawing disagreement", shelved_until: "2099-12-26T12:00:00Z",
+        finding: { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null,
+          end: null, confidence: null, items: [], checks: [], subjects: [], value_usd: null } }] };
+    await page.route("**/work/items/7", (route) => route.fulfill({ json: item }));
+    const vocabulary = { dispositions: { real: "A real problem", false_alarm: "False alarm" },
+      outcomes: { fixed: "Fixed", contained: "Contained, follow-up planned" }, failure_modes: {}, mechanisms: {}, causes: {},
+      activities: {} };
+    const posts = [];
+    await page.route("**/work/items/7/closeout", (route) => {
+      if (route.request().method() === "POST") {
+        posts.push(route.request().postDataJSON());
+        return route.fulfill({ status: 400, json: { detail: "kept here" } });
+      }
+      return route.fulfill({ json: { item_id: 7, record: null, vocabulary, repeats: [], equipment: false, asked: false,
+        suggestion: { from: "words", disposition: "real", outcome: "fixed" } } });
+    });
+    await page.goto(`${url}/#/cases/7`);
+    const head = page.locator(".case-head");
+    await head.getByText("Shelved until", { exact: false }).waitFor();
+    assert.equal(await head.getByText("overdue", { exact: false }).count(), 0);
+    assert.equal(await head.getByText("Open", { exact: true }).count(), 0);
+
+    await page.getByRole("button", { name: "Close out", exact: true }).click();
+    const form = page.locator(".closeout-form");
+    assert.equal(await form.getByLabel("Outcome").inputValue(), "fixed");
+    await form.getByLabel("What it was").selectOption("false_alarm");
+    assert.equal(await form.getByLabel("Outcome").count(), 0);
+    await form.getByRole("button", { name: "Close the case" }).click();
+    await expectReports(posts, 1);
+    assert.deepEqual([posts[0].disposition, posts[0].outcome], ["false_alarm", undefined]);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   });
 }

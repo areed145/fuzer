@@ -78,7 +78,7 @@ def test_a_case_off_equipment_pre_fills_no_failure_terms_the_form_folds_away(con
     form = disposition.form(conn, PACK, case)
     assert form["equipment"] is False
     assert form["suggestion"] == {"from": "words", "disposition": "real"}
-    row = disposition.record(conn, PACK, case, "riley", "real", outcome="contained", suggested=form["suggestion"])
+    row = disposition.record(conn, PACK, case, "riley", "real", outcome="monitoring", suggested=form["suggestion"])
     assert row["failure_mode"] is None and row["cause"] is None and row["activity"] is None
     conn.commit()
 
@@ -204,3 +204,57 @@ def test_after_the_field_said_done_the_outcome_is_filled_in_as_fixed(conn):
                  (Jsonb({"field": field}), x["id"]))
     assert disposition.suggest(conn, PACK, item)["outcome"] == "fixed"
     conn.rollback()
+
+
+def test_a_false_alarm_saves_no_outcome_and_nothing_found_pre_fills_no_fix(conn):
+    """#1400 (E1): 1155's field said "no leak or damage found and the reading agrees locally"; the form read the leak
+    and filled in "A real problem / Fixed", and choosing False alarm hid Outcome but saved "False alarm: fixed"."""
+    from psycopg.types.json import Jsonb
+
+    from fuzer.core import exceptions
+
+    x = exceptions.raise_exception(conn, "drawing_disagreement", "pid:pt2001:erratic", "PT-2001 reading erratic, jumping 73 psi",
+                                   "stewardship")
+    case = conn.execute("select item_id from exception_record where id = %s", (x["id"],)).fetchone()["item_id"]
+    work.comment(conn, case, "sam", "Field: Done: Checked on site: no leak or damage found and the reading agrees locally.")
+    conn.execute("update exception_record set evidence = evidence || %s where id = %s",
+                 (Jsonb({"field": [{"status": "done", "by": "sam"}]}), x["id"]))
+    said = disposition.suggest(conn, PACK, case)
+    assert said["disposition"] == "false_alarm" and "outcome" not in said, said
+    row = disposition.record(conn, PACK, case, "ioc-ann", "false_alarm", outcome="fixed", note="no leak")
+    assert row["outcome"] is None
+    assert disposition.summary(row, disposition.vocabulary(PACK)) == "False alarm. no leak"
+    conn.commit()
+
+
+def test_contained_names_who_the_follow_up_goes_to_and_a_person_gets_a_step(conn):
+    """#1400 (E4, E15): 1163 closed "contained, follow-up planned" with no follow-up; follow-up 1244 sent to pat read
+    "No step is open" and no Waiting on."""
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "pat", ["maintenance_planner"])
+    case = work.open_case(conn, "manual", "Gland leak on the transfer pump", by="ioc-ann")["id"]
+    with pytest.raises(ValueError, match="who the follow-up goes to"):
+        disposition.record(conn, PACK, case, "riley", "real", outcome="contained")
+    row = disposition.record(conn, PACK, case, "riley", "real", outcome="contained", note="packing nipped up",
+                             follow_up_to="pat")
+    step = conn.execute("select assignee, state from work_token where item_id = %s and kind = 'user' "
+                        "and state in ('ready', 'waiting')", (row["follow_up"],)).fetchone()
+    assert step and step["assignee"] == "pat", step
+    # correcting it later needs no second target: the follow-up already went
+    assert disposition.record(conn, PACK, case, "riley", "real", outcome="contained")["follow_up"] == row["follow_up"]
+    conn.commit()
+
+
+def test_a_repeat_opens_its_event_again_with_its_case(conn):
+    """#1400 (E16): a case opened again as a repeat kept its event closed, so it had no Options."""
+    from fuzer.core import exceptions
+
+    x = exceptions.raise_exception(conn, "drawing_disagreement", "pid:k300:surge", "K-300 running near surge",
+                                   "stewardship")
+    case = conn.execute("select item_id from exception_record where id = %s", (x["id"],)).fetchone()["item_id"]
+    disposition.record(conn, PACK, case, "fred", "real", outcome="monitoring")
+    assert conn.execute("select state from exception_record where id = %s", (x["id"],)).fetchone()["state"] == "closed"
+    disposition.answer_recheck(conn, case, "fred", held=False, note="surging again")
+    assert conn.execute("select state from exception_record where id = %s", (x["id"],)).fetchone()["state"] == "open"
+    conn.commit()
