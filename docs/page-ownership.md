@@ -70,7 +70,8 @@ lead, the field jobs sent to them and waiting in their queues (the former
 My jobs page; `#/field` redirects here), their assigned steps and their queues' unclaimed steps. The steps are one list,
 escalated first, with chips for All, Assigned to you, Unclaimed in your roles and Escalated (`?show=`). Unfiltered, All,
 Assigned to you and Unclaimed are the server's counts (`/work/counts`, `waiting_on_you`): the last two add up to All, and
-with To dispatch, which opens the List filtered to those cases, they make the Work badge. What changed on
+with To dispatch, which opens the List filtered to those cases, they make the Work badge. A case opened from My work keeps
+My work lit in Work's tabs; opened from anywhere else it lights the List. What changed on
 their work lately is Home's Needs you, not a second list here; a field operator still reads it beside their jobs. The rest of the consolidation is planned in #501.
 Settings contains Application settings, configure-visible Users, Routing and external Docs. Sources retains
 its datasets/systems/rules/wizard navigation; Jobs retains run detail links. Users is deliberately

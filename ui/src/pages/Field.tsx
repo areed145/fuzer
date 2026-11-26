@@ -472,7 +472,7 @@ export function FieldJobCard({ job, person, onChange, onReported, onTaken }: {
         <Button variant="primary" disabled={!!busy || !signal.live} onClick={take}>Take it</Button>
         {!signal.live && <Text small muted>{NEEDS_SIGNAL}</Text>}
       </div> : <>
-      <label className="small" htmlFor={`note-${job.id}`}>Note for the IOC</label>
+      <label className="small" htmlFor={`note-${job.id}`}>Note on this job</label>
       <Textarea id={`note-${job.id}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
       {(adding || photos.length > 0) && <fieldset className="field-evidence">
         <legend className="small">A reading</legend>

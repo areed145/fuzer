@@ -1,7 +1,7 @@
 /** Structured close-out (P6.1a, #655): closing a case says what it was and, for a real problem, what failed, why and
  * what was done, from the ISO 14224 lists. The form comes pre-filled from the case's own words or an agent's
  * suggestion, and the person confirms it. On a phone it is a handful of selects, one per line. */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { when } from "../format";
 import { api, type CaseCloseout, type CloseoutVocabulary } from "../api";
 import { Button, Card, Disclosure, Field, Input, Select, ErrorText, Line, Text, Notice } from "../ui";
@@ -31,6 +31,7 @@ export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload, sta
     /** checklist items still open: finishing leaves them open in the record */ openItems?: number }) {
   const form = useAsync(() => api.caseCloseout(itemId), [itemId]);
   const [open, setOpen] = useState(startOpen && !closed);
+  const landed = useRef(false);
   if (!form.data) return form.error ? <Status error={form.error} onRetry={form.reload} /> : null;
   const { record, vocabulary: v } = form.data;
   if (record && !open) {
@@ -52,8 +53,10 @@ export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload, sta
   if (readOnly) return closed ? <Text as="p" small muted>Close-out missing.</Text> : null;
   // work someone asked for is finished, not closed out as a problem (the glossary's Finish)
   if (!closed && !open) return <Button variant="primary" onClick={() => setOpen(true)}>{form.data.asked ? "Finish" : "Close out"}</Button>;
-  return <CloseoutForm itemId={itemId} person={person} data={form.data} missing={closed && !record} openItems={openItems}
-    onDone={() => { setOpen(false); form.reload(); reload(); }} onCancel={closed && !record ? undefined : () => setOpen(false)} />;
+  // Opened by a Close link (Back from the field), the page lands on the form, not a screen above it (P5.28f).
+  return <div ref={(el) => { if (el && startOpen && !landed.current) { landed.current = true; el.scrollIntoView?.({ block: "start" }); } }}>
+    <CloseoutForm itemId={itemId} person={person} data={form.data} missing={closed && !record} openItems={openItems}
+      onDone={() => { setOpen(false); form.reload(); reload(); }} onCancel={closed && !record ? undefined : () => setOpen(false)} /></div>;
 }
 
 function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openItems = 0 }: {

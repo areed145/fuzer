@@ -138,9 +138,21 @@ export function useNavigationAccess() {
     (item.permission !== "configure" || configure) && (item.permission !== "ai" || ai);
 }
 
-/** The page a route is on within its group: a page with a `view` wins when its query key is there. */
+/** The page the last page before a case was on (P5.28f): a case opened from My work lights My work, not the List. */
+let openedFrom = "";
+const sectionOf = (hash: string) => hash.replace(/^#?\/?/, "").split(/[/?]/)[0] ?? "";
+if (typeof window !== "undefined") window.addEventListener("hashchange", (e) => {
+  const old = (e as Partial<HashChangeEvent>).oldURL;
+  if (old === undefined) return;  // a hashchange the app sent itself, with no page before it
+  const before = sectionOf(old.split("#")[1] ?? "");
+  if (before !== "cases") openedFrom = before;
+});
+
+/** The page a route is on within its group: a page with a `view` wins when its query key is there. A case lights the
+ * page it was opened from when that page is in its group, else the List it belongs to. */
 export const currentItem = (items: NavItem[], section: string, query?: URLSearchParams) =>
-  items.find((i) => i.view && isActive(i, section) && query?.has(i.view)) ?? items.find((i) => !i.view && isActive(i, section));
+  (section === "cases" ? items.find((i) => !i.view && i.section !== "list" && isActive(i, openedFrom)) : undefined)
+  ?? items.find((i) => i.view && isActive(i, section) && query?.has(i.view)) ?? items.find((i) => !i.view && isActive(i, section));
 
 export function AreaNavigation({ section, query, demoEnabled, roles }: {
   section: string; query?: URLSearchParams; demoEnabled: boolean;

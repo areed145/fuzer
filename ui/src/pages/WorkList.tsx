@@ -13,7 +13,7 @@ import { holder as holderWords, usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display } from "../entityRefs";
 import { detectorName, queue as queueWords, say, workKind } from "../wording";
-import { EventRow, DispatchControls, ROW_HEADINGS, STAGE_WORDS, Suppressed, age, type Person, type RowPlace } from "./Exceptions";
+import { EventRow, DispatchControls, ROW_HEADINGS, STAGE_WORDS, Suppressed, age, type RowPlace } from "./Exceptions";
 import { PriorityBadge, SampleTeam } from "./workflows/shared";
 import { NewWorkItem } from "./workflows/Cases";
 import { WORK_PRESETS, savedFilters } from "../pageTabs";
@@ -53,8 +53,6 @@ export function WorkListPage({ query, board: wantsBoard = false }: { query: URLS
     person: person || undefined };
   const list = useAsync(() => api.workList(asked), [JSON.stringify(asked)]);
   const people = useAsync(() => api.workPeople(), []);
-  const roles = useAsync(() => api.rolesCatalog(), []);
-  const queues = (roles.data ?? []).filter((r) => r.kind === "person").map((r) => r.name);
   const mine = (people.data ?? []).find((p) => p.name === person);
   const set = (next: Filters) => location.replace(listHref(board, { ...filters, ...next }));
   return (
@@ -67,10 +65,9 @@ export function WorkListPage({ query, board: wantsBoard = false }: { query: URLS
         <Text as="p" small muted>{list.data.total} {filters.state === "closed" ? "closed"
           : filters.state === "all" ? "in every state" : "open"}{list.data.total > list.data.rows.length
           ? `, the first ${list.data.rows.length} shown` : ""}</Text>
-        {board ? <Board data={list.data} group={filters.group || "stage"} person={person} people={people.data ?? []}
-          queues={queues} onChange={list.reload} />
+        {board ? <Board data={list.data} group={filters.group || "stage"} person={person} onChange={list.reload} />
           : <Rows key={JSON.stringify(filters)} rows={list.data.rows} labels={list.data.labels ?? {}} sort={filters.sort ?? "value"}
-            setSort={(sort) => set({ sort })} person={person} people={people.data ?? []} queues={queues} onChange={list.reload} />}
+            setSort={(sort) => set({ sort })} person={person} onChange={list.reload} />}
         {!board && filters.state !== "closed" && <Suppressed />}
         <SampleTeam onAdded={people.reload} />
       </>}
@@ -84,9 +81,6 @@ export function WorkWithin({ within }: { within: string }) {
   const [state, setState] = useState<"open" | "closed">("open");
   const [person] = usePerson();
   const list = useAsync(() => api.workList({ within, state, person: person || undefined }), [within, state, person]);
-  const people = useAsync(() => api.workPeople(), []);
-  const roles = useAsync(() => api.rolesCatalog(), []);
-  const queues = (roles.data ?? []).filter((r) => r.kind === "person").map((r) => r.name);
   const [sort, setSort] = useState<string | undefined>();
   const rows = useMemo(() => {
     const out = [...(list.data?.rows ?? [])];
@@ -104,7 +98,7 @@ export function WorkWithin({ within }: { within: string }) {
       <a href={listHref(false, { within, ...(state === "closed" ? { state } : {}) })}>Filter and act on these in All work</a>
     </Line>
     {!list.data ? <Status of={list} /> : <Rows key={state} rows={rows} labels={list.data.labels ?? {}} sort={sort ?? "value"}
-      setSort={setSort} person={person} people={people.data ?? []} queues={queues} onChange={list.reload} />}
+      setSort={setSort} person={person} onChange={list.reload} />}
   </>;
 }
 
@@ -259,9 +253,9 @@ function Within({ id, onClear }: { id: string; onClear: () => void }) {
 }
 
 /** The List: the rows as a table, one column per thing an IOC desk scans for. A heading with an arrow sorts by it. */
-function Rows({ rows, labels, sort, setSort, person, people, queues, onChange }: {
+function Rows({ rows, labels, sort, setSort, person, onChange }: {
   rows: WorkListRow[]; labels: Record<string, string>; sort: string; setSort: (s: string | undefined) => void;
-  person: string | null; people: Person[]; queues: string[]; onChange: () => void;
+  person: string | null; onChange: () => void;
 }) {
   // A page of rows at a time, so the List is a screenful or two, not 37,000 px (#8); a new filter starts over.
   const [count, setCount] = useState(PAGE);
@@ -283,7 +277,7 @@ function Rows({ rows, labels, sort, setSort, person, people, queues, onChange }:
         <thead><tr>{ROW_HEADINGS.map(head)}</tr></thead>
         <tbody>
           {shown.map((r) => r.id != null
-            ? <EventRow key={r.uid} r={r as unknown as ExceptionRow} place={place(r)} person={person} people={people} queues={queues}
+            ? <EventRow key={r.uid} r={r as unknown as ExceptionRow} place={place(r)} person={person}
               onChange={onChange} take={takes(r)} />
             : <CaseRow key={r.uid} r={r} place={place(r)} person={person} take={takes(r)} onChange={onChange} />)}
         </tbody>
@@ -330,8 +324,8 @@ function CaseRow({ r, place, person, take, onChange }: {
 }
 
 /** The same rows in columns: by stage (in the order work moves), or by kind, holder, team, source, facility, area or asset. */
-function Board({ data, group, person, people, queues, onChange }: {
-  data: WorkListResult; group: string; person: string | null; people: Person[]; queues: string[]; onChange: () => void;
+function Board({ data, group, person, onChange }: {
+  data: WorkListResult; group: string; person: string | null; onChange: () => void;
 }) {
   const key = (r: WorkListRow) => String(r[group as keyof WorkListRow] ?? "none");
   const label = (v: string) => group === "stage" ? STAGE_LABEL[v] ?? v : group === "holder" ? holderLabel(v)
@@ -364,7 +358,7 @@ function Board({ data, group, person, people, queues, onChange }: {
         const all = open.has(v) || cards.length <= COLUMN;
         return <section key={v} className={`work-board-column${cards.length ? "" : " empty"}`} aria-label={label(v)}>
           <Heading level={2}><span>{label(v)}</span><Text muted>{cards.length}</Text></Heading>
-          {(all ? cards : cards.slice(0, COLUMN)).map((r) => <BoardCard key={r.uid} r={r} person={person} people={people} queues={queues} onChange={onChange} />)}
+          {(all ? cards : cards.slice(0, COLUMN)).map((r) => <BoardCard key={r.uid} r={r} person={person} onChange={onChange} />)}
           {!all && <Button size="sm" variant="link" onClick={() => setOpen((o) => new Set(o).add(v))}>Show all {cards.length}</Button>}
         </section>;
       })}
@@ -372,8 +366,8 @@ function Board({ data, group, person, people, queues, onChange }: {
   </div>;
 }
 
-export function BoardCard({ r, person, people, queues, onChange }: {
-  r: WorkListRow; person: string | null; people: Person[]; queues: string[]; onChange: () => void;
+export function BoardCard({ r, person, onChange }: {
+  r: WorkListRow; person: string | null; onChange: () => void;
 }) {
   const [sending, setSending] = useState(false);
   const said = r.evidence?.field?.[r.evidence.field.length - 1];
@@ -397,7 +391,7 @@ export function BoardCard({ r, person, people, queues, onChange }: {
       {send && <Button size="sm" variant="secondary" aria-expanded={sending} onClick={() => setSending(!sending)}>
         {r.stage === "back" ? "Send again" : "Send to"}</Button>}</div>}
     <ErrorText>{taking.error}</ErrorText>
-    {send && sending && <DispatchControls r={r as unknown as ExceptionRow} person={person!} people={people} queues={queues}
+    {send && sending && <DispatchControls r={r as unknown as ExceptionRow} person={person!}
       onDone={() => { setSending(false); onChange(); }} />}
   </article>;
 }

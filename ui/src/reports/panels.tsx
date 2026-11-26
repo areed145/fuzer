@@ -113,17 +113,13 @@ function CasesPanel(props: PanelProps) {
   const d = r.data;
   const rows = (d?.cases ?? []) as unknown as WorkListRow[];
   const list = d?.href ? appLink(d.href) : null;
-  // the same people and queues the Work list offers, so Send to works from here
-  const people = useAsync(() => api.workPeople(), []);
-  const roles = useAsync(() => api.rolesCatalog(), []);
-  const queues = (roles.data ?? []).filter((x) => x.kind === "person").map((x) => x.name);
   // the count is for the report's scope, not the whole of Work: said with it so it isn't read as Work's number
   return <PanelFrame title={props.panel.title ?? d?.title ?? ""} result={d} loading={r}
     detail={d && d.total ? `${count(d.total)}${d.scope.id ? ` at ${d.scope.label}` : ""}` : undefined}
     className="report-cases">
     {d && (rows.length
       ? <div className="report-case-cards">{rows.map((row) => <BoardCard key={row.uid} r={row} person={person || null}
-        people={people.data ?? []} queues={queues} onChange={r.reload} />)}</div>
+        onChange={r.reload} />)}</div>
       : <Empty>None.</Empty>)}
     {d && list && d.total > rows.length && <a href={list}>All {count(d.total)} in Work</a>}
   </PanelFrame>;

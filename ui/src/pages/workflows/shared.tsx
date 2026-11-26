@@ -105,7 +105,8 @@ export function WorkLine({ r, title, extra }: {
   );
 }
 
-/** A person or a role's queue (role:<role>), optionally an agent (agent:<role>). */
+/** A person or a role's queue (role:<role>), optionally an agent (agent:<role>): the one Send picker, on a case, its
+ * step, a List row and a follow-up (P5.28f), each person with their roles and what they hold or that they are away. */
 export function AssignPicker({ value, onChange, agents = false, placeholder = "choose…", label }: {
   value: string; onChange: (v: string) => void; agents?: boolean; placeholder?: string; label?: string;
 }) {
@@ -115,7 +116,9 @@ export function AssignPicker({ value, onChange, agents = false, placeholder = "c
     <Select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
       <option value="">{placeholder}</option>
       <optgroup label="People">
-        {(people.data ?? []).map((p) => <option key={p.name} value={p.name}>{p.display_name || p.name}{p.away_until && new Date(p.away_until) > new Date() ? " (away)" : ""}</option>)}
+        {(people.data ?? []).map((p) => <option key={p.name} value={p.name}>{p.display_name || p.name}
+          {p.roles.length ? ` (${p.roles.map((r) => r.replace(/_/g, " ")).join(", ")})` : ""}
+          {p.away_until && new Date(p.away_until) > new Date() ? " · away" : ` · holds ${p.holding ?? 0}`}</option>)}
       </optgroup>
       <optgroup label="Role queues">
         {(roles.data ?? []).filter((r) => r.kind === "person").map((r) => <option key={r.name} value={`role:${r.name}`}>{queue(r.name)}</option>)}
@@ -186,20 +189,26 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
   const [why, setWhy] = useState("");
   const [due, setDue] = useState("");
   const [blocked, setBlocked] = useState<string[] | null>(null);
+  const [missing, setMissing] = useState<string | null>(null);
   const a = useAction();
   // Said where the IOC pressed Send (red team #2): the form empties, so without this nothing showed it went. The case
   // reads again now and once more shortly (useAction), as its workflow moves on to the field check after the send is saved.
   const [sent, setSent] = useState<string | null>(null);
   const field = (people.data ?? []).filter((p) => p.roles.includes("operator"));
   const named = (v: string) => v === "role:operator" ? queue("operator") : field.find((p) => p.name === v)?.display_name || v;
+  const notReady = a.error?.startsWith("Not ready to dispatch") ?? false;
   const send = () => {
+    // Send stays enabled: a tap has no hover to read a greyed button's reason by, so what is missing is said (P5.28f).
+    const need = !ask.trim() ? "Say what to check or do first: they see it on their job."
+      : (notReady || blocked) && !why.trim() ? "Not ready: say why it should go anyway." : null;
+    setMissing(need);
+    if (need) return;
     const who = named(to);
     return a.run("Sending to the field", () => api.dispatch(exceptionId, person, to, ask.trim(), blocked ? why.trim() : undefined, due || undefined), () => {
       setSent(`Sent to ${who}${due ? `, wanted back by ${when(due)}` : ""}. It is on their field jobs, and their report comes back to you here.`);
       setTo(""); setAsk(""); setWhy(""); setDue(""); setBlocked(null); onDone();
     }).catch(() => undefined);
   };
-  const notReady = a.error?.startsWith("Not ready to dispatch") ?? false;
   if (sent) return <Notice role="status" className="row wrap"><span>{sent}</span>
     <Button size="sm" variant="ghost" onClick={() => setSent(null)}>Send someone else</Button></Notice>;
   return (
@@ -212,15 +221,14 @@ export function SendToField({ exceptionId, person, onDone }: { exceptionId: numb
           <option value="role:operator">{queue("operator")}, whoever is free</option>
         </Select></Field>
         <Field label="What to check or do (they see this)" width="lg">
-          <Input value={ask} onChange={(e) => setAsk(e.target.value)} /></Field>
+          <Input value={ask} onChange={(e) => { setAsk(e.target.value); setMissing(null); }} /></Field>
         {/* When it is wanted back (red team #23); left empty, the field check's own time applies. */}
         <Field label="Wanted back by" width="md"><Input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} /></Field>
       </Line>
       {(notReady || blocked) && <Field label="Why send it anyway (kept on the case)" width="lg">
-        <Input value={why} onChange={(e) => { setWhy(e.target.value); setBlocked([a.error ?? ""]); }} /></Field>}
-      <Button variant="primary" disabled={!to || !ask.trim() || !!a.busy || ((notReady || !!blocked) && !why.trim())}
-        title={!ask.trim() ? "Say what to check or do first: they see it on their job" : undefined}
-        onClick={send}>{a.busy ? "Sending…" : "Send"}</Button>
+        <Input value={why} onChange={(e) => { setWhy(e.target.value); setBlocked([a.error ?? ""]); setMissing(null); }} /></Field>}
+      <Line><Button variant="primary" disabled={!to || !!a.busy} onClick={send}>{a.busy ? "Sending…" : "Send"}</Button>
+        <ErrorText inline>{missing}</ErrorText></Line>
       <ErrorText>{a.error}</ErrorText>
     </Disclosure>
   );
