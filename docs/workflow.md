@@ -187,7 +187,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
 - **A close-out holds** (#1379). A detector that says what the condition looks like (machine health: the machine's
   status and flags) doesn't reopen a case a person closed while the condition looks the same: the next scans count on
   the closed exception and open nothing. When it changes, the closed case reopens with its history, rather than a new
-  case. When the detector stops seeing it the hold ends, and a later raise opens a case as usual.
+  case. A case closed before any scan said how it looked holds on the next scan's look (#1389). When the detector
+  stops seeing it the hold ends, and a later raise opens a case as usual.
 - **Shelving.** A standing condition that can wait (a known seal weep until the next outage) can be shelved from
   All work with a reason and an expiry, at most `exceptions.max_shelve_days` (30) ahead
   (`POST /exceptions/{id}/shelve`). It leaves the open list, and shows under the **shelved** state with who shelved it

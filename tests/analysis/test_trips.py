@@ -117,9 +117,8 @@ def test_a_closed_machine_health_case_holds_until_the_machine_changes(conn):
     from fuzer.core import work
     from fuzer.ops import exceptions
 
-    for r in conn.execute("select key from exception_record where type = 'machine_health' and state = 'open'"):
-        exceptions.clear(conn, "machine_health", r["key"], "test", "not this test's")
-    conn.execute("update exception_record set signal = null where type = 'machine_health'")
+    for r in conn.execute("select distinct key from exception_record where type = 'machine_health'"):
+        exceptions.clear(conn, "machine_health", r["key"], "test", "not this test's")  # open or holding
     conn.commit()
 
     def rows(since: int) -> list[dict]:
@@ -152,10 +151,46 @@ def test_a_closed_machine_health_case_holds_until_the_machine_changes(conn):
     exceptions.reconcile(conn)
     conn.commit()
     rotating.watch(conn, "2025-12-31T00:00")  # the screen no longer flags it: the hold ends
-    assert rows(first["id"])[0]["signal"] is None
+    assert rows(first["id"])[0]["state"] == "cleared"
     rotating.watch(conn, "2024-03-05T00:00")
     *_, fresh = rows(first["id"])
     assert fresh["id"] != first["id"] and fresh["state"] == "open" and fresh["item_id"] != first["item_id"]
+
+
+def test_a_close_out_holds_over_hourly_scans_even_when_closed_before_any_raise_said_how_it_looked(conn):
+    """#1389: tour D closed machine health cases 1161 and 1162 between the hourly scans that followed the deploy of
+    the hold; their exceptions were last raised by the scan before it, with no signal, and the next scan opened 1215
+    and 1216. A case closed before any raise carried a signal holds on the first one, and the hold keeps over
+    every hourly scan after, the machine unchanged; one that was raised with its signal holds the same way."""
+    from datetime import datetime, timedelta
+
+    from fuzer.core import work
+    from fuzer.ops import exceptions
+
+    for r in conn.execute("select distinct key from exception_record where type = 'machine_health'"):
+        exceptions.clear(conn, "machine_health", r["key"], "test", "not this test's")  # open or holding
+    conn.commit()
+    start = datetime(2025, 12, 30, 0, 7)
+    hours = [(start + timedelta(hours=h)).isoformat(timespec="minutes") for h in range(5)]
+    rotating.watch(conn, hours[0])
+    seal, surge = (conn.execute("select * from exception_record where type = 'machine_health' and key = %s and "
+                                "state = 'open'", (k,)).fetchone() for k in ("20-K-2300B", "20-K-2100C"))
+    assert seal["item_id"] and surge["item_id"]
+    conn.execute("update exception_record set signal = null where id = %s", (seal["id"],))  # raised before signals
+    for e in (seal, surge):
+        work.close_case(conn, e["item_id"], "done", "user:demo", reason="checked, running on")
+    exceptions.reconcile(conn)
+    conn.commit()
+
+    for until in hours[1:]:  # past an hour, and on for four
+        out = rotating.watch(conn, until)
+        assert {"20-K-2300B", "20-K-2100C"} <= set(out["held"]), (until, out)
+        assert not {"20-K-2300B", "20-K-2100C"} & {r["machine"] for r in out["raised"]}
+    for e in (seal, surge):
+        [row] = conn.execute("select * from exception_record where type = 'machine_health' and key = %s and id >= %s",
+                             (e["key"], e["id"])).fetchall()
+        assert row["state"] == "closed" and row["raised_count"] == e["raised_count"] + 4 and row["signal"]
+        assert conn.execute("select state from work_item where id = %s", (e["item_id"],)).fetchone()["state"] == "done"
 
 
 def test_trip_causes_vibration_and_ambient_read_roles_not_descriptions_or_tag_names(conn):

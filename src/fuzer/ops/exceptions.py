@@ -16,8 +16,9 @@ raise opens a new exception and a new case, so a closed case never hides a condi
 
 A close-out holds (#1379): a raiser that passes a `signal` (what the condition looks like: a machine's status and
 flags) keeps a closed exception closed while its raises carry the same signal, counting them without a case. A
-different signal reopens the closed exception and its case, rather than opening a fresh one. The hold ends when the
-condition clears (`clear`), and a later raise opens as usual.
+different signal reopens the closed exception and its case, rather than opening a fresh one. A case closed before any
+raise carried a signal holds on the first one (#1389). The hold ends when the condition clears (`clear` makes the
+closed exception `cleared`), and a later raise opens as usual.
 
 One event, one case (#464): a new exception about the same asset as an open one from another source (the same
 entity, or one sharing the equipment or unit it is part of), raised within `exceptions.join_hours` of it, joins that
@@ -480,11 +481,12 @@ def _first_found(old: dict | None, new: dict) -> dict:
 
 
 def _holding(conn, type: str, key: str) -> dict | None:
-    """The closed exception of `type` and `key` whose close-out holds: the latest for the key, closed when its case
-    finished while a signal was on it, the condition not cleared since."""
+    """The closed exception of `type` and `key` whose close-out holds: the latest for the key, closed when a person
+    finished its case, the condition not cleared since (a clear makes it `cleared`). Its signal may be none: a case
+    closed before any raise carried one (#1389)."""
     row = conn.execute("select * from exception_record where type = %s and key = %s order by id desc limit 1 "
                        "for update", (type, key)).fetchone()
-    return row if row and row["state"] == "closed" and row["signal"] is not None and row["item_id"] else None
+    return row if row and row["state"] == "closed" and row["item_id"] else None
 
 
 def _held(conn, type: str, key: str, signal: str, by: str) -> dict | None:
@@ -494,6 +496,9 @@ def _held(conn, type: str, key: str, signal: str, by: str) -> dict | None:
     row = _holding(conn, type, key)
     if row is None or row["signal"] == signal:
         return row
+    if row["signal"] is None:  # closed before its raises carried a signal: what it looks like now is what was closed
+        return conn.execute("update exception_record set signal = %s, updated_at = now() where id = %s returning *",
+                            (signal, row["id"])).fetchone()
     was = row["signal"]
     row = conn.execute("update exception_record set state = 'open', closed_at = null, updated_at = now() "
                        "where id = %s returning *", (row["id"],)).fetchone()
@@ -509,8 +514,12 @@ def clear(conn, type: str, key: str, by: str, reason: str | None = None, closeou
     row = conn.execute("select * from exception_record where type = %s and key = %s and state = %s for update",
                        (type, key, OPEN)).fetchone()
     if row is None:
-        if held := _holding(conn, type, key):  # the condition its close-out answered went away: the hold ends
-            conn.execute("update exception_record set signal = null, updated_at = now() where id = %s", (held["id"],))
+        # the condition a close-out answered went away: the hold ends, for a type whose raises carry a signal
+        held = _holding(conn, type, key)
+        if held and (held["signal"] is not None or conn.execute(
+                "select 1 from exception_record where type = %s and signal is not null limit 1", (type,)).fetchone()):
+            conn.execute("update exception_record set state = 'cleared', updated_at = now() where id = %s",
+                         (held["id"],))
         return None
     row = conn.execute("update exception_record set state = 'cleared', closed_at = now(), updated_at = now() "
                        "where id = %s returning *", (row["id"],)).fetchone()
