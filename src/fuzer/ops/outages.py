@@ -5,7 +5,10 @@ planners, not a nomination or a commitment.
     contracts(conn)              the customer and contract register (the contracts source): each contract, its
                                  customer, its delivery point, its daily volume and rate, and the dates it runs
     outages(conn, start, days)   the outages in [start, start + days), each with what it takes down and the contracts
-                                 it hits, the volume and dollars each loses
+                                 it hits, the volume and dollars each loses, the crews and people on it, the
+                                 overloads it is in and the planner's rules its jobs break; and the same outages by
+                                 asset (the areas its jobs are in and the units it takes down), by person (each crew
+                                 and person booked) and by customer, a customer hit by more than one outage flagged
 
 Read from the records, never from the asset type:
     an outage            a schedule whose activities need the plant down is one outage, from its first start to its
@@ -13,12 +16,15 @@ Read from the records, never from the asset type:
     what it takes down   the flow units its jobs take down, as Production at risk reads them (at_risk._units)
     a contract it hits   one whose delivery point is a unit it takes down, or loses every feed because of it, while
                          the contract runs
-    what it loses        the contract's daily volume for the hours it is hit, at the contract's rate
+    what it loses        the contract's daily volume for the hours it is hit, at the contract's rate; where two
+                         outages hit one contract at once, by customer counts the hours once
+    hit more than once   a customer hit at two or more separate times (outages that overlap are one time for it)
 """
 
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 
-from . import at_risk
+from . import at_risk, plan_rules, schedule
 from .plan import ACTIVE, SHUTDOWNS, _when
 
 HORIZON_DAYS = at_risk.HORIZON_DAYS
@@ -120,20 +126,91 @@ def _sum(xs) -> float | None:
     return round(sum(xs), 0) if xs else None
 
 
+def _union(spans: list[tuple[datetime, datetime]]) -> list[tuple[datetime, datetime]]:
+    out: list[list[datetime]] = []
+    for a, b in sorted(spans):
+        if out and a <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], b)
+        else:
+            out.append([a, b])
+    return [(a, b) for a, b in out]
+
+
+def by_customer(outs: list[dict], book: list[dict]) -> list[dict]:
+    """Each customer an outage hits: the outages, how many separate times it is hit, and what it loses over the
+    horizon, each contract's hours counted once however many outages hit it at once."""
+    terms = {c["key"]: c for c in book}
+    spans: dict[str, list] = defaultdict(list)
+    who: dict[str, dict] = {}
+    for o in outs:
+        for h in o["hits"]:
+            spans[h["contract"]].append((h["start"], h["end"]))
+            w = who.setdefault(h["customer"] or h["contract"], {"outages": [], "contracts": set()})
+            if o["key"] not in w["outages"]:
+                w["outages"].append(o["key"])
+            w["contracts"].add(h["contract"])
+    out = []
+    for name, w in who.items():
+        cs = sorted(w["contracts"])
+        losses = [_loss(terms[k], sum(_hours(a, b) for a, b in _union(spans[k]))) for k in cs]
+        times = len(_union([x for k in cs for x in spans[k]]))
+        out.append({"customer": name, "customer_type": terms[cs[0]]["customer_type"], "contracts": cs,
+                    "outages": w["outages"], "times": times, "flagged": times > 1,
+                    "volume_bbl": _sum(v for v, _ in losses), "usd": _sum(u for _, u in losses)})
+    return sorted(out, key=lambda x: (not x["flagged"], -(x["usd"] or 0), x["customer"]))
+
+
+def _crews(conn, ids: list[int]) -> dict[int, list[dict]]:
+    out: dict[int, list[dict]] = defaultdict(list)
+    for r in conn.execute("select x.item_id, r.code, r.name from plan_demand_all x join plan_resource r on r.code = "
+                          "x.resource where x.item_id = any(%s) and r.kind = 'crew' order by r.code", (ids,)):
+        out[r["item_id"]].append({"code": r["code"], "name": r["name"]})
+    return out
+
+
 def outages(conn, start=None, days: int = HORIZON_DAYS) -> dict:
-    """The outages in [start, start + days), each with the plant it takes down and the contracts it hits, and what
-    each loses: volume (bbl) and dollars, for the hours it is hit."""
+    """The outages in [start, start + days), each with the plant it takes down and the contracts it hits, what each
+    loses (volume in bbl and dollars, for the hours it is hit), the crews and people on it, the overloads its jobs
+    are in and the planner's rules they break; and the same outages by asset, by person and by customer."""
     t0 = _when(start) if start else datetime.now(UTC)
     t1 = t0 + timedelta(days=days)
     book = contracts(conn)
     groups = _group(conn, _rows(conn, t0, t1))
+    ids = [i for g in groups for i in g["item_ids"]]
+    crews = _crews(conn, ids)
+    over = schedule.over_capacity(conn, t0, t1) if ids else {}
+    broken = plan_rules.breaks(conn) if ids else {}
     labels = at_risk._labels(conn, {u for g in groups for u in g["units"] | g["areas"]})
+    named = lambda xs: sorted(({"id": u, "label": labels.get(u) or u} for u in xs), key=lambda x: x["label"])
     out = []
     for g in groups:
         hits = _hits(g, (g["start"], g["end"]), book, t0, t1)
+        team = {c["code"]: c for i in g["item_ids"] for c in crews.get(i, [])}
+        loads = {o["key"]: o for i in g["item_ids"] for o in over.get(i, [])}
         out.append({"key": g["key"], "title": g["title"], "project": g["project"], "item_ids": g["item_ids"],
                     "start": g["start"], "end": g["end"], "hours": round(_hours(g["start"], g["end"]), 1),
-                    "units": sorted(({"id": u, "label": labels.get(u) or u} for u in g["units"]), key=lambda x: x["label"]),
-                    "areas": sorted(({"id": a, "label": labels.get(a) or a} for a in g["areas"]), key=lambda x: x["label"]),
+                    "units": named(g["units"]), "areas": named(g["areas"]),
+                    "crews": sorted(team.values(), key=lambda c: c["code"]), "people": sorted(g["people"]),
+                    "over_capacity": sorted(loads.values(), key=lambda o: (o["from"], o["resource"])),
+                    "breaks": [b for i in g["item_ids"] for b in broken.get(i, [])],
                     "hits": hits, "volume_bbl": _sum(h["volume_bbl"] for h in hits), "usd": _sum(h["usd"] for h in hits)})
-    return {"start": t0, "end": t1, "days": days, "contracts": len(book), "outages": out, "basis": BASIS}
+    assets: dict[str, dict] = {}
+    kinds = {r["fuzer_id"]: r["kind"] for r in conn.execute("select fuzer_id, kind from entity where fuzer_id = any(%s)",
+                                                            (list(labels),))} if labels else {}
+    for o in out:
+        for x in o["areas"] + o["units"]:
+            assets.setdefault(x["id"], {**x, "kind": kinds.get(x["id"]), "outages": []})["outages"].append(o["key"])
+    people: dict[str, dict] = {}
+    for o in out:
+        for c in o["crews"]:
+            p = people.setdefault(c["code"], {"who": c["code"], "name": c["name"], "crew": True, "outages": [],
+                                              "over_capacity": []})
+            p["outages"].append(o["key"])
+            p["over_capacity"] += [x for x in o["over_capacity"] if x["resource"] == c["code"]]
+        for who in o["people"]:
+            people.setdefault(who, {"who": who, "name": who, "crew": False, "outages": [], "over_capacity": []}
+                              )["outages"].append(o["key"])
+    return {"start": t0, "end": t1, "days": days, "contracts": len(book), "outages": out,
+            "by_asset": sorted(assets.values(), key=lambda a: (a["kind"] != "area", a["label"])),
+            "by_person": sorted(people.values(), key=lambda p: (not p["crew"], p["name"])),
+            "by_customer": by_customer(out, book), "basis": BASIS}

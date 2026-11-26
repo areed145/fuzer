@@ -177,6 +177,13 @@ takes an optional reason; the choice is kept on the case and counted as the reco
 **taken** or not, per work type, on Work performance, and per skill on Ops IQ, Skills (with a brief followed in full).
 Not "proposal" (that is an agent's suggested change).
 
+**Outage.** Planned work that takes plant down, as Plan's Outages card reads it: a schedule whose activities need the
+plant down is one outage, any other shutdown job is one on its own. It **hits** the contracts whose delivery point it
+takes down or leaves with no feed, each losing its daily volume for the hours it is hit, at its rate. The card reads
+one set of outages **by customer** (a customer hit at more than one time is flagged), **by asset** (the areas its jobs
+are in and the units it takes down) and **by person** (each crew and person booked, over capacity flagged). See
+[the planner's guide](guides/planner.md).
+
 **Overload.** A run of hours when the plan needs more of a resource than it has, found by the constraint check across
 every resource: the need against the capacity, the jobs causing it (a crew's trip names the job it flies for) and the
 capacity window behind it, such as a weather window. A job in one is flagged **over capacity** on Plan; Resources

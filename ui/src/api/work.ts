@@ -930,6 +930,23 @@ export interface AtRisk {
   }[];
 }
 
+/** Outages on the plan and the customers they hit (P5.22): one set read by asset, by person and by customer. */
+export interface OutageHit { contract: string; customer: string | null; service: string | null; point: string; start: string;
+  end: string; hours: number; volume_bbl: number | null; usd: number | null }
+export interface Outage {
+  key: string; title: string; project: string | null; item_ids: number[]; start: string; end: string; hours: number;
+  units: { id: string; label: string }[]; areas: { id: string; label: string }[]; crews: { code: string; name: string }[];
+  people: string[]; over_capacity: { key: string; resource: string; name: string; peak: number; capacity: number; from: string; to: string }[];
+  breaks: { rule: number; rule_say: string; say: string }[]; hits: OutageHit[]; volume_bbl: number | null; usd: number | null;
+}
+export interface Outages {
+  start: string; end: string; days: number; contracts: number; basis: string; outages: Outage[];
+  by_asset: { id: string; label: string; kind: string | null; outages: string[] }[];
+  by_person: { who: string; name: string; crew: boolean; outages: string[]; over_capacity: Outage["over_capacity"] }[];
+  by_customer: { customer: string; customer_type: string | null; contracts: string[]; outages: string[]; times: number;
+    flagged: boolean; volume_bbl: number | null; usd: number | null }[];
+}
+
 /** A schedule on the integrated plan (P5.18): a turnaround, project or campaign with activities, links and resources. */
 export interface ScheduleSummary {
   code: string; title: string; kind: string; start_at: string; finish_by: string | null; hours_per_day: number;
@@ -1255,6 +1272,7 @@ export const workApi = {
     at?: string }, project?: string) =>
     request<RoundPoint & { exception: { id: number; raised: boolean } | null }>("POST", `/rounds/${id}/readings`, undefined, t, project),
   planAtRisk: (start?: string, days = 90) => request<AtRisk>("GET", "/plan/at-risk", { start, days }),
+  planOutages: (start?: string, days = 90) => request<Outages>("GET", "/plan/outages", { start, days }),
   /** `active` keeps the work still to do: proposed, scheduled or in progress. */
   plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string; within?: string; active?: boolean;
               overCapacity?: boolean; rules?: boolean } = {}) => {

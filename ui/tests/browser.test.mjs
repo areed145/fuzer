@@ -12702,3 +12702,49 @@ for (const [size, viewport] of PHONE_DESK) {
     assert.deepEqual(errors, []);
   });
 }
+
+// ---- P5.22b (#1425): outages by asset, person and customer on Plan, a customer hit twice flagged ---------------------
+const outagesFixture = () => {
+  const day = (d, h = 6) => new Date(Date.UTC(2026, 11, d, h)).toISOString();
+  const pig = { key: "HR-PIG-2027", title: "Harrier mainline outage (pig run, midline pump A overhaul, receipt meter proving)",
+    project: "HR-PIG-2027", item_ids: [13, 14], start: day(10, 12), end: day(14, 18), hours: 102,
+    units: [{ id: "fz-tag-1", label: "A1-FT-1010" }], areas: [{ id: "fz-area-c1", label: "HRPT-C1" }],
+    crews: [{ code: "ILI", name: "Inline inspection contractor" }], people: [],
+    over_capacity: [{ key: "ILI@x", resource: "ILI", name: "Inline inspection contractor", peak: 3, capacity: 2, from: day(12), to: day(13) }],
+    breaks: [], hits: [{ contract: "HR-TSA-102", customer: "Prairie Basin Producers", service: "transportation", point: "A1-FT-1010",
+      start: day(10, 12), end: day(14, 18), hours: 102, volume_bbl: 93500, usd: 215050 }], volume_bbl: 93500, usd: 215050 };
+  const valve = { ...pig, key: "item:8", title: "Relief valve bench test", project: null, item_ids: [8], start: day(26), end: day(27),
+    hours: 24, areas: [{ id: "fz-area-a1", label: "HRPT-A1" }], crews: [], over_capacity: [],
+    hits: [{ ...pig.hits[0], start: day(26), end: day(27), hours: 24, volume_bbl: 22000, usd: 50600 }], volume_bbl: 22000, usd: 50600 };
+  return { start: day(1), end: day(28), days: 90, contracts: 3, basis: "", outages: [pig, valve],
+    by_asset: [{ id: "fz-area-c1", label: "HRPT-C1", kind: "area", outages: [pig.key] },
+      { id: "fz-tag-1", label: "A1-FT-1010", kind: "tag", outages: [pig.key, valve.key] }],
+    by_person: [{ who: "ILI", name: "Inline inspection contractor", crew: true, outages: [pig.key], over_capacity: pig.over_capacity }],
+    by_customer: [{ customer: "Prairie Basin Producers", customer_type: "shipper", contracts: ["HR-TSA-102"], outages: [pig.key, valve.key],
+      times: 2, flagged: true, volume_bbl: 115500, usd: 265650 }] };
+};
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.22b Plan shows the outages by customer, asset and person, and flags a customer hit twice (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "pat"));
+    await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+    await page.route("**/plan/outages?*", (route) => route.fulfill({ json: outagesFixture() }));
+    await page.goto(`${url}/#/plan`);
+    const card = page.locator(".plan-outages");
+    const customers = card.getByRole("list", { name: "By customer" });
+    await customers.getByText("Prairie Basin Producers", { exact: true }).waitFor();
+    await customers.locator(".ui-badge", { hasText: "hit 2 times" }).waitFor();
+    await customers.getByText("$265,650 · 115,500 bbl").waitFor();
+    assert.equal(await customers.getByText("Relief valve bench test").count(), 1);
+    await card.getByRole("button", { name: "By asset" }).click();
+    const assets = card.getByRole("list", { name: "By asset" });
+    await assets.getByText("A1-FT-1010", { exact: true }).waitFor();
+    assert.equal(await assets.locator("li.plan-outage").count(), 2);
+    await card.getByRole("button", { name: "By person" }).click();
+    const people = card.getByRole("list", { name: "By person" });
+    await people.getByText("Inline inspection contractor").waitFor();
+    await people.locator(".ui-badge", { hasText: "over capacity" }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}

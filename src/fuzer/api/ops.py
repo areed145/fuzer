@@ -1468,6 +1468,15 @@ def plan_at_risk(start: str | None = None, days: int = 90, conn=Depends(get_conn
     return _plan_call(conn, at_risk.windows, start, days=max(1, min(days, 366)))
 
 
+@router.get("/plan/outages")
+def plan_outages(start: str | None = None, days: int = 90, conn=Depends(get_conn)):
+    """Outages on the plan and the customers they hit (P5.22): each outage over the horizon with the plant it takes
+    down, the contracts it hits and what each loses (bbl, $), the crews and people on it, its overloads and broken
+    rules; by asset, by person and by customer, a customer hit at more than one time flagged."""
+    from ..ops import outages
+    return _plan_call(conn, outages.outages, start, days=max(1, min(days, 366)))
+
+
 @router.get("/plan")
 def plan_items(start: str | None = None, end: str | None = None, area: str | None = None, status: str | None = None,
                subject: str | None = None, within: str | None = None, active: bool = False,

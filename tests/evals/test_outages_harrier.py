@@ -46,3 +46,26 @@ def test_okan_and_kestrel_load_no_contracts_and_their_outages_hit_no_one(okan_db
         conn.rollback()
         assert got["contracts"] == 0 and got["outages"], got
         assert all(not o["hits"] and o["usd"] is None for o in got["outages"])
+
+
+def test_harrier_shows_its_outages_by_asset_person_and_customer_and_flags_a_customer_hit_twice(c):
+    """P5.22b: one set of outages read three ways. The mainline outage and the origin's relief valve test, sixteen days
+    apart, both hit the two shippers at the origin meter: each is flagged as hit at two separate times."""
+    got = outages.outages(c)
+    keys = {o["title"]: o["key"] for o in got["outages"]}
+    pig, valve = keys["Harrier mainline outage (pig run, midline pump A overhaul, receipt meter proving)"], keys["Relief valve bench test"]
+    assets = {a["label"]: a for a in got["by_asset"]}
+    assert assets["A1-FT-1010"]["kind"] == "tag" and set(assets["A1-FT-1010"]["outages"]) == {pig, valve}
+    assert assets["HRPT-C1"]["kind"] == "area" and assets["HRPT-C1"]["outages"] == [pig]  # the mainline itself
+    people = {p["who"]: p for p in got["by_person"]}
+    assert {"MECH", "INST", "OPS", "ILI"} <= set(people) and people["ILI"]["crew"] and people["ILI"]["outages"] == [pig]
+    customers = {x["customer"]: x for x in got["by_customer"]}
+    north, prairie = customers["Northgate Crude Marketing"], customers["Prairie Basin Producers"]
+    assert north["flagged"] and north["times"] == 3 and {pig, valve} <= set(north["outages"])  # and tank A's seal job
+    assert prairie["flagged"] and prairie["times"] == 2 and prairie["outages"] == [pig, valve]
+    assert prairie["contracts"] == ["HR-TSA-102"]
+    # what each loses over the horizon is its contracts' hours hit, at their volume and rate
+    hours = sum(h["hours"] for o in got["outages"] for h in o["hits"] if h["contract"] == "HR-TSA-102")
+    assert prairie["volume_bbl"] == round(22000 * hours / 24) and prairie["usd"] == round(22000 * hours / 24 * 2.30)
+    assert got["by_customer"][0]["flagged"]  # flagged customers first
+

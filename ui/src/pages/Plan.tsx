@@ -1,11 +1,11 @@
 /** The integrated plan (Turnaround is a window on it, #554): every planned activity from every source on one timeline, by area. SAP work orders,
  * turnaround work, inspections and the exceptions the IOC chose to plan sit side by side, so two jobs on one asset,
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
-import { acronyms, detectorName, person as personName, queue, say } from "../wording";
-import { money, when, whenDay, whenHour, estimate } from "../format";
+import { acronyms, detectorName, kindWord, person as personName, queue, say } from "../wording";
+import { count, money, when, whenDay, whenHour, estimate } from "../format";
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { api, type AtRisk, type PlanItem, type PlanRule, type ResourceLoad } from "../api";
-import { Badge, Button, Card, Checkbox, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field, confirmDialog, promptDialog } from "../ui";
+import { api, type AtRisk, type Outage, type Outages, type PlanItem, type PlanRule, type ResourceLoad } from "../api";
+import { Badge, Button, Card, Checkbox, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field, Tabs, confirmDialog, promptDialog } from "../ui";
 import { Status, errorMessage, href, useAsync, useAction } from "../lib";
 import { AssignPicker, caseHref } from "./workflows/shared";
 import { TurnaroundPanel } from "./Turnaround";
@@ -219,6 +219,7 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
       <div>
       {/* The number a manager wants comes first: production at risk from the planned shutdowns (#1078). */}
       {!within && <RulesCard person={person} onChange={plan.reload} />}
+      {!within && <OutagesCard from={from} person={person} />}
       {!within && <AtRiskCard from={from} />}
       {!within && <CrewLoadCard from={from} days={days} pos={pos} lines={lines} axis={axis} />}
       {!plan.data.length && <Empty>Nothing planned on these dates.</Empty>}
@@ -489,6 +490,46 @@ function AtRiskCard({ from }: { from: string }) {
           </Text>}
         </li>)}</List>
       </> : <Empty>No shutdowns planned in the next {d.days} days.</Empty>)}
+    </Card>
+  );
+}
+
+const VIEWS = [["customer", "By customer"], ["asset", "By asset"], ["person", "By person"]] as const;
+type View = (typeof VIEWS)[number][0];
+const loss = (x: { volume_bbl: number | null; usd: number | null }) =>
+  [x.usd != null && money(x.usd), x.volume_bbl != null && `${count(x.volume_bbl)} bbl`].filter(Boolean).join(" · ");
+
+/** The outages on the plan and the customers they hit (P5.22): one set, read by customer, by asset or by person. A
+ * customer hit at more than one time is flagged. Shown where a contract register is loaded. */
+function OutagesCard({ from }: { from: string; person: string | null }) {
+  const got = useAsync(() => api.planOutages(new Date(Math.max(Date.now(), new Date(from).getTime())).toISOString(), 90), [from]);
+  const [view, setView] = useState<View>("customer");
+  const d: Outages | undefined = got.data && Array.isArray(got.data.outages) ? got.data : undefined;
+  if (got.data && !d?.contracts) return null;
+  const of = new Map((d?.outages ?? []).map((o) => [o.key, o]));
+  const outage = (o: Outage) => <li key={o.key}><strong>{acronyms(o.title)}</strong>{" "}
+    <Text small muted>{short(o.start)}–{short(o.end)} · {o.hours} h down</Text></li>;
+  const listed = (keys: string[]) => <List small>{keys.map((k) => of.get(k)).filter((o): o is Outage => !!o).map(outage)}</List>;
+  return (
+    <Card title="Outages" className="plan-area plan-outages">
+      <Status of={got} />
+      {d && (d.outages.length ? <>
+        <Tabs small label="Outages by" items={VIEWS.map(([k, label]) => ({ key: k, label, current: view === k, onSelect: () => setView(k) }))} />
+        {view === "customer" && (d.by_customer.length ? <List plain aria-label="By customer">{d.by_customer.map((c) => <li key={c.customer} className="plan-outage">
+          <Line wrap><strong>{c.customer}</strong>{c.flagged && <Badge tone="danger">hit {c.times} times</Badge>}
+            <Text small>{loss(c)}</Text></Line>
+          {listed(c.outages)}
+        </li>)}</List> : <Empty>No outage hits a contract.</Empty>)}
+        {view === "asset" && <List plain aria-label="By asset">{d.by_asset.map((a) => <li key={a.id} className="plan-outage">
+          <Line wrap><strong>{a.label}</strong>{a.kind && <Text small muted>{kindWord(a.kind)}</Text>}</Line>
+          {listed(a.outages)}
+        </li>)}</List>}
+        {view === "person" && (d.by_person.length ? <List plain aria-label="By person">{d.by_person.map((p) => <li key={p.who} className="plan-outage">
+          <Line wrap><strong>{p.crew ? p.name : crewName(p.who)}</strong>
+            {p.over_capacity.length > 0 && <Badge tone="danger">over capacity</Badge>}</Line>
+          {listed(p.outages)}
+        </li>)}</List> : <Empty>No crew or person is booked on an outage.</Empty>)}
+      </> : <Empty>No outages planned in the next {d.days} days.</Empty>)}
     </Card>
   );
 }
