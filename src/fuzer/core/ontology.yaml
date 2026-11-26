@@ -308,8 +308,8 @@ relations:
   starts_at:
     label: starts at
     view: physical
-    description: Where a pipeline starts.
-    from: [pipeline]
+    description: Where a pipeline, or one of its route segments, starts.
+    from: [pipeline, pipeline_segment]
     to: [area, facility, tag]
   ends_at:
     label: ends at

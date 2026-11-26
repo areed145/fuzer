@@ -41,7 +41,7 @@ def limits(ref: str, at: str | None = None) -> dict[str, Any]:
 
 @capability(
     "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
-    kind="calc"
+    "pipelines-commercial", kind="calc"
 )
 def calc(check: Literal["decline", "gas_lift", "pump_curve", "choke", "reliability", "wall_loss", "well_constraint",
                        "dp_drift", "compressor_performance", "cooler_fouling", "peers", "vibration", "pump_bep",

@@ -45,5 +45,9 @@ def test_every_type_of_work_on_harrier_completes_the_loop(harrier_db, field_jobs
         "and e.kind in ('pipeline', 'pipeline_segment', 'pipeline_feature'))").fetchall()
     assert {i["type"] for i in on_line} == {"ili_anomaly"}
     assert all(brief.owner(harrier_db, dict(i))["owner"] == "pipelines-commercial" for i in on_line)
+    # the VRU's trip is not on the line and stays the compression pack's; the origin pump's trip, which is, is the
+    # hydraulics pack's (tests/evals/test_pipelines_harrier.py, P4.7a)
+    [vru] = harrier_db.execute("select * from work_item where type = 'machine_trip'").fetchall()
+    assert brief.owner(harrier_db, dict(vru))["path"] == "maintenance-integrity/compression"
     harrier_db.rollback()
     field_jobs_kept("harrier", res)  # its field jobs, rendered at 390 px like Okan's

@@ -14,8 +14,9 @@ each is judged against (alarm limits, integrity operating windows or the range l
   in discharge pressure with flow falling at both ends is a pump stopping; a step on one transmitter alone is an
   instrument for the controls specialist.
 - **Pump station trips**: `trip_analysis(since, until, scope)` with the station as scope gives each stop, start and
-  failed start with the time running. Quote the pump, when it stopped and how long the station ran on fewer pumps,
-  and hand the pump's own condition (vibration, seals) to Maintenance & Integrity.
+  failed start with the time running, and `calc("compressor_trip", pump, until=<around the trip>)` the point that
+  moved first and what it tripped on. Quote the pump, when it stopped, its first cause and how long the station ran
+  on fewer pumps, and hand the pump's own condition (vibration, seals) to Maintenance & Integrity.
 - **Line balance**: the flow in at the first meter against the flow out at the last over the same hours. Quote both
   in bbl/h, the gap and its share, and the window. A gap that follows a pump stop and recovers is linepack moving,
   not a loss; a gap that holds with pressure falling goes to the pipeline integrity skill as a possible leak.

@@ -37,7 +37,7 @@ def _case(conn, type_: str, subject: str) -> int:
 
 @pytest.fixture
 def classes(monkeypatch):
-    known = {"unit-co": "CO", "unit-co2": "CO", "unit-pu": "PU", "unit-ve": "VE"}
+    known = {"unit-co": "CO", "unit-co2": "CO", "unit-pu": "PU", "unit-ve": "VE", "unit-pu-in": "PU", "unit-pu-out": "PU"}
     monkeypatch.setattr(detectors, "classes_of", lambda conn, units: {u: known[u] for u in units if u in known})
 
 
@@ -93,6 +93,24 @@ def test_a_missing_brief_says_why(conn, classes):
         assert "reached its cap: $0.25 of $0.20" in brief.prepare(conn, capped, lambda q: pytest.fail("ran"))["missing"]
     finally:
         settings.reset(conn, "agents.case_cap_usd", by="test")
+
+
+def test_a_trip_on_the_pump_at_a_pipelines_origin_station_is_the_pipelines_brief(conn, classes):
+    """P4.7a: a pump at the station a pipeline starts from pumps into the line, so its trip is briefed by the
+    Pipelines & Commercial hydraulics pack; a pump where a line ends is only a pump, and its trip has no brief."""
+    with conn.transaction():
+        conn.execute("insert into entity (fuzer_id, kind) values ('stn-in', 'area'), ('stn-out', 'area'), "
+                     "('line-1', 'pipeline'), ('unit-pu-in', 'tag'), ('unit-pu-out', 'tag')")
+        conn.execute("insert into edge (src, rel, dst, sources, confidence) values "
+                     "('line-1', 'starts_at', 'stn-in', '{test}', 1), ('line-1', 'ends_at', 'stn-out', '{test}', 1), "
+                     "('unit-pu-in', 'part_of', 'stn-in', '{test}', 1), ('unit-pu-out', 'part_of', 'stn-out', '{test}', 1)")
+    trip = lambda unit: brief.owner(conn, {"type": "machine_trip", "subjects": [unit]})
+    assert trip("unit-pu-in")["path"] == "pipelines-commercial/hydraulics-and-linepack"
+    assert trip("unit-pu-out") is None
+    # its machine health is still the pumps pack's
+    assert brief.owner(conn, {"type": "machine_health", "subjects": ["unit-pu-in"]})["path"] == \
+        "maintenance-integrity/pumps-and-drivers"
+    conn.rollback()
 
 
 def test_a_brief_over_its_budget_says_so_and_types_no_pack_briefs_are_left_alone(conn, classes):

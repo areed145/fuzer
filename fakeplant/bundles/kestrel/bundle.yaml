@@ -33,4 +33,5 @@ operating_model:
     owner: ops_lead
 packs_not_applicable:  # specialist packs that can't apply to this asset (#826)
   - {pack: pipelines-commercial/pipeline-integrity, reason: its lines have no in-line inspection runs or route segments}
+  - {pack: pipelines-commercial/hydraulics-and-linepack, reason: its lines have no route segments to place a pump station or a line balance on}
   - {pack: pipelines-commercial/outage-planning, reason: it loads no customer and contract register}

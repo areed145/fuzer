@@ -1,14 +1,15 @@
 """The agent brief on a case (P4.3): before a person opens a case, the specialist whose pack owns it reads it.
 
-A pack owns a case when the case's work type is one the pack `briefs` and one of the case's subjects is of a class
-the pack covers (ISO 14224, or a unit kind such as a well, a pipeline or a contract). The pack's agent writes the
-brief: what happened in plain words, the evidence, what the standard analysis shows, similar past cases and what fixed
-them, a proposed disposition with its confidence, and what it could not check, led by the methods its pack cannot run
-on the case's subjects because a measurement it needs is not on the register there (P4.1b). Those, and what a tool
-the specialist called said it could not say (a source not loaded), are kept as what the brief could not determine
-(P6.6). The approved lessons for the subjects' equipment model or class go to the specialist with the case and are
-kept on the brief (P6.2b); a suggested or rejected lesson never does. The brief proposes; a person decides (the gate
-policy, P5.10, always stops an agent's proposed disposition at a person).
+A pack owns a case when the case's work type is one the pack `briefs` and one of the case's subjects is of a class the
+pack covers (ISO 14224, or a unit kind such as a well, a pipeline or a contract; a unit at a station a pipeline or one
+of its segments starts from, such as its pump, is on that pipeline), unless the asset's bundle marks the pack not
+applicable. The pack's agent writes the brief: what happened in plain words, the evidence, what the standard analysis
+shows, similar past cases and what fixed them, a proposed disposition with its confidence, and what it could not check,
+led by the methods its pack cannot run on the case's subjects because a measurement it needs is not on the register
+there (P4.1b). Those, and what a tool the specialist called said it could not say (a source not loaded), are kept as
+what the brief could not determine (P6.6). The approved lessons for the subjects' equipment model or class go to the
+specialist with the case and are kept on the brief (P6.2b); a suggested or rejected lesson never does. The brief
+proposes; a person decides (the gate policy, P5.10, always stops an agent's proposed disposition at a person).
 
 A brief is kept on the case as an `agent_result` event for the step `brief`, with its ledger (P4.4), so its cost
 counts toward the case's agent spend and it shows in the agent work card. A case that gets no brief records why in
@@ -52,10 +53,34 @@ DEFAULT_TIER = timedelta(hours=6)
 _JSON = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 
 
+# A unit at a station a pipeline or one of its segments starts from pumps into that line, so it is on the line for a
+# pack's classes: a trip on the origin or a midline station's pump is the pipeline's as well as the pump's (P4.7a).
+_ON_A_LINE = """
+select 1 from edge u join edge s on s.dst = u.dst and s.rel = 'starts_at' and s.valid_to is null
+join entity l on l.fuzer_id = s.src and l.kind in ('pipeline', 'pipeline_segment') and l.merged_into is null
+     and l.retired_at is null
+where u.src = any(%s) and u.rel = 'part_of' and u.valid_to is null limit 1
+"""
+
+
 def owner(conn, item: dict) -> dict | None:
-    """The pack whose `briefs` include the case's type and whose classes include one of its subjects' classes."""
-    classes = set(detectors.classes_of(conn, item.get("subjects") or []).values())
+    """The pack whose `briefs` include the case's type and whose classes include one of its subjects' classes (a
+    subject at a station a pipeline or its segment starts from is on that pipeline too), leaving out a pack this
+    asset's bundle marks not applicable."""
+    from ..core import projects
+    from ..core.pack import resolve
+
+    subjects = item.get("subjects") or []
+    classes = set(detectors.classes_of(conn, subjects).values())
+    if subjects and conn.execute(_ON_A_LINE, (list(subjects),)).fetchone():
+        classes.add("pipeline")
+    try:
+        exempt = packs.not_applicable().get(resolve(conn).name, {})
+    except projects.ProjectError:
+        exempt = {}
     for path in packs.shipped():
+        if path in exempt:
+            continue
         p = packs.load(path)
         if item["type"] in (p.get("briefs") or ()) and classes & set(p.get("classes") or ()):
             return p
