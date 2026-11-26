@@ -11542,6 +11542,33 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
   });
 }
 
+// P2.8 (#1254): each message on All work shows the message as its source (channel and sender) and where it stands:
+// its case to dispatch, its question with the steward, an answered one closed.
+test("P2.8 each message on All work shows its source and state", async () => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const said = (id, channel_label, sender) => ({ message: { id, channel: "radio", channel_label, sender, subject: null,
+    text: "", received_at: "2026-11-23T11:05" } });
+  const row = (id, type, title, stage, state, evidence) => ({ id, uid: `e${id}`, exception_id: id, type, kind: type,
+    kind_label: type, key: `k${id}`, source: "messages", state, exception_state: state === "open" ? "open" : "cleared",
+    priority: null, value_usd: null, subjects: [], unmatched: [], role: null, raised_count: 1, item_id: 100 + id,
+    assignee: null, holder: "none", queue: "ops_lead", title, stage, evidence, due_at: null, overdue: false,
+    first_seen: "2026-11-23T11:05:00Z", last_seen: "2026-11-23T11:05:00Z", opened: "2026-11-23T11:05:00Z",
+    updated: "2026-11-23T11:05:00Z", facility: "none", area: "none", asset: "none", take: null });
+  const rows = [row(1, "message_report", "10-P-1001B noisy on the outboard bearing", "dispatch", "open",
+    said("MSG-0002", "Radio call", "PP CRO")),
+  row(2, "message_to_match", "V-2002 level glass hard to read", "desk", "open", said("MSG-0020", "IOC mailbox", "Field Service")),
+  row(3, "message_to_match", "PT-2001 reading erratic", "closed", "closed", said("MSG-0007", "Radio call", "ST1 CRO"))];
+  await page.route("**/cases?*", (route) => route.fulfill({ json: { total: 3, labels: {}, facets: {}, rows } }));
+  await page.goto(`${url}/#/list?state=all`);
+  for (const [title, source, stage] of [["noisy on the outboard bearing", "Radio call from PP CRO", "To dispatch"],
+    ["level glass hard to read", "IOC mailbox from Field Service", "With a desk"],
+    ["reading erratic", "Radio call from ST1 CRO", "Closed"]]) {
+    const r = page.locator("tr.work-row", { hasText: title });
+    await r.getByText(source).waitFor();
+    assert.equal((await r.locator(".work-row-stage").innerText()).trim(), stage, title);
+  }
+});
+
 test("P5.26a the steward's answer to a message links the case it opened, with no links to loads", async () => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));

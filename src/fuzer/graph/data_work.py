@@ -20,6 +20,7 @@ from ..core.findings import EXTERNAL, Finding, at, fact, page
 
 ROLE = "role:data_steward"
 BY = "stewardship"
+MESSAGES = "messages"  # what raised a message's question and its case (ops.messages): All work reads both by it (P2.8)
 
 # review kind -> (work type, label, what the steward decides)
 KINDS: dict[str, tuple[str, str, str]] = {
@@ -150,7 +151,8 @@ def finding(item_id: int, kind: str, p: dict) -> Finding:
         fact("Dataset", p.get("dataset")) if kind in ("schema", "mapping", "check") else None,
         fact("Question", p.get("question")) if kind == "pid_mismatch" else None,
         *_message(p.get("message") if kind == "message" else None, p.get("why")),
-    ), data={"review_item": item_id, "kind": kind})
+    ), data={"review_item": item_id, "kind": kind,  # a message's channel and sender, for its row (P2.8)
+             **({"message": p["message"]} if kind == "message" and p.get("message") else {})})
 
 
 def _message(m: dict | None, why: str | None) -> tuple:
@@ -197,7 +199,8 @@ def sync(conn, by: str = BY) -> dict:
         t, key, p = TYPES[r["kind"]].name, f"{r['kind']}:{r['subject']}", r["payload"] or {}
         live[t].add(key)
         row = raise_exception(conn, t, key, title(r["kind"], r["subject"], p)[:300], by, refs=refs(r["kind"], p),
-                              source=BY, finding=finding(r["id"], r["kind"], p))
+                              source=MESSAGES if r["kind"] == "message" else BY,
+                              finding=finding(r["id"], r["kind"], p))
         out["raised" if row.get("raised") else "refreshed"] += 1
     for t, keys in live.items():
         for key in open_keys(conn, t) - keys:

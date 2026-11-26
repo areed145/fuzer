@@ -159,8 +159,8 @@ whoever has it; no work needed leaves it for the IOC to close (#1408).
 
 A message that asks for nothing ("thanks", an out-of-office reply), or only says what was done with nothing wrong or
 asked in it ("Swapped 10-P-1001A to C, A is isolated and drained"), opens no case and is kept as handled, the second as
-a log entry with what it names. On All work a message's case shows the channel and sender as its source and a short
-summary of its text as the title; the case opens with the channel, sender and time it was received, then the whole
+a log entry with what it names. On All work a message's case, and its question for the steward, show the channel and
+sender as their source (the `messages` source) and a short summary of its text as the title; the case opens with the channel, sender and time it was received, then the whole
 message. The phone's confirmation and the steward's answer link the case they opened, and the answer links the
 entities it is about too; answered on its case, the confirmation stays after the case closes. A message case matched
 to the wrong entity, by the reader or a steward, is redone on the case: **Change the entity** on the message card

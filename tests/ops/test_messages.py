@@ -187,6 +187,25 @@ def test_a_steward_question_carries_the_message_and_its_answer_makes_the_case(re
     assert closed == {"message:MSG-0007": "matched", "message:MSG-0017": "no_work"}, closed
 
 
+def test_each_message_on_all_work_shows_its_source_and_state(read):
+    """A message's case and its question for the steward are rows on All work with the message as their source (its
+    channel and sender) and where each stands: a case to dispatch, a question with the steward, an answered one
+    closed. A message that asked for nothing is kept as handled, with no row."""
+    conn, _ = read
+    from fuzer.ops import worklist
+
+    rows = {r["key"]: r for r in worklist.rows(conn, state="all", source="messages", limit=10000)["rows"]}
+    case, asked, answered = rows["MSG-0002"], rows["message:MSG-0020"], rows["message:MSG-0007"]
+    for r in (case, asked, answered):
+        m = r["evidence"]["message"]
+        assert r["source"] == "messages" and m["channel_label"] and m["sender"], r["key"]
+    assert (case["kind"], case["state"], case["stage"]) == ("message_report", "open", "dispatch")
+    assert (asked["kind"], asked["state"], asked["queue"]) == ("message_to_match", "open", "data_steward")
+    assert asked["evidence"]["message"]["id"] == "MSG-0020"
+    assert (answered["state"], answered["stage"]) == ("closed", "closed")
+    assert not {"MSG-0010", "MSG-0013", "MSG-0019", "MSG-0021"} & set(rows)  # handled: kept, with no case
+
+
 def test_a_message_is_matched_only_to_what_work_can_be_about(read):
     """The steward's choices for a message are the entities work can be about, each with its kind, description and
     place; a log entry or a work order is refused on the server (#1368, tour N9: a log entry was accepted as the
