@@ -997,11 +997,20 @@ export interface PlanChange {
   state: "open" | "approved"; approved_by: string | null; approved_at: string | null;
   writebacks: { id: number; record: string | null; state: string; item_id: number | null; approver_role: string }[];
   notices: PlanNotice[];
+  /** The plan change's own case; and on an auto-assign one (P5.23b), the planner's picks by job id. */
+  case: number | null; picks: Record<string, string>;
   proposal: {
     moves: PlanMove[]; schedules: string[]; basis: string;
     pull_forward: { item_id: number; title: string; start: string; end: string; order: string | null; because: string }[];
-    kpis: { before: PlanKpis; after: PlanKpis; start: string; days: number };
+    /** Absent on an auto-assign plan change, which moves nothing. */
+    kpis?: { before: PlanKpis; after: PlanKpis; start: string; days: number };
+    /** Auto-assign (P5.23b): the crew proposed for each field job with none, why, and anything a pick breaks. */
+    assign?: PlanAssign[];
   } | null;
+}
+export interface PlanAssign {
+  item_id: number; title: string; kind: string; start: string; end: string; case: number | null; order: string | null;
+  crew: string | null; name: string | null; people: number; because: string; breaks: string[]; picked: boolean;
 }
 export interface ResourceLoad {
   code: string; name: string; kind: string; unit: string | null; capacity: number; work_center: string | null; sources: string[];
@@ -1296,6 +1305,10 @@ export const workApi = {
     request<PlanChange>("POST", `/plan/changes/${id}/constraints`, undefined, { by, text }),
   planConstraintRemove: (id: number, by: string, n: number) =>
     request<PlanChange>("DELETE", `/plan/changes/${id}/constraints/${n}`, { by }),
+  planAutoAssign: (by: string, start: string, end: string) =>
+    request<PlanChange>("POST", "/plan/auto-assign", undefined, { by, start, end }),
+  planAssignPick: (id: number, by: string, item: number, crew: string | null) =>
+    request<PlanChange>("PUT", `/plan/changes/${id}/assign/${item}`, undefined, { by, crew }),
   planChangeApprove: (id: number, by: string) => request<PlanChange>("POST", `/plan/changes/${id}/approve`, undefined, { by }),
   planNoticeSend: (id: number, n: number, by: string, text: string) =>
     request<PlanChange>("POST", `/plan/changes/${id}/notices/${n}/send`, undefined, { by, text }),

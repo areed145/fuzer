@@ -12570,3 +12570,78 @@ for (const [size, viewport] of PHONE_DESK) {
     assert.deepEqual(errors, []);
   });
 }
+
+// ---- P5.23b (#1421): auto-assign proposes a crew for each field job with none, as a plan change to review ----------
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.23b Auto-assign on Plan proposes crews as a plan change, the planner picks one, and approves (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "pat"));
+    const line = (item_id, title, kind, crew, name, because, extra = {}) => ({ item_id, title, kind, start: "2025-10-15T00:00:00Z",
+      end: "2025-10-16T00:00:00Z", case: null, order: null, crew, name, people: 1, because, breaks: [], picked: false, ...extra });
+    const ndt = line(89, "Statutory internal inspection, 2nd stage suction scrubber", "inspection", "NDT",
+      "Inspection and NDT technicians", "does inspection work");
+    const left = line(124, "Statutory internal inspection, 1st stage suction scrubber", "inspection", null, null,
+      "no crew has room: no two jobs on Inspection and NDT technicians at the same time: at the same time as “Statutory internal inspection, 2nd stage suction scrubber”");
+    const sap = line(22, "Preventive maintenance ST1 production separator", "maintenance", "MECH", "Mechanical fitters",
+      "does SAP work center MECH's orders", { order: "50000276" });
+    const change = (assign, extra = {}) => ({ exception_id: 14, key: "auto_assign:20251001", say: "Field jobs with no crew",
+      constraint: "a crew proposed for each, Wed 01 Oct to Mon 20 Oct", start: "2025-10-01T00:00:00Z", until: "2025-10-20T00:00:00Z",
+      cause_case: null, case: 42, picks: {}, open: true, forms: [], constraints: [], state: "open", approved_by: null, approved_at: null,
+      writebacks: [], notices: [], proposal: { assign, moves: [], schedules: [], pull_forward: [], basis: "the crew of each job's SAP work center" },
+      ...extra });
+    let current = change([sap, ndt, left]);
+    const calls = [];
+    await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+    await page.route("**/plan/auto-assign", (route) => { calls.push(["ask", route.request().postDataJSON()]); return route.fulfill({ json: current }); });
+    const item = { ...demoTask.item, id: 42, title: "Crews for 2 of 3 field jobs", type: "plan_change", state: "open", closed_at: null,
+      processes: [], events: [], sources: [{ ...planSource(14), key: "plan_change:auto_assign:20251001" }] };
+    await page.route("**/work/items/42", (route) => route.fulfill({ json: item }));
+    await page.route("**/plan/changes/14", (route) => route.fulfill({ json: current }));
+    await page.route("**/plan/resources", (route) => route.fulfill({ json: [
+      { code: "MECH", name: "Mechanical fitters", kind: "crew", capacity: 6, counts: [] },
+      { code: "NDT", name: "Inspection and NDT technicians", kind: "crew", capacity: 2, counts: [] },
+      { code: "CRANE", name: "Platform crane", kind: "crane", capacity: 1, counts: [] }] }));
+    await page.route("**/plan/changes/14/assign/124", (route) => {
+      const body = route.request().postDataJSON();
+      calls.push(["pick", body]);
+      current = change([sap, ndt, body.crew === "NDT"
+        ? { ...left, crew: "NDT", name: "Inspection and NDT technicians", because: "picked by the planner", picked: true,
+            breaks: ["no two jobs on Inspection and NDT technicians at the same time: Statutory internal inspection, 1st stage suction scrubber at the same time as “Statutory internal inspection, 2nd stage suction scrubber”"] }
+        : { ...left, crew: body.crew, name: "Mechanical fitters", because: "picked by the planner", picked: true }]);
+      return route.fulfill({ json: current });
+    });
+    await page.route("**/plan/changes/14/approve", (route) => {
+      calls.push(["approve", route.request().postDataJSON()]);
+      current = { ...current, open: false, state: "approved", approved_by: "pat", approved_at: "2025-10-01T09:00:00Z" };
+      return route.fulfill({ json: current });
+    });
+    await page.goto(`${url}/#/plan`);
+    await page.getByRole("button", { name: "Auto-assign" }).click();
+    await page.waitForURL(/#\/cases\/42$/);
+    assert.equal(calls[0][0], "ask");
+    assert.equal(calls[0][1].by, "pat");
+    assert.ok(calls[0][1].start && calls[0][1].end, "for the dates Plan shows");
+    const card = page.locator(".replan");
+    const table = card.getByRole("table", { name: "Crews proposed" });
+    await table.getByText("does SAP work center MECH's orders").waitFor();
+    await table.getByText(/^no crew has room: no two jobs on Inspection and NDT technicians/).waitFor();
+    assert.equal(await table.getByLabel("Crew for Statutory internal inspection, 2nd stage suction scrubber").inputValue(), "NDT");
+    // a pick that breaks a rule says what it breaks
+    const pick = table.getByLabel("Crew for Statutory internal inspection, 1st stage suction scrubber");
+    await pick.selectOption("NDT");
+    await table.getByText(/^breaks no two jobs on Inspection and NDT technicians at the same time: Statutory/).waitFor();
+    assert.deepEqual(calls.at(-1), ["pick", { by: "pat", crew: "NDT" }]);
+    await pick.selectOption("MECH");
+    await table.getByText("breaks", { exact: true }).waitFor({ state: "detached" });
+    assert.deepEqual(calls.at(-1), ["pick", { by: "pat", crew: "MECH" }]);
+    assert.equal(await pick.inputValue(), "MECH");
+    await card.getByRole("button", { name: "Approve" }).click();
+    await page.getByRole("dialog").getByText("Book these 3 jobs on the crews proposed?").waitFor();
+    await page.getByRole("dialog").getByRole("button", { name: "Approve", exact: true }).click();
+    await card.getByText("Approved by", { exact: false }).waitFor();
+    assert.deepEqual(calls.at(-1), ["approve", { by: "pat" }]);
+    assert.equal(await table.getByRole("combobox").count(), 0, "once approved the crews are no longer picked");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}

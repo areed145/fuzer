@@ -7,7 +7,7 @@ import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, us
 import { api, type AtRisk, type PlanItem, type PlanRule, type ResourceLoad } from "../api";
 import { Badge, Button, Card, Checkbox, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field, confirmDialog, promptDialog } from "../ui";
 import { Status, errorMessage, href, useAsync, useAction } from "../lib";
-import { AssignPicker } from "./workflows/shared";
+import { AssignPicker, caseHref } from "./workflows/shared";
 import { TurnaroundPanel } from "./Turnaround";
 import { SchedulePage } from "./Schedule";
 import { ResourcesPage } from "./Resources";
@@ -190,7 +190,12 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
   return (
     <section>
       {!within && <PageHeader
-        actions={<Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>}>
+        actions={<>
+          {/* a crew proposed for each field job with none on these dates, as a plan change to review (P5.23b) */}
+          {person && <Button disabled={!!busy} onClick={() => run("Proposing crews", () => api.planAutoAssign(person, from, to),
+            (c) => { if (c.case) location.hash = caseHref(c.case); })}>Auto-assign</Button>}
+          <Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>
+        </>}>
         Plan</PageHeader>}
       <Line>
         <Field inline label="From"><Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></Field>

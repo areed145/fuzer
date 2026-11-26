@@ -2066,6 +2066,33 @@ def plan_change_notice(exception_id: int, n: int, x: PlanNotice, conn=Depends(ge
     return _plan_call(conn, replan.send_notice, exception_id, n, x.by, x.text)
 
 
+class PlanAutoAssign(BaseModel):
+    by: str
+    start: str | None = None
+    end: str | None = None
+
+
+@router.post("/plan/auto-assign")
+def plan_auto_assign(a: PlanAutoAssign, conn=Depends(get_conn)):
+    """Auto-assign (P5.23b): a crew proposed for each field job with none between start and end, within each crew's
+    capacity and the planner's rules, as a plan change to review on the maintenance planner's case."""
+    from ..ops import replan
+    return _plan_call(conn, replan.auto_assign, a.by, a.start, a.end)
+
+
+class PlanPick(BaseModel):
+    by: str
+    crew: str | None = None
+
+
+@router.put("/plan/changes/{exception_id}/assign/{item_id}")
+def plan_change_pick(exception_id: int, item_id: int, p: PlanPick, conn=Depends(get_conn)):
+    """The planner changes one job's crew on an auto-assign plan change (a crew's code, "" for none, null to let Fuzer
+    choose again); the proposal is worked out again around it."""
+    from ..ops import replan
+    return _plan_call(conn, replan.pick, exception_id, item_id, p.crew, p.by)
+
+
 @router.post("/plan/resources/{code}/capacity")
 def plan_capacity_window(code: str, w: CapacityWindow, conn=Depends(get_conn)):
     """A different capacity for a while: leave, a crane's certification lapsing, a vessel in dock."""

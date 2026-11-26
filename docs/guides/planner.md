@@ -158,6 +158,21 @@ breaks it. Untick a rule to switch it off (it stays, and marks nothing); **Remov
 A resource is named by its code, its kind (crane) or a word of its name (fitters). Anything else is not guessed at:
 Fuzer says which forms it reads.
 
+### Auto-assign
+
+**Auto-assign** on Plan asks Fuzer for a crew for each field job on the dates shown that has no person or crew booked
+on it (a schedule's activities are booked by their schedule). It arrives as a **Plan change to review** on your work,
+and Plan opens it. Each job gets the first crew that does its work and can take it, one person for the job's dates:
+
+1. the crew of its SAP order's work center (**does SAP work center MECH's orders**)
+2. a crew named for its kind of work (**does inspection work**)
+3. the crews booked on the plan's other jobs of its kind
+
+A crew is skipped when booking it would take it over capacity or break one of your rules; a job no crew can take
+says why and is left with none. Pick another crew (or **No crew**) on any line and the rest is worked out again
+around it; a pick that breaks a rule or a crew's capacity says so, and the plan change can't be approved until it is
+changed. **Approve** books each job on its crew; nothing is booked before.
+
 ## When something breaks
 
 A trip, a late part or a lapsed permit that lands on planned work arrives as routed work, **Plan change to review**,

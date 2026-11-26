@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from "react";
-import { Button, Card as UICard, ErrorText, Input, Line, List, Table, Text, Textarea, confirmDialog } from "../ui";
+import { Badge, Button, Card as UICard, ErrorText, Input, Line, List, Select, Table, Text, Textarea, confirmDialog } from "../ui";
 import { quantity, when } from "../format";
-import { api, type PlanChange, type PlanKpis, type PlanMove, type PlanNotice } from "../api";
+import { api, type PlanAssign, type PlanChange, type PlanKpis, type PlanMove, type PlanNotice } from "../api";
 import { Status, useAction, useAsync } from "../lib";
 import { Actor } from "../work";
 import { caseHref } from "./workflows/shared";
@@ -28,11 +28,14 @@ function PlanChangeCard({ c, person, readOnly, put }:
   const a = useAction();
   const p = c.proposal;
   const edit = !readOnly && c.open;
+  const assign = p?.assign;
+  const booked = assign?.filter((x) => x.crew).length ?? 0;
   return (
     <UICard title="Plan change" className="replan">
       <Text as="p">{c.say}: {c.constraint}.</Text>
-      {p && <>
-        <Kpis before={p.kpis.before} after={p.kpis.after} />
+      {assign && <Assign c={c} lines={assign} edit={edit} person={person} put={put} />}
+      {p && !assign && <>
+        {p.kpis && <Kpis before={p.kpis.before} after={p.kpis.after} />}
         {p.moves.length ? <Diff moves={p.moves} /> : <Text as="p">Nothing on the plan moves.</Text>}
         {p.pull_forward.length > 0 && <>
           <Text as="p" small>Worth pulling forward into the window:</Text>
@@ -46,12 +49,13 @@ function PlanChangeCard({ c, person, readOnly, put }:
           onClick={() => a.run("remove", () => api.planConstraintRemove(c.exception_id, person, n), put)}>Remove</Button></>}</li>
       ))}</List>}
       {edit && p && <Line wrap>
-        <Button variant="primary" disabled={!!a.busy || !person} onClick={async () => (await confirmDialog(
-          `Move ${p.moves.length === 1 ? "this job" : `these ${p.moves.length} jobs`} on the plan, queue SAP's schedule change for you to approve and draft the notices?`,
+        <Button variant="primary" disabled={!!a.busy || !person} onClick={async () => (await confirmDialog(assign
+          ? `Book ${booked === 1 ? "this job" : `these ${booked} jobs`} on the crews proposed?`
+          : `Move ${p.moves.length === 1 ? "this job" : `these ${p.moves.length} jobs`} on the plan, queue SAP's schedule change for you to approve and draft the notices?`,
           { confirm: "Approve" })) && a.run("approve", () => api.planChangeApprove(c.exception_id, person), put)}>Approve</Button>
       </Line>}
       {c.state === "approved" && <Approved c={c} person={person} readOnly={readOnly} put={put} />}
-      {edit && <form onSubmit={(e) => { e.preventDefault(); a.run("constraint", () => api.planConstraint(c.exception_id, person, text),
+      {edit && !assign && <form onSubmit={(e) => { e.preventDefault(); a.run("constraint", () => api.planConstraint(c.exception_id, person, text),
         (x) => { put(x); setText(""); }); }}>
         <Line wrap>
           <Input aria-label="Constraint" placeholder={c.forms[0]} value={text} onChange={(e) => setText(e.target.value)} />
@@ -102,6 +106,32 @@ function Diff({ moves }: { moves: PlanMove[] }) {
       ))}
     </ul>
   );
+}
+
+/** Auto-assign (P5.23b): each field job with no crew, the crew proposed and why; the planner picks another (or none)
+ * while it is open, and a pick that breaks a rule or a crew's capacity says so. */
+function Assign({ c, lines, edit, person, put }:
+  { c: PlanChange; lines: PlanAssign[]; edit: boolean; person: string; put: (c: PlanChange) => void }) {
+  const a = useAction();
+  const resources = useAsync(() => (edit ? api.planResources() : Promise.resolve([])), [edit]);
+  const crews = (Array.isArray(resources.data) ? resources.data : []).filter((r) => r.kind === "crew");
+  if (!lines.length) return <Text as="p">Every field job on these dates has a crew.</Text>;
+  return <>
+    <Table density="compact" aria-label="Crews proposed">
+      <thead><tr><th>Job</th><th>When</th><th>Crew</th><th>Why</th></tr></thead>
+      <tbody>{lines.map((x) => <tr key={x.item_id}>
+        <td>{x.case ? <a href={caseHref(x.case)}>{x.title}</a> : x.title}{x.order && <Text small mono> {x.order}</Text>}</td>
+        <td>{when(x.start)}</td>
+        <td>{edit && crews.length ? <Select aria-label={`Crew for ${x.title}`} value={x.crew ?? ""} disabled={!!a.busy || !person}
+          onChange={(e) => a.run("pick", () => api.planAssignPick(c.exception_id, person, x.item_id, e.target.value), put)}>
+          <option value="">No crew</option>
+          {crews.map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}
+        </Select> : x.name ?? "No crew"}</td>
+        <td>{x.because}{x.breaks.map((b) => <Text as="div" small key={b}><Badge tone="danger">breaks</Badge> {b}</Text>)}</td>
+      </tr>)}</tbody>
+    </Table>
+    <ErrorText>{a.error}</ErrorText>
+  </>;
 }
 
 /** Once approved: who approved it, each SAP schedule change waiting in the write-back queue, and the notices to send. */

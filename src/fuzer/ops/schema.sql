@@ -562,6 +562,9 @@ alter table plan_change add column if not exists writebacks bigint[] not null de
 alter table plan_change add column if not exists notices jsonb not null default '[]';
 -- why a job last moved, in words a field operator reads on it ("20-K-2200B tripped")
 alter table plan_item add column if not exists moved_because text;
+-- an auto-assign plan change (P5.23b, key auto_assign:<when>): the planner's picks, by job id (a crew's code, or ''
+-- for none), kept while it is worked out again
+alter table plan_change add column if not exists picks jsonb not null default '{}';
 
 -- Plan rules (P5.23a, ops/plan_rules.py): a rule a planner typed in words on Plan, as read (deadline, duration, gap,
 -- overlap or sequence) and said back. Checked against every job still to do while it is on; Plan marks each job breaking it.

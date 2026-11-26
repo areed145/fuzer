@@ -234,3 +234,65 @@ def _approve(c, trip, job, case):
     assert e["state"] != "open"
     replan.watch(c)
     assert c.execute("select state from exception_record where id = %s", (pid,)).fetchone()["state"] != "open"
+
+
+def test_auto_assign_proposes_crews_for_unassigned_jobs_with_no_rule_broken_and_the_planner_edits_it(c):
+    """Early October's field jobs have no crew: the SAP orders go to the fitters their work center names and the
+    statutory inspections to the inspectors, one at a time under the planner's rule, so the second inspection that
+    day is left for the planner, who picks the fitters for it. A pick that breaks the rule is shown and can't be
+    approved; approve books the rest as proposed."""
+    from fuzer.core import work
+    from fuzer.ops import plan_rules
+
+    work.add_person(c, "pat", ["maintenance_planner"], "test")
+    plan_rules.add(c, "no overlap on NDT", "pat")
+    c.commit()
+    booked = []
+    was = {r["id"]: r["status"] for r in replan.unassigned(c, _when("2025-10-01"), _when("2025-10-20"))}
+    try:
+        p = replan.auto_assign(c, "pat", "2025-10-01", "2025-10-20")
+        c.commit()
+        assert p["say"] == "Field jobs with no crew" and p["open"] and p["case"]
+        e = c.execute("select type, state, title, item_id from exception_record where id = %s", (p["exception_id"],)).fetchone()
+        assert e["type"] == "plan_change" and e["title"].startswith("Crews for ")
+        assert c.execute("select role from work_item where id = %s", (e["item_id"],)).fetchone()["role"] == "maintenance_planner"
+        lines = {a["item_id"]: a for a in p["proposal"]["assign"]}
+        sap = [a for a in lines.values() if a["order"]]
+        assert sap and all(a["crew"] == "MECH" and a["because"] == "does SAP work center MECH's orders" for a in sap)
+        insp = [a for a in lines.values() if a["kind"] == "inspection"]
+        assert len(insp) == 2 and insp[0]["start"] == insp[1]["start"]
+        [ndt] = [a for a in insp if a["crew"]]
+        [left] = [a for a in insp if not a["crew"]]
+        assert ndt["crew"] == "NDT" and ndt["because"] == "does inspection work"
+        assert left["because"].startswith("no crew has room: no two jobs on Inspection and NDT technicians at the same time")
+        assert not any(a["breaks"] for a in lines.values()), "no rule is broken by the proposal"
+        assert not c.execute("select 1 from plan_demand where item_id = any(%s)", (list(lines),)).fetchone(), \
+            "nothing is booked until it is approved"
+        # a pick that breaks the rule says so and can't be approved
+        p = replan.pick(c, p["exception_id"], left["item_id"], "NDT", "pat")
+        c.commit()
+        [x] = [a for a in p["proposal"]["assign"] if a["item_id"] == left["item_id"]]
+        assert x["crew"] == "NDT" and x["picked"] and x["breaks"][0].startswith("no two jobs on Inspection")
+        with pytest.raises(PlanError, match="breaks no two jobs on Inspection"):
+            replan.approve(c, p["exception_id"], "pat")
+        c.rollback()
+        p = replan.pick(c, p["exception_id"], left["item_id"], "MECH", "pat")
+        c.commit()
+        [x] = [a for a in p["proposal"]["assign"] if a["item_id"] == left["item_id"]]
+        assert x["crew"] == "MECH" and x["because"] == "picked by the planner" and not x["breaks"]
+        p = replan.approve(c, p["exception_id"], "pat")
+        c.commit()
+        booked = [a["item_id"] for a in p["proposal"]["assign"] if a["crew"]]
+        assert p["state"] == "approved" and len(booked) == len(lines)
+        got = {r["item_id"]: r["resource"] for r in c.execute(
+            "select item_id, resource from plan_demand where item_id = any(%s)", (booked,))}
+        assert got[left["item_id"]] == "MECH" and got[ndt["item_id"]] == "NDT"
+        assert not [r for r in plan_rules.rules(c) if r["breaks"]], "approved, still no rule broken"
+        assert c.execute("select state from exception_record where id = %s", (p["exception_id"],)).fetchone()["state"] != "open"
+    finally:
+        c.rollback()
+        c.execute("delete from plan_demand where item_id = any(%s)", (booked,))
+        for i, status in was.items():
+            c.execute("update plan_item set status = %s where id = %s", (status, i))
+        c.execute("delete from plan_rule")
+        c.commit()
