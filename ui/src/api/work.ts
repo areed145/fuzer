@@ -962,15 +962,26 @@ export interface ResourceMove {
   item_id: number; title: string; source: string; code: string | null; order: string | null; slip_hours: number;
   float_hours: number | null; finish_later_days: number | null; new_start: string; new_end: string;
 }
+/** A capacity window that lowered a resource while it was over: a weather window, leave, a vessel in dock. */
+export interface CapacityWindow { id: number; start: string; end: string; capacity: number; reason: string | null }
 export interface ResourceOverload {
-  from: string; to: string; peak: number; capacity: number; over_by: number;
-  jobs: { item_id: number | null; title: string; source: string; code: string | null; quantity: number }[]; moves: ResourceMove[];
+  /** Names the overload (resource@start) for a proposal that clears it. */
+  key: string; from: string; to: string; peak: number; capacity: number; over_by: number; limited_by: CapacityWindow[];
+  /** A crew change names the job it travels for: moving that job moves the trip. */
+  jobs: { item_id: number | null; title: string; source: string; code: string | null; quantity: number;
+    travels_for?: { item_id: number; code: string | null; title: string } }[];
+  moves: ResourceMove[];
+}
+/** The constraint check (GET /plan/constraints): every overload on every shared resource, first to last. */
+export interface PlanConstraints {
+  start: string; end: string; days: number; basis: string;
+  overloads: (ResourceOverload & { resource: string; name: string; kind: string; unit: string | null })[];
 }
 export interface ResourceLoad {
   code: string; name: string; kind: string; unit: string | null; capacity: number; work_center: string | null; sources: string[];
   counts: string[]; routine: string | null; routine_load: RoutineLoad | null;
   days: { day: string; capacity: number; demand: number; by_source: Record<string, number> }[]; overloads: ResourceOverload[];
-  capacity_windows: { id: number; start: string; end: string; capacity: number; reason: string | null }[];
+  capacity_windows: CapacityWindow[];
 }
 /** The people a resource's routine duties hold whatever else is planned (operators on their rounds and checks). */
 export interface RoutineLoad { quantity: number; source: string; basis: string }
@@ -1011,6 +1022,10 @@ export interface PlanItem {
   /** Parts on its own work order that stock does not cover, for active work starting within 30 days (the Spares
    * check's parts, never the equipment's BOM). */
   parts_short?: { id: string; label: string | null; description: string | null }[];
+  /** The shared-resource overloads it is in (asked for with `over_capacity`): as a job using the resource, or as the
+   * job a crew flies for; `limited_by` is the reason of any capacity window behind it (weather, leave). */
+  over_capacity?: { key: string; resource: string; name: string; kind: string; unit: string | null; from: string; to: string;
+    peak: number; capacity: number; over_by: number; limited_by: string[] }[];
 }
 
 /** What a job needs before it is released: each prerequisite satisfied or not, with what holds it. */
@@ -1184,8 +1199,11 @@ export const workApi = {
     request<RoundPoint & { exception: { id: number; raised: boolean } | null }>("POST", `/rounds/${id}/readings`, undefined, t, project),
   planAtRisk: (start?: string, days = 90) => request<AtRisk>("GET", "/plan/at-risk", { start, days }),
   /** `active` keeps the work still to do: proposed, scheduled or in progress. */
-  plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string; within?: string; active?: boolean } = {}) =>
-    request<PlanItem[]>("GET", "/plan", { ...f, active: f.active ? "true" : undefined }),
+  plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string; within?: string; active?: boolean;
+              overCapacity?: boolean } = {}) => {
+    const { overCapacity, ...rest } = f;
+    return request<PlanItem[]>("GET", "/plan", { ...rest, active: f.active ? "true" : undefined, over_capacity: overCapacity ? "true" : undefined });
+  },
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string; place: "field" | "desk" }>,
     project?: string) =>
     request<PlanItem>("PATCH", `/plan/${id}`, undefined, { by, ...change }, project),

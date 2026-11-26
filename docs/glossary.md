@@ -172,6 +172,11 @@ takes an optional reason; the choice is kept on the case and counted as the reco
 **taken** or not, per work type, on Work performance, and per skill on Ops IQ, Skills (with a brief followed in full).
 Not "proposal" (that is an agent's suggested change).
 
+**Overload.** A run of hours when the plan needs more of a resource than it has, found by the constraint check across
+every resource: the need against the capacity, the jobs causing it (a crew's trip names the job it flies for) and the
+capacity window behind it, such as a weather window. A job in one is flagged **over capacity** on Plan; Resources
+lists each with the move that clears it.
+
 **Plan.** The one timeline of every planned job from every source: SAP orders and maintenance plans, inspections,
 schedules, and work the IOC planned for a day. A bar on it is a **plan item**.
 
@@ -213,7 +218,9 @@ check), a suggested mapping, a reading by Claude to check.
 Reports page; a daily report is the day's written narrative. See [reports](reports.md).
 
 **Resource.** Something planned work shares and can run out of: a crew, a crane, beds, helicopter seats, vessel
-support, operator rounds, production capacity. Plan > Resources sets demand against its capacity. Production
+support, deck space, operator rounds, production capacity. Plan > Resources sets demand against its capacity, which
+a **capacity window** changes for a while (leave, a vessel in dock, or weather: fog closing the helideck, wind
+standing a crane down). Production
 capacity is the most the system can handle online at once, in BOE/d: the wells at their latest test rates, less
 what a job has down, plus what a job brings on when it finishes.
 

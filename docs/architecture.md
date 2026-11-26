@@ -596,7 +596,7 @@ The operations assistant, its specialists, and the MCP server with their tools. 
     - `report_summary`
     - `skill_version`
 - **Settings:** `agents.brief_cap_usd`, `agents.briefs`, `agents.case_cap_usd`, `agents.effort`, `agents.fallbacks`, `agents.memory_review`, `agents.model`, `agents.provider`, `agents.skill_drafts`, `agents.specialist_effort`, `agents.specialist_model`, `agents.summary_hours`, `agents.summary_model`, `assistant.concurrent_questions`, `assistant.retention_days`, `assistant.timeout_seconds`, `evals.grade_model`, `work.lease_seconds` ([settings](settings.md))
-- **Tools:** asset-performance-reporting 52, field-operations-facilities 99, hse-incident-management 53, maintenance-integrity 90, orchestrator 28, production-surveillance 82, wells-subsurface 75, work-management-supply-chain 44 ([capabilities](capabilities.md))
+- **Tools:** asset-performance-reporting 52, field-operations-facilities 99, hse-incident-management 53, maintenance-integrity 90, orchestrator 29, production-surveillance 82, wells-subsurface 75, work-management-supply-chain 45 ([capabilities](capabilities.md))
 - **Tests:** [`tests/agents`](https://github.com/areed145/fuzer/tree/main/tests/agents)
 
 ### Evals

@@ -1,5 +1,6 @@
 """Schedules on the integrated plan (P5.18, ops/schedule.py): critical path, levelling and the planner's edits."""
 
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -212,7 +213,7 @@ def test_bed_space_counts_the_visiting_crews_and_holds_work_when_beds_run_short(
     beds = next(r for r in out["resources"] if r["code"] == "BEDS")
     assert beds["counts"] == ["MECH", "INST", "SCAF", "NDT"]
     a100 = next(a for a in out["activities"] if a["code"] == "A0100")
-    assert a100["needs"] == {"MECH": 4, "CRANE": 1, "BEDS": 4}  # four fitters, four beds; the crane sleeps nowhere
+    assert a100["needs"] == {"MECH": 4, "CRANE": 1, "DECK": 20, "BEDS": 4}  # four fitters, four beds; the crane sleeps nowhere
     a10 = next(a for a in out["activities"] if a["code"] == "A0010")
     assert "BEDS" not in a10["needs"]  # the operators are core crew
     days = schedule.resource_load(c, "BEDS", datetime(2026, 4, 6, tzinfo=UTC), 21)["resources"][0]["days"]
@@ -262,7 +263,9 @@ def test_seats_carry_each_crew_out_for_its_first_job_and_back_after_its_last(tar
     first, last = min(a["start"] for a in scaf).date().isoformat(), max(a["finish"] for a in scaf).date().isoformat()
     assert busy[first] >= 4 and busy[last] >= 4  # four scaffolders out, four back
     assert sum(busy.values()) == 2 * (6 + 2 + 4 + 2)  # every crew at its peak size, out and back
-    assert seats["sources"] == ["OK-TAR-2026"] and not seats["overloads"]
+    # the only day short is the one fog closes the helideck (the template's weather window)
+    assert seats["sources"] == ["OK-TAR-2026"] and [o["limited_by"][0]["reason"] for o in seats["overloads"]] == [
+        "Weather: fog forecast, helideck closed"]
     # five seats a day: a day the fitters (6) fly is over, and the owner sees who is on it
     schedule.set_resource(c, "SEATS", "tests", capacity=5)
     [run, *_] = schedule.resource_load(c, "SEATS", start, 30)["resources"][0]["overloads"]
@@ -388,3 +391,62 @@ def test_the_specialist_reads_a_day_s_logistics(tar):
     out = maintenance.logistics_plan(first.date().isoformat(), 3)
     assert out["by_day"][0]["day"] == first.date().isoformat() and out["by_day"][0]["crews"]
     assert "error" in maintenance.logistics_plan("next week")
+
+
+# ---- the constraint check -----------------------------------------------------------------------------------------
+
+def test_the_constraint_check_names_each_overload_the_jobs_causing_it_and_the_weather_behind_it(tar):
+    """POB, seats, a crane and production capacity: each overload on the plan, with the jobs that cause it, in a form
+    a later proposal can read (a key per overload, the item ids, the window that lowered the capacity)."""
+    c, _ = tar
+    acts = {a["code"]: a for a in schedule.analyse(c, "OK-TAR-2026")["activities"]}
+    start = datetime(2026, 4, 1, tzinfo=UTC)
+    # the template's fog day: the fitters can't fly out for their first job
+    out = schedule.constraints(c, start, 30)
+    [fog] = [o for o in out["overloads"] if o["resource"] == "SEATS"]
+    first = min((a for a in acts.values() if "MECH" in a["needs"]), key=lambda a: (a["start"], a["id"]))
+    assert fog["kind"] == "seats" and fog["capacity"] == 0 and fog["peak"] == 6
+    assert fog["key"] == f"SEATS@{fog['from'].isoformat()}"
+    assert [w["reason"] for w in fog["limited_by"]] == ["Weather: fog forecast, helideck closed"]
+    [trip] = fog["jobs"]
+    assert trip["item_id"] is None and trip["travels_for"]["item_id"] == first["id"]
+    assert trip["travels_for"]["code"] == first["code"]
+    assert out["overloads"] == sorted(out["overloads"], key=lambda o: (o["from"], o["resource"]))
+    # wind stands the crane down while the casing is being opened; beds lost to a drilling crew; 900 BOE/d brought on
+    a100 = acts["A0100"]
+    schedule.set_capacity_window(c, "CRANE", a100["start"], a100["start"] + timedelta(hours=12), 0, "tests",
+                                 "Weather: wind over the crane's limit")
+    schedule.set_capacity_window(c, "BEDS", a100["start"], a100["finish"], 2, "tests", "drilling crew aboard")
+    schedule.set_resource(c, "PROD", "tests", name="Production the system can handle", kind="capacity", unit="BOE/d",
+                          capacity=1e6)
+    field = schedule.resource_load(c, "PROD", start, 2)["resources"][0]["days"][0]["demand"]
+    schedule.set_resource(c, "PROD", "tests", capacity=field + 100)
+    schedule.change_activity(c, acts["A0220"]["id"], "tests", adds_boed=900)
+    out = schedule.constraints(c, start, 30)
+    by = defaultdict(list)
+    for o in out["overloads"]:
+        by[o["resource"]].append(o)
+    crane = by["CRANE"][0]
+    assert crane["capacity"] == 0 and crane["limited_by"][0]["reason"].startswith("Weather")
+    assert [j["item_id"] for j in crane["jobs"]] == [a100["id"]] and crane["moves"]
+    beds = by["BEDS"][0]
+    assert beds["peak"] > 2 and a100["id"] in [j["item_id"] for j in beds["jobs"]]
+    prod = by["PROD"][0]
+    assert prod["kind"] == "capacity" and [j["item_id"] for j in prod["jobs"]] == [acts["A0220"]["id"]]
+    # Plan's timeline flags the jobs in an overload, the fog day on the job the fitters fly out for
+    flagged = schedule.over_capacity(c, start, start + timedelta(days=30))
+    assert {o["resource"] for o in flagged[a100["id"]]} >= {"CRANE", "BEDS"}
+    assert any(o["resource"] == "SEATS" and o["limited_by"] == ["Weather: fog forecast, helideck closed"]
+               for o in flagged[first["id"]])
+    rows = {i["id"]: i for i in plan.items(c, start, start + timedelta(days=30), over_capacity=True)}
+    assert rows[a100["id"]]["over_capacity"]
+    assert "over_capacity" not in plan.items(c, start, start + timedelta(days=30))[0]
+    c.rollback()
+
+
+def test_the_specialist_runs_the_constraint_check(tar):
+    from fuzer.agents.capabilities import maintenance
+
+    out = maintenance.plan_constraints("2026-04-01", 30)
+    assert any(o["resource"] == "SEATS" and o["limited_by"] for o in out["overloads"])
+    assert "error" in maintenance.plan_constraints("next week")

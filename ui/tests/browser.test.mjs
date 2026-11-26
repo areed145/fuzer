@@ -5081,6 +5081,62 @@ test("#25 Plan shows each crew's load day by day on the plan's own dates, overlo
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 });
 
+// P5.18e (#1175): the constraint check. A job in an overload on any shared resource (beds, seats, a crane, production
+// capacity) is flagged on Plan with the resource, the need against the capacity and the weather behind it; Resources
+// names the job a crew flies out for.
+test("P5.18e Plan flags a job over capacity on a shared resource with the weather behind it, and Resources names the job a crew flies for", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const today = new Date().toISOString().slice(0, 10);
+  const hour = (h) => new Date(Date.now() + h * 3_600_000).toISOString();
+  const fog = { key: `SEATS@${today}T00:00:00+00:00`, resource: "SEATS", name: "Helicopter seats", kind: "seats", unit: "seats a day",
+    from: hour(1), to: hour(20), peak: 6, capacity: 0, over_by: 6, limited_by: ["Weather: fog forecast, helideck closed"] };
+  const base = { source: "schedule", area_id: "fz-area-0123456789ab", area_label: "GGCP", crew: null, crew_hours: null, deferment_usd: null,
+    notes: null, status: "proposed", needs_shutdown: false, clashes: [], parts_short: [], exception_id: null, subjects: [], assets: [] };
+  const items = [
+    { ...base, id: 21, kind: "turnaround", source_key: "OK-TAR-2026:A0100", title: "Decouple and open the 20-K-2200B casing",
+      start_at: hour(2), end_at: hour(38), over_capacity: [fog] },
+    { ...base, id: 22, kind: "turnaround", source_key: "OK-TAR-2026:A0050", title: "Scaffold 20-K-2200B", start_at: hour(2), end_at: hour(20),
+      over_capacity: [] },
+  ];
+  const asked = [];
+  await page.route("**/plan?*", (route) => { asked.push(Object.fromEntries(new URL(route.request().url()).searchParams)); return route.fulfill({ json: items }); });
+  const days = Array.from({ length: 42 }, (_, n) => ({ day: new Date(new Date(today).getTime() + n * 86_400_000).toISOString().slice(0, 10),
+    capacity: n === 0 ? 0 : 12, demand: n === 0 ? 6 : 0, by_source: n === 0 ? { "OK-TAR-2026": 6 } : {} }));
+  const seats = { code: "SEATS", name: "Helicopter seats", kind: "seats", unit: "seats a day", capacity: 12, work_center: null,
+    sources: ["OK-TAR-2026"], counts: ["MECH"], routine: null, routine_load: null, days,
+    overloads: [{ key: fog.key, from: fog.from, to: fog.to, peak: 6, capacity: 0, over_by: 6,
+      limited_by: [{ id: 1, start: `${today}T00:00:00+00:00`, end: fog.to, capacity: 0, reason: "Weather: fog forecast, helideck closed" }],
+      jobs: [{ item_id: null, title: "Mechanical fitters flies out", source: "OK-TAR-2026", code: null, quantity: 6,
+        travels_for: { item_id: 21, code: "A0100", title: "Decouple and open the 20-K-2200B casing" } }], moves: [] }],
+    capacity_windows: [{ id: 1, start: `${today}T00:00:00+00:00`, end: fog.to, capacity: 0, reason: "Weather: fog forecast, helideck closed" }] };
+  await page.route("**/plan/resources/load*", (route) => route.fulfill({ json: { start: today, end: today, days: 42, resources: [seats] } }));
+  await page.route("**/plan/resources", (route) => route.fulfill({ json: [{ code: "SEATS", name: "Helicopter seats", kind: "seats", capacity: 12, counts: ["MECH"] }] }));
+  await page.route("**/plan/*/prerequisites", (route) => route.fulfill({ json: { item_id: 21, ready: true, released_at: null, released_by: null, prerequisites: [] } }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [] }));
+  await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [] }));
+  for (const [w, h] of [[390, 844], [1280, 900]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto(`${url}/#/plan`);
+    await page.getByRole("heading", { name: "GGCP", exact: true }).waitFor();
+    assert.equal(asked.at(-1).over_capacity, "true", "Plan asks for the constraint check");
+    await page.locator(".ui-badge", { hasText: "1 over capacity" }).first().waitFor();
+    const job = page.getByRole("button", { name: /Decouple and open the 20-K-2200B casing/ });
+    await job.getByText("over capacity", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: /Scaffold 20-K-2200B/ }).getByText("over capacity", { exact: true }).count(), 0);
+    await job.click();
+    const line = page.locator(".plan-detail").getByText(/Helicopter seats needs 6 against 0 seats a day, .* \(Weather: fog forecast, helideck closed\)\./);
+    await line.waitFor();
+    assert.equal(await page.locator(".plan-detail").getByRole("link", { name: "Resources" }).getAttribute("href"), "#/plan?resources=1&resource=SEATS");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `Plan fits ${w} px`);
+    // Resources: the fog behind the overload and the job the fitters fly out for
+    await page.goto(`${url}/#/plan?resources=1&resource=SEATS`);
+    const card = page.locator(".load-card", { hasText: "Helicopter seats" });
+    await card.getByText(/needs 6 against 0 seats a day \(Weather: fog forecast, helideck closed\)/).waitFor();
+    await card.getByText("In use by Mechanical fitters flies out for A0100 (6).").waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `Resources fits ${w} px`);
+  }
+});
+
 // P5.28g (#1395): the planner's day. Plan opens on today with a day view, the longer ranges kept as choices; a machine's
 // field exceptions are one row; a job has one crew field and lists a part once; the axis labels never run together.
 test("P5.28g Plan opens on the planner's day, one row per machine's exceptions, one crew field, labels apart", async () => {

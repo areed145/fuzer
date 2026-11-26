@@ -119,10 +119,26 @@ records a capacity window such as leave, a certification lapsing or a vessel in 
 | **Beds** | Everyone offshore: the visiting crews on top of the core crew |
 | **Seats** | Each crew flying out at its peak size the day its first job starts, and back the day its last one ends |
 | **Vessel support** | The jobs that need the supply vessel alongside |
+| **Deck space** | The jobs whose parts are laid down on deck while they are out, in m² |
 | **Operators** | The shift's rounds: every round point once a shift, before any planned job is counted |
 | **Production capacity** | What each shutdown job takes offline, in BOE/d, counting each well once however many jobs take it down |
 
 ![Resources: demand against capacity](../assets/screens/guides/resources-desktop.png){ loading=lazy }
+
+Weather is a capacity window on what it stops: fog that closes the helideck takes the seats to 0 for the day, wind
+over a crane's limit takes the crane to 0 for those hours. A turnaround's template can carry its forecast windows,
+and the owner sets more with **Set for a while** and a reason that says what it is. Levelling keeps a schedule's
+activities out of a crane's or a crew's window; seats follow the schedule, so a crew due to fly out on a fog day is
+an overload.
+
+### The constraint check
+
+Every overload on every resource, from all sources at once, is the constraint check. A job in one carries an
+**over capacity** flag on the Plan timeline, with a count at the top; open it to read each resource it is over on,
+the need against the capacity, the dates and the reason of any window behind it (**Weather: fog forecast, helideck
+closed**), linked to the resource on **Resources**. A crew's trip in an overload names the job it flies out for or
+back after, and that job carries the flag: moving it moves the trip. On Resources each overload lists the jobs in it
+and the moves that clear it.
 
 ## Approve the update that goes back to SAP
 
@@ -150,3 +166,5 @@ How each system's updates go back (not at all, drafted for approval, or sent) is
 
 On **Investigate > Ask**, the Work Management specialist can name a turnaround's critical activities, its
 unconstrained and levelled finish and the resource that drives it, citing the records, and draw a Gantt.
+Asked what is over capacity, it runs the same constraint check and names each overload with its jobs and the window
+behind it.

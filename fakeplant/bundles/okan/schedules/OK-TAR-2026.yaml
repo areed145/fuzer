@@ -24,6 +24,11 @@ resources:
   - {code: SEATS, name: Helicopter seats, kind: seats, unit: seats a day, capacity: 12, counts: [MECH, INST, SCAF, NDT]}
   - {code: VESSEL, name: Supply vessel alongside, kind: vessel, unit: vessel, capacity: 1}
   - {code: BEDS, name: Beds for visiting crews, kind: beds, unit: beds, capacity: 14, counts: [MECH, INST, SCAF, NDT]}
+  # the casing halves, the rotor and the after-cooler bundle are laid down on the main deck while they are out
+  - {code: DECK, name: Main deck laydown, kind: deck, unit: m², capacity: 50}
+# weather on the resources it stops: fog is forecast to close the helideck the day the fitters are due to fly out
+windows:
+  - {resource: SEATS, start: 2026-04-08T00:00:00, end: 2026-04-09T00:00:00, capacity: 0, reason: "Weather: fog forecast, helideck closed"}
 activities:
   # 1 Shut down and make safe
   - {code: A0010, wbs: "1.1", name: "Shut down and depressurise the GGCP (area 20)", hours: 12, refs: [OKAN-20], needs: {OPS: 3}}
@@ -33,14 +38,14 @@ activities:
   - {code: A0050, wbs: "1.5", name: "Scaffold 20-K-2200B and 20-E-2350A", hours: 24, refs: [20-K-2200B, 20-E-2350A], needs: {SCAF: 4}, after: [A0030 SS+12]}
   - {code: A0060, wbs: "1.6", name: "Scaffold 20-V-2001 manways", hours: 16, refs: [20-V-2001], needs: {SCAF: 4}, after: [A0030 SS+12]}
   # 2 Train B 2nd stage compressor overhaul
-  - {code: A0100, wbs: "2.1", name: "Decouple and open the 20-K-2200B casing", hours: 36, refs: [20-K-2200B], order_of: 20-K-2200B, needs: {MECH: 4, CRANE: 1}, after: [A0030, A0050]}
-  - {code: A0110, wbs: "2.2", name: "Replace 20-K-2200B bearings and dry gas seals", hours: 48, refs: [20-K-2200B], order_of: 20-K-2200B, needs: {MECH: 4}, after: [A0100]}
+  - {code: A0100, wbs: "2.1", name: "Decouple and open the 20-K-2200B casing", hours: 36, refs: [20-K-2200B], order_of: 20-K-2200B, needs: {MECH: 4, CRANE: 1, DECK: 20}, after: [A0030, A0050]}
+  - {code: A0110, wbs: "2.2", name: "Replace 20-K-2200B bearings and dry gas seals", hours: 48, refs: [20-K-2200B], order_of: 20-K-2200B, needs: {MECH: 4, DECK: 20}, after: [A0100]}
   - {code: A0120, wbs: "2.3", name: "Inspect the 20-K-2200B impeller", hours: 24, refs: [20-K-2200B], order_of: 20-K-2200B, needs: {NDT: 2}, after: [A0100]}
-  - {code: A0130, wbs: "2.4", name: "Box up, align and couple 20-K-2200B", hours: 36, refs: [20-K-2200B], order_of: 20-K-2200B, needs: {MECH: 4, CRANE: 1}, after: [A0110, A0120]}
+  - {code: A0130, wbs: "2.4", name: "Box up, align and couple 20-K-2200B", hours: 36, refs: [20-K-2200B], order_of: 20-K-2200B, needs: {MECH: 4, CRANE: 1, DECK: 20}, after: [A0110, A0120]}
   # 3 Train A 3rd stage after-cooler retube
-  - {code: A0200, wbs: "3.1", name: "Pull the 20-E-2350A tube bundle", hours: 24, refs: [20-E-2350A], order_of: 20-E-2350A, needs: {MECH: 3, CRANE: 1, VESSEL: 1}, after: [A0030, A0050]}
-  - {code: A0210, wbs: "3.2", name: "Retube the 20-E-2350A bundle", hours: 48, refs: [20-E-2350A], order_of: 20-E-2350A, needs: {MECH: 3}, after: [A0200]}
-  - {code: A0220, wbs: "3.3", name: "Refit and hydrotest the 20-E-2350A bundle", hours: 24, refs: [20-E-2350A], order_of: 20-E-2350A, needs: {MECH: 3, CRANE: 1, VESSEL: 1}, after: [A0210]}
+  - {code: A0200, wbs: "3.1", name: "Pull the 20-E-2350A tube bundle", hours: 24, refs: [20-E-2350A], order_of: 20-E-2350A, needs: {MECH: 3, CRANE: 1, VESSEL: 1, DECK: 30}, after: [A0030, A0050]}
+  - {code: A0210, wbs: "3.2", name: "Retube the 20-E-2350A bundle", hours: 48, refs: [20-E-2350A], order_of: 20-E-2350A, needs: {MECH: 3, DECK: 30}, after: [A0200]}
+  - {code: A0220, wbs: "3.3", name: "Refit and hydrotest the 20-E-2350A bundle", hours: 24, refs: [20-E-2350A], order_of: 20-E-2350A, needs: {MECH: 3, CRANE: 1, VESSEL: 1, DECK: 30}, after: [A0210]}
   # 4 GGCP inlet separator
   - {code: A0300, wbs: "4.1", name: "Open and ventilate 20-V-2001", hours: 12, refs: [20-V-2001], order_of: 20-V-2001, needs: {MECH: 2}, after: [A0030, A0060]}
   - {code: A0310, wbs: "4.2", name: "Internal inspection of 20-V-2001 (confined space entry)", hours: 24, refs: [20-V-2001], order_of: 20-V-2001, needs: {NDT: 2}, after: [A0300]}
@@ -50,7 +55,7 @@ activities:
   - {code: A0400, wbs: "5.1", name: "Open 10-V-2001", hours: 12, refs: [10-V-2001], order_of: 10-V-2001, needs: {MECH: 2}, after: [A0040]}
   - {code: A0410, wbs: "5.2", name: "Statutory internal inspection of 10-V-2001", hours: 24, refs: [10-V-2001], order_of: 10-V-2001, needs: {NDT: 2}, after: [A0400]}
   - {code: A0420, wbs: "5.3", name: "Box up 10-V-2001", hours: 12, refs: [10-V-2001], order_of: 10-V-2001, needs: {MECH: 2}, after: [A0410]}
-  - {code: A0500, wbs: "5.4", name: "Replace the 10-P-1001B rotating element and seal plan 53B", hours: 24, refs: [10-P-1001B], order_of: 10-P-1001B, needs: {MECH: 2, CRANE: 1}, after: [A0040]}
+  - {code: A0500, wbs: "5.4", name: "Replace the 10-P-1001B rotating element and seal plan 53B", hours: 24, refs: [10-P-1001B], order_of: 10-P-1001B, needs: {MECH: 2, CRANE: 1, DECK: 10}, after: [A0040]}
   # 6 Hand back
   - {code: A0800, wbs: "6.1", name: "Strike scaffolding in area 20", hours: 16, refs: [OKAN-20], needs: {SCAF: 4}, after: [A0130, A0220, A0330]}
   - {code: A0810, wbs: "6.2", name: "De-isolate and leak test area 20", hours: 24, refs: [OKAN-20], needs: {OPS: 3}, after: [A0800]}

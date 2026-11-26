@@ -1470,13 +1470,15 @@ def plan_at_risk(start: str | None = None, days: int = 90, conn=Depends(get_conn
 
 @router.get("/plan")
 def plan_items(start: str | None = None, end: str | None = None, area: str | None = None, status: str | None = None,
-               subject: str | None = None, within: str | None = None, active: bool = False, conn=Depends(get_conn)):
+               subject: str | None = None, within: str | None = None, active: bool = False,
+               over_capacity: bool = False, conn=Depends(get_conn)):
     """The integrated plan in a window (default: a week ago to eight weeks ahead), each item with its clashes
     (same asset, same person), bundling chances (could ride along with a shutdown of its area) and, for work
-    starting within 30 days, its assets' spare parts with no stock on record. `active` keeps the work still to do."""
+    starting within 30 days, its assets' spare parts with no stock on record. `active` keeps the work still to do;
+    `over_capacity` adds the shared-resource overloads each item is in."""
     from ..ops import plan
     return _plan_call(conn, plan.items, start, end, area=area, status=status, subject=subject, within=within,
-                      active=active)
+                      active=active, over_capacity=over_capacity)
 
 
 @router.post("/plan")
@@ -1964,6 +1966,14 @@ def plan_resource_load(resource: str | None = None, start: datetime | None = Non
     capacity, with each overload, the jobs in it and the move that clears it at the least cost."""
     from ..ops import schedule
     return _plan_call(conn, schedule.resource_load, resource, start, days)
+
+
+@router.get("/plan/constraints")
+def plan_constraints(start: datetime | None = None, days: int = Query(42, ge=1, le=180), conn=Depends(get_conn)):
+    """The constraint check: every overload on every shared resource, the jobs causing it, the capacity windows
+    (weather, leave, a vessel in dock) that lowered it and the moves that clear it."""
+    from ..ops import schedule
+    return _plan_call(conn, schedule.constraints, start, days)
 
 
 @router.post("/plan/resources/{code}/capacity")
