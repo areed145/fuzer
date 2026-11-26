@@ -8,7 +8,9 @@ Teams posts and a field operator's note from the phone. Each is read once, into 
               for the IOC to send it, so To dispatch counts it (#1385)
     steward   it names nothing for certain (a short tag in several areas, a tag the register lacks, only a place, or
               nothing at all): a question in the data steward's queue, who says which entity it is about (a case
-              follows) or that it needs no work
+              follows) or that it needs no work. A safety report (gas, a smell, fire, smoke, a leak, an injury) is
+              also a case at once, about nothing yet, at To dispatch for the IOC; the steward's answer settles what
+              that same case is about, so it keeps its age (#1408)
     handled   it asks for nothing ("thanks", an out-of-office reply), or only says what was done ("swapped 10-P-1001A to
               C, A is isolated") with nothing wrong in it: kept, with no case (a log entry)
 
@@ -76,6 +78,13 @@ QUESTION = re.compile(r"^(?=.*\?\s*$).*\b(any ?one know|do we know|who knows|any
 # A notice passed on for information: a vendor's service bulletin, an advisory, a service letter.
 NOTICE = re.compile(r"\b(service |technical |safety )?(bulletin|advisory|service letter|product notice)\b",
                     re.IGNORECASE)
+# A hazard to people in what was reported: gas escaping, H2S, fire or smoke. Never a low risk, whatever the asset.
+HAZARD = re.compile(r"(?i)\b(h2s|hydrogen sul[pf]hide|smoke|flames?|explosion|lel)\b"
+                    r"|\bfire\b(?!\s*(water|pump|main|hydrant))|gas (smell|leak|release|escap\w*|detector|alarm)"
+                    r"|smell(s|ing|ed)? (of )?gas|(leaking|escaping) gas")
+# A safety report: a hazard to people, a smell, a leak or someone hurt. It reaches the IOC at once, whether or not it
+# names an entity, and is never shelved (#1408).
+SAFETY = re.compile(HAZARD.pattern + r"|(?i:\b(smell\w*|odou?r\w*|leak\w*|injur\w*|hurt|casualt\w*)\b)")
 GREETING = re.compile(r"^((good )?(morning|afternoon|evening)|hi|hello|hey|dear)\b[^,.:;!]{0,30}[,.:;!]\s*",
                       re.IGNORECASE)
 
@@ -120,6 +129,12 @@ def info_only(text: str) -> str | None:
     if OVER.search(text) and "?" not in text:
         return "the message says what happened and that it is over"
     return None
+
+
+def safety(text: str | None) -> str | None:
+    """What makes a message a safety report, in its own words ("smells of gas", "leak"); None when nothing does."""
+    m = SAFETY.search(text or "")
+    return m.group(0).lower() if m else None
 
 
 def text_of(conn, exception_id: int) -> str | None:
@@ -256,6 +271,9 @@ def _take(conn, pack, register, m: dict, by: str) -> dict:
         ex = _raise_case(conn, m, reading, by)
         exception_id, item_id = ex["id"], ex.get("item_id")
     elif reading.outcome == "steward":
+        if safety(m["text"]):  # the IOC has it at once, about nothing yet; the steward's answer settles the entity
+            ex = _raise_case(conn, m, Reading("case", why=f"not yet, {reading.why}"), by)
+            exception_id, item_id = ex["id"], ex.get("item_id")
         review_id = _ask_steward(conn, m, reading)
     row = conn.execute(
         """
@@ -320,6 +338,8 @@ def _said(conn, m: dict) -> str:
         names = [x["label"] for x in _named(conn, ids)]
         case = f"case {m['item_id']}" if m.get("item_id") else "a case"
         return f"Sent to the IOC as {case} about {', '.join(names) or ', '.join(m['refs'])}."
+    if m["outcome"] == "steward" and m.get("item_id"):
+        return f"Sent to the IOC as case {m['item_id']}. The data steward says which entity it is about: {m['why']}."
     if m["outcome"] == "steward":
         return f"Sent to the IOC. The data steward says which entity it is about: {m['why']}."
     if m["why"] == LOG_ONLY:
@@ -328,8 +348,9 @@ def _said(conn, m: dict) -> str:
 
 
 def sync_answers(conn, by: str = SOURCE) -> dict:
-    """Steward answers to message questions: an entity chosen opens the case about it; no work needed leaves the
-    message handled. Run after each answer, and after each register build. Who answered, and when, stays on the
+    """Steward answers to message questions: an entity chosen opens the case about it, or says what a safety report's
+    case, open since the message came, is about (`change_entities`: it keeps its age and whoever has it); no work
+    needed leaves the message handled (a safety report's case stays the IOC's to close). Run after each answer, and after each register build. Who answered, and when, stays on the
     question (review_item), which the audit record reads."""
     out = {"case": 0, "handled": 0}
     for r in conn.execute(
@@ -340,7 +361,14 @@ def sync_answers(conn, by: str = SOURCE) -> dict:
         d = r["decision"] or {}
         value = d.get("value") if d.get("decision") == "choose" else None
         chosen = [value] if isinstance(value, str) else list(value or [])  # one entity, or several (#1382)
-        if chosen:
+        if chosen and r["exception_id"]:  # a safety report: its case is the IOC's already
+            if conn.execute("select 1 from exception_record where id = %s and state = 'open'",
+                            (r["exception_id"],)).fetchone():
+                change_entities(conn, r["exception_id"], chosen, r["decided_by"] or by)
+            conn.execute("update message set outcome = 'case', refs = %s, why = %s where id = %s",
+                         (chosen, f"chosen by {r['decided_by']}", r["id"]))
+            out["case"] += 1
+        elif chosen:
             reading = Reading("case", refs=chosen, why=f"chosen by {r['decided_by']}", chosen_by=r["decided_by"])
             ex = _raise_case(conn, dict(r), reading, r["decided_by"] or by)
             conn.execute("update message set outcome = 'case', refs = %s, why = %s, exception_id = %s where id = %s",

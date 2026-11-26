@@ -254,7 +254,10 @@ def test_a_gas_smell_never_reads_low_and_a_report_is_not_costed_as_lost_producti
     risks = {o["key"]: o["risk"] for o in out["options"] if o.get("available")}
     assert all(r and r["level"] != "Low" for r in risks.values()), risks
     assert risks["dispatch"]["level"] == "Medium" and "gas smell reported" in risks["dispatch"]["why"]
-    assert risks["shelve"]["level"] == "High" and out["recommended"] != "shelve"
+    # a gas report is never shelved (#1408, tour F2: Shelve 30 days was offered on a gas smell)
+    shelve = by_key(out)["shelve"]
+    assert shelve["available"] is False and shelve["unavailable"] == "a safety report can't be shelved", shelve
+    assert out["recommended"] != "shelve"
     # nothing measured links a smell to lost production: what is behind it, not a loss
     assert out["loss"] is None and all(not o.get("deferred") for o in out["options"])
     assert out["if_it_trips"]["oil_bbld"] > 0
@@ -788,3 +791,39 @@ def test_add_to_that_job_joins_the_case_the_field_already_has(conn, report_type)
     assert conn.execute("select state from work_item where id = %s", (old,)).fetchone()["state"] == "cancelled"
     job = next(j for j in ex.field_jobs(conn, "sam") if j["item_id"] == held)
     assert again["id"] in {s["id"] for s in job["sources"]}, job["sources"]
+
+
+def test_a_desk_case_on_the_same_asset_does_not_hold_a_dispatch(conn, report_type):
+    """#1408 (tour F2): gas smell 1268 "can't go now" because desk case 1169, in the engineer queue with nobody in the
+    field, was on the same vessel; Escalate was recommended and Shelve offered. Only work in the field counts."""
+    desk = raise_report(conn, "desk on xv", "25-XV-4021 stroke time trending up", ["tag:25-XV-4021"])
+    options.choose(conn, desk["id"], "riley", "escalate")  # sent to the engineer: a desk case
+    conn.commit()
+    gas = raise_report(conn, "gas on xv", "Gas smell at 25-XV-4021", ["tag:25-XV-4021"])
+    out = options.for_exception(conn, gas["id"])
+    d = by_key(out)["dispatch"]
+    assert d["clashes"] == [] and out["field_case"] is None, (d, out["field_case"])
+    assert out["recommended"] == "dispatch", out["reason"]
+    assert by_key(out)["shelve"]["available"] is False
+
+
+def test_an_operator_holding_several_looks_is_no_clash_and_one_case_never_clashes_with_itself(conn, report_type):
+    """#1408 (tour D16): 14 of 21 Plan items showed a clash, mostly an operator holding two or three looks, and 1168
+    clashed with itself. A person on two maintenance jobs at once is still a clash."""
+    start = (datetime.now(UTC) + timedelta(days=3)).replace(microsecond=0)
+    looks = [raise_report(conn, f"look {i}", f"20-TT-225{i}B local display fogged", [f"tag:20-TT-225{i}B"])
+             for i in (0, 1, 2)]
+    bars = [plan.plan_exception(conn, e["id"], "planner", start, start + timedelta(hours=4), crew="sam")
+            for e in looks]
+    again = plan.plan_exception(conn, looks[0]["id"], "planner", start + timedelta(hours=1),
+                                start + timedelta(hours=5), crew="sam")  # a second bar of the same case
+    jobs = [plan.propose(conn, "maintenance", f"Seal change {x}", "planner", start, start + timedelta(hours=8),
+                         status="scheduled", crew="sam") for x in "AB"]
+    conn.commit()
+    rows = {i["id"]: i for i in plan.items(conn, start - timedelta(days=1), start + timedelta(days=1))}
+    for b in [*bars, again]:
+        mine = [c for c in rows[b["id"]]["clashes"] if c["with"] in {x["id"] for x in [*bars, again]}]
+        assert mine == [], mine
+    assert [c["kind"] for c in rows[jobs[0]["id"]]["clashes"] if c["with"] == jobs[1]["id"]] == ["crew"]
+    clash = next(p for p in plan.prerequisites(conn, bars[1]["id"])["prerequisites"] if p["kind"] == "clash")
+    assert not [d for d in clash["detail"] if "fogged" in d], clash

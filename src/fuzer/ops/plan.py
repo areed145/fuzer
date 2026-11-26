@@ -27,6 +27,7 @@ ACTIVE = ("proposed", "scheduled", "in_progress")
 SHUTDOWNS = ("turnaround", "shutdown")  # the items other work can be bundled into
 READY_DAYS = 30  # how far ahead planned work is checked for spare parts out of stock
 BUNDLE_DAYS = 21
+LOOK = "exception"  # an event's case on the plan: a field operator's look (a dispatch or a ride along)
 FIELDS = ("title", "kind", "start", "end", "status", "crew", "crew_hours", "needs_shutdown", "deferment_usd", "notes",
           "place")
 PLACES = ("field", "desk")  # where a job is done: field jobs go through Ready and Release, desk jobs do not
@@ -156,13 +157,18 @@ def _clashes(rows: list[dict]) -> dict[int, list[dict]]:
         for b in active[i + 1:]:
             if a.get("rides_with") == b["id"] or b.get("rides_with") == a["id"]:
                 continue  # a job riding along with a visit is done on that trip: no clash with it (tour E, D16)
+            if (a["exception_id"] and a["exception_id"] == b["exception_id"]) or (
+                    a["item_id"] and a["item_id"] == b["item_id"]):
+                continue  # two bars of one case: a case never clashes with itself (#1408)
             overlap = a["start_at"] < b["end_at"] and b["start_at"] < a["end_at"]
             shared = set(a["subjects"]) & set(b["subjects"])
             if overlap and shared:
                 for x, y in ((a, b), (b, a)):
                     out[x["id"]].append({"kind": "same_asset", "with": y["id"], "title": y["title"],
                                          "say": f"at the same time as “{y['title']}” on the same asset"})
-            person = a["crew"] and a["crew"] == b["crew"] and not a["crew"].startswith("role:")
+            # one person on two jobs at once, unless both are looks: a field operator holds several at a time (#1408)
+            person = (a["crew"] and a["crew"] == b["crew"] and not a["crew"].startswith("role:")
+                      and not (a["kind"] == LOOK and b["kind"] == LOOK))
             if overlap and person:
                 for x, y in ((a, b), (b, a)):
                     out[x["id"]].append({"kind": "crew", "with": y["id"], "title": y["title"],

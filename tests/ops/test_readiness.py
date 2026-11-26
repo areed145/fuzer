@@ -148,17 +148,19 @@ def job(conn, key: str, subject: str) -> int:
 
 
 def test_a_blocked_job_goes_only_with_a_reason_and_the_reason_is_on_its_case(kestrel, client):
+    from fuzer.core import work
     from fuzer.graph import queries
 
     conn, pack = kestrel
+    work.add_person(conn, "fiona", ["operator"], "test")  # a field operator: her jobs are in the field (#1408)
     reserve(conn, "40007010", {"MAT-K2001-VLV": 4})
     e = job(conn, "K-2001 valves", queries.resolve_ref(conn, pack, "B1-K-2001"))
     on_order(conn, e, "40007010")
     ready = client.get(f"/exceptions/{e}/readiness").json()
     assert ready["ready"] is False and any("on order (4500007101)" in b for b in ready["blockers"])
-    r = client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fred"})
+    r = client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fiona"})
     assert r.status_code == 409 and "Not ready to dispatch: Spares: " in r.text and "Say why" in r.text
-    r = client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fred",
+    r = client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fiona",
                                                      "override": "inspect only, no parts needed today"})
     assert r.status_code == 200, r.text
     item = r.json()["item_id"]
@@ -169,10 +171,10 @@ def test_a_blocked_job_goes_only_with_a_reason_and_the_reason_is_on_its_case(kes
     # the fan is on the same train, whose scrubber trip is bypassed (BYP-KR-031): with the valve job in the field, it
     # waits for a reason too (P3.9 in the SIMOPS check, #707)
     fan = job(conn, "E-2010 belts", queries.resolve_ref(conn, pack, "B1-E-2010"))
-    r = client.post(f"/exceptions/{fan}/dispatch", json={"by": "ioc-ann", "to": "fred"})
+    r = client.post(f"/exceptions/{fan}/dispatch", json={"by": "ioc-ann", "to": "fiona"})
     assert r.status_code == 409 and "where a safeguard is bypassed" in r.text and "BYP-KR-031" in r.text
     assert client.post(f"/exceptions/{fan}/dispatch", json={
-        "by": "ioc-ann", "to": "fred", "override": "belts only, valve crew agreed, scrubber level watched"}).status_code == 200
+        "by": "ioc-ann", "to": "fiona", "override": "belts only, valve crew agreed, scrubber level watched"}).status_code == 200
 
 
 def test_a_job_waits_for_a_free_crew_and_the_blocker_says_how_many_jobs_hold_it(kestrel, client):
@@ -360,12 +362,17 @@ def test_a_job_sent_to_the_field_and_on_the_plan_is_one_clash(kestrel, client):
     conn, pack = kestrel
     reboiler = queries.resolve_ref(conn, pack, "C1-H-3008")
     first = job(conn, "Reboiler sight glass", reboiler)
-    events.publish(conn, "exception.dispatched", f"exception:{first}", {"to": "fred"})
+    events.publish(conn, "exception.dispatched", f"exception:{first}", {"to": "role:operator"})
+    conn.execute("update work_item set role = 'operator' where id = (select item_id from exception_record "
+                 "where id = %s)", (first,))  # in the field: the operator queue has it (#1408)
     now = datetime.now(UTC)
     plan.propose(conn, "maintenance", "Look at Reboiler sight glass", "ioc-ann", now - timedelta(hours=1),
                  now + timedelta(hours=4), refs=[reboiler], status="scheduled", exception_id=first)
-    said = simops.at_dispatch(conn, [reboiler], job(conn, "Reboiler flame out", reboiler))["blockers"]
-    assert len(said) == len(set(said)) and sum("at the same time" in b for b in said) == 1, said
+    out = simops.at_dispatch(conn, [reboiler], job(conn, "Reboiler flame out", reboiler))
+    said = out["blockers"]
+    # the field has the job on that asset: named once as the field's case, and its bar adds no clash line
+    assert len(said) == len(set(said)) and not any("at the same time" in b for b in said), said
+    assert [c["exception"] for c in out["field_cases"]] == [first]
     conn.rollback()
 
 

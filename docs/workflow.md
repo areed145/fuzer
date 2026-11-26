@@ -213,10 +213,13 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   the job's words need (a transmitter or gauge is the instrument crew's), and a full crew is one line with its count.
   A case the field already has on the same asset is no clash: the card says so, links it (`field_case`) and offers
   **Add to that job**, which joins this event to that case (`POST /exceptions/{id}/join`), so the field reads it there,
-  and opens that job. A case never clashes with its own bars or with the visit it rides along with. A case with a
-  specialist brief also offers **Keep on watch** (nothing is sent; never on a hazard, a safety type or a limit or leak
-  with production behind it), and it is recommended when the brief proposes keeping it on watch and nothing is
-  deferred (`deciding: brief`): a rule that reads no trend does not overrule the specialist who read it.
+  and opens that job. Only work in the field counts as a clash: a case sent to a desk (the engineer, a planner) is
+  nobody at the asset (#1408). A case never clashes with its own bars or with the visit it rides along with, and on
+  Plan a field operator holding several looks at once is no crew clash; a person booked on two other jobs at once
+  still is. A case with a specialist brief also offers **Keep on watch** (nothing is sent; never on a hazard, a safety
+  type or a limit or leak with production behind it), and it is recommended when the brief proposes keeping it on
+  watch and nothing is deferred (`deciding: brief`): a rule that reads no trend does not overrule the specialist who
+  read it.
   What it defers now is the producing wells it reaches at their latest test, all of it while a machine is stopped (a
   trip, with its share where parallel trains carry the rest), else the pack's share for a process upset still going
   (`upsets.rate_at_risk_share`, the assumption an upset's value uses). A report of a smell or a drip, or a
@@ -225,8 +228,9 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   site at the same asset (riding along sends it to them, and their job is not a clash), else the next scheduled plan
   item under way or starting on the same equipment (its assets or what they are part of, short of the area, which can
   be half a plant) within `options.window_days`; the area's next turnaround or shutdown, at most
-  `exceptions.max_shelve_days`, for a shelf, never offered when what was reported (its title, the message, the
-  field's notes) is past or heading past a limit, or a leak, with production behind it (#1381); the engineer queue's
+  `exceptions.max_shelve_days`, for a shelf, never offered on a safety report (gas, a smell, fire or smoke, a leak,
+  someone hurt, in its title, the message or the field's notes, #1408), nor when what was reported is past or heading
+  past a limit, or weeps or drips, with production behind it (#1381); the engineer queue's
   SLA and then a dispatch to escalate, the ops lead's for what waits on a gas test, a permit, an isolation or
   depressurising, and never to a role the reader acts as (an owner holding every role narrows nothing). A ride along
   never rides a field job that came back done or could not do. Prices are the

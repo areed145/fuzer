@@ -435,3 +435,46 @@ def test_what_a_message_case_is_about_reads_equipment_by_its_tag(read):
                                          "'commented'", (note["item_id"],))]
     assert any("20-GT-2000" in t for t in said) and not any("S/N" in t for t in said), said
     conn.rollback()
+
+
+def test_a_safety_report_with_no_tag_reaches_the_ioc_at_once_and_keeps_its_age(read):
+    """#1408 (tour F1): "Test separator area smells of gas near the drain" named no tag, waited four hours in the
+    steward's queue unseen by the IOC, and its case read "3m" once matched. A safety report is a case at To dispatch
+    at once, about nothing yet; the steward's answer says what that same case is about."""
+    conn, _ = read
+    from fuzer.ops import worklist
+
+    pack, reg = load_pack("okan"), _register()
+    assert messages.safety("Test separator area smells of gas near the drain") == "smells of gas"
+    assert messages.safety("Something rattling near the stairs") is None
+    assert messages.safety("Lift gas header pressure dropping on GGCP") is None  # gas the product, not a report
+    assert messages.read("Test separator area smells of gas near the drain", pack, reg).outcome == "steward"
+
+    note = messages.receive(conn, pack, "femi", "Test separator area smells of gas near the drain, nothing on the "
+                                                "detectors.")
+    assert note["outcome"] == "steward" and note["review_item_id"] and note["item_id"] and note["exception_id"]
+    assert note["said"].startswith(f"Sent to the IOC as case {note['item_id']}. The data steward says"), note["said"]
+    ex = conn.execute("select * from exception_record where id = %s", (note["exception_id"],)).fetchone()
+    assert ex["type"] == "message_report" and ex["subjects"] == [] and ex["state"] == "open"
+    assert ex["title"] == "Test separator area smells of gas near the drain"
+    waiting = worklist.rows(conn, kind="message_report", stage="dispatch")["rows"]
+    assert any(r["item_id"] == note["item_id"] for r in waiting)  # on the ops lead's My work, To dispatch
+    from fuzer.ops import options
+
+    offered = options.for_case(conn, note["item_id"])  # the IOC can send it before anyone says where it is
+    assert offered["applies"] and offered["recommended"] == "dispatch", offered.get("why_not")
+    shelve = next(o for o in offered["options"] if o["key"] == "shelve")
+    assert shelve["available"] is False and shelve["unavailable"] == "a safety report can't be shelved"
+    opened = conn.execute("select created_at from work_item where id = %s", (note["item_id"],)).fetchone()["created_at"]
+
+    vessel = _id(conn, "tag:10-V-2003")
+    review.decide(conn, note["review_item_id"], "choose", vessel, "ana")
+    assert messages.sync_answers(conn)["case"] >= 1
+    m = conn.execute("select * from message where id = %s", (note["id"],)).fetchone()
+    assert (m["outcome"], m["refs"], m["exception_id"]) == ("case", [vessel], note["exception_id"])
+    case = conn.execute("select subjects, created_at from work_item where id = %s", (note["item_id"],)).fetchone()
+    assert case["subjects"] == [vessel] and case["created_at"] == opened  # the same case, as old as the message
+    assert conn.execute("select count(*) as n from exception_record where type = 'message_report' and key = %s",
+                        (note["id"],)).fetchone()["n"] == 1
+    assert messages.answer_of(conn, note["review_item_id"])["case"] == note["item_id"]
+    conn.rollback()

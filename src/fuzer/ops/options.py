@@ -19,14 +19,15 @@ Read from what Fuzer already has, never from equipment type:
     what it puts at risk    for a condition not yet costing production: what is behind it if it trips, for the
                             risk line; never added to the deferred barrels, since the chance it trips is not known
     the risk of waiting     from the record only: its assets' ABC criticality (with its priority), or a hazard it
-                            reports (gas, H2S, fire) or its type carries (safety, HSE), which never reads low. Neither
+                            reports (gas, H2S, fire: messages.HAZARD) or its type carries (safety, HSE), which never reads low. Neither
                             on record: no risk word, and the criticality is named as not known (#1365)
     when it is done         dispatch now: the operator queue's time to respond (its SLA); the next visit: a field
                             operator already sent to or on site at the same asset (#1365), else a plan item on its
                             equipment (its assets or what they are part of, short of the area) under way or starting
                             within `options.window_days`; shelve: until the next
-                            turnaround or shutdown of the area, at most `exceptions.max_shelve_days`, never for a limit
-                            or a leak with production behind it (#1381); escalate: the engineer queue's SLA (the ops
+                            turnaround or shutdown of the area, at most `exceptions.max_shelve_days`, never for a
+                            safety report (gas, a smell, fire, a leak, #1408) or a limit with production behind it
+                            (#1381); escalate: the engineer queue's SLA (the ops
                             lead's for a gas test or permit), then a dispatch, never to a role the reader acts as
     what the field is asked the IOC's words, else the message the case came from, else ASK (#1381); a ride
                             along names the visit and asks the message, else the case's title (#1402)
@@ -67,10 +68,6 @@ from ..core.exceptions import ExceptionError
 KEYS = ("dispatch", "window", "shelve", "escalate", "watch")
 DOWN_TYPES = ("machine_trip",)  # the thing is stopped: everything it reaches is deferred, not a share
 SHARE_TYPES = ("upset",)  # a process upset still going: the pack's share of what it reaches, as an upset's value says
-# A hazard to people in what was reported: gas escaping, H2S, fire or smoke. Never a low risk, whatever the asset.
-HAZARD = re.compile(r"(?i)\b(h2s|hydrogen sul[pf]hide|smoke|flames?|explosion|lel)\b"
-                    r"|\bfire\b(?!\s*(water|pump|main|hydrant))|gas (smell|leak|release|escap\w*|detector|alarm)"
-                    r"|smell(s|ing|ed)? (of )?gas|(leaking|escaping) gas")
 # Past or heading past a limit, or leaking: on kit with production behind it, never one to shelve (#1381).
 LIMIT_OR_LEAK = re.compile(r"(?i)\blimits?\b|\b(hi ?hi|lo ?lo|high|low)[- ](alarm|limit)\b"
                            r"|\b(leak\w*|weep\w*|seep\w*|drip\w*)\b|\b(dropping|falling|rising|climbing|crept up|down to)\b")
@@ -236,7 +233,7 @@ def _criticality(conn, subjects: list[str]) -> str | None:
 def _hazard(conn, row: dict) -> str | None:
     """What makes it a hazard to people, from the record: its type is a safety case type or HSE's work, or what was
     reported (its title, the field's notes) names gas escaping, H2S, fire or smoke. None when nothing does."""
-    from . import exceptions
+    from . import exceptions, messages
 
     if row["type"] in _safety_types(conn):
         return "a safety case type"
@@ -244,7 +241,7 @@ def _hazard(conn, row: dict) -> str | None:
     if t is not None and t.role == "role:hse_specialist":
         return "HSE work"
     for text in _said(conn, row):
-        if m := HAZARD.search(text):
+        if m := messages.HAZARD.search(text):
             return f"{m.group(0).lower()} reported"
     return None
 
@@ -259,8 +256,12 @@ def _said(conn, row: dict) -> list[str]:
 
 
 def _no_shelf(conn, row: dict, now: dict | None, behind: dict | None) -> str | None:
-    """Why a shelf is not offered: past or heading past a limit, or a leak, on kit with production behind it (#1381).
-    None when it can wait on a shelf."""
+    """Why a shelf is not offered: a safety report (gas, a smell, fire, a leak, someone hurt, #1408), or past or heading
+    past a limit on kit with production behind it (#1381). None when it can wait on a shelf."""
+    from . import messages
+
+    if any(messages.safety(t) for t in _said(conn, row)):
+        return "a safety report can't be shelved"
     flow = now or behind
     if not flow or not (flow["oil_bbld"] or flow["gas_mscfd"]):
         return None

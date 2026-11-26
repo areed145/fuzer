@@ -151,6 +151,11 @@ aliases and the ones a steward recorded, checked against the register). It calls
 | **Reported in a message** `message_report` | A message that names an entity for certain: every tag, well or alias it names is in the register, in one area, and at least `messages.min_confidence` (0.8) sure | What it names, the first named first | To dispatch, as its own case, for the ops lead to send: a message never joins an older case, where its news would read as a second report under that case's title | Yes | IOC close-out, or **Log only, no action** for one that only said what was done |
 | **Message to match** `message_to_match` | A message that names nothing for certain: a short tag in several areas, a tag the register lacks, only a place, or no tag at all | The entities it might be about | Data steward queue | No | When the steward chooses the entity on **Work > Master data > Questions > Messages**, from the candidates or a register search that offers only what work can be about (tags, equipment, wells and lines, each with its description and place; anything else is refused), tapping one row or several (a message about three drivers is about all three), and its case opens as above, or says no work is needed; the steward's case closes as **Matched** or **No work needed** |
 
+A safety report (gas, a smell, fire or smoke, a leak, someone hurt) that names nothing for certain does not wait for
+the steward: it is also a **Reported in a message** case at once, about nothing yet, at To dispatch for the ops lead.
+The steward's answer then says what that same case is about, as **Change the entity** does, so it keeps its age and
+whoever has it; no work needed leaves it for the IOC to close (#1408).
+
 A message that asks for nothing ("thanks", an out-of-office reply), or only says what was done with nothing wrong or
 asked in it ("Swapped 10-P-1001A to C, A is isolated and drained"), opens no case and is kept as handled, the second as
 a log entry with what it names. On All work a message's case shows the channel and sender as its source and a short

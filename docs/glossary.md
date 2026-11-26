@@ -47,8 +47,10 @@ keeps its parts here. Checklist items are not steps: the workflow does not wait 
 them as the record of what was done. An item for another queue is sent as its own case, part of this one (a
 child case); the item is done when that case is.
 
-**Clash.** Two planned jobs on one asset at the same time, a person booked twice, or two jobs whose permits must
-not run side by side. Shown on Plan and checked again at dispatch; it is a flag, not a case.
+**Clash.** Two planned jobs on one asset at the same time, a person booked on two jobs at once (a field operator
+holding several field jobs at once is not), or two jobs whose permits must not run side by side. Only work in the field or on the
+plan counts, never a case at a desk, and a case never clashes with itself. Shown on Plan and checked again at dispatch;
+it is a flag, not a case.
 
 **Close-out.** Closing a case by saying what it was (a real problem, a false alarm, a duplicate, a data problem, or
 for a message that only said what was done, log only with no action; a steward's question closes as its answer,
@@ -227,11 +229,14 @@ nothing until the IOC dispatches it) and when it is due. Shown on Settings > Rou
 **Run.** One load of a dataset that changed something: when, what triggered it, rows read, new, changed and
 removed, and the mapping versions used.
 
+**Safety report.** A message that reports gas, a smell, fire or smoke, a leak or someone hurt. It is a case for the
+IOC at once, even when it names no entity (the data steward says which after), and is never shelved.
+
 **Schedule.** A turnaround, project or campaign whose activities have durations, links and resource needs, shown
 as a Gantt under Plan > Schedules. A planning system such as Primavera P6 can deliver one.
 
 **Shelve.** Take a standing condition that can wait off the list and every queue until a date, with a reason. It
-comes back by itself. Safety work cannot be shelved, and Options never recommend it.
+comes back by itself. Safety work and a safety report cannot be shelved, and Options never recommend it.
 
 **Site.** A facility Fuzer runs for, as people name it on screen (a **project** in code and the API): work at a
 person's other sites is listed as **At your other sites**, never "other fields".
