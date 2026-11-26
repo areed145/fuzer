@@ -81,7 +81,8 @@ def disruption(conn, row: dict) -> dict | None:
     ev = row["evidence"] or {}
     found = ev.get("finding") or {}
     title = row["title"] or ""
-    out = {"key": f"{row['type']}:{row['id']}", "type": row["type"], "cause_id": row["id"], "case": row["item_id"],
+    # keyed by the cause's own type and key (parts_not_ready:50000277), as stable as the cause is
+    out = {"key": f"{row['type']}:{row['key']}", "type": row["type"], "cause_id": row["id"], "case": row["item_id"],
            "subjects": list(row["subjects"] or []), "source": row["source"], "order": None}
     if row["type"] in DOWN_TYPES:
         start = _when(ev.get("tripped_at") or found.get("start") or row["first_seen"])
@@ -427,8 +428,9 @@ def _open(conn, exception_id: int) -> tuple[dict, dict]:
                       "on e.id = c.exception_id where c.exception_id = %s", (exception_id,)).fetchone()
     if pc is None:
         raise PlanError(f"no plan change {exception_id}")
-    cause = conn.execute("select * from exception_record where id = %s",
-                         (int(pc["key"].rsplit(":", 1)[1]),)).fetchone()
+    kind, key = pc["key"].split(":", 1)
+    cause = conn.execute("select * from exception_record where type = %s and key = %s "
+                         "order by state = 'open' desc, id desc limit 1", (kind, key)).fetchone()
     d = disruption(conn, cause) if cause else None
     if d is None:
         raise PlanError(f"plan change {exception_id}: what caused it is no longer on record")

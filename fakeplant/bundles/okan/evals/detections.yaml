@@ -5,6 +5,7 @@
 #   since, until    the stretch swept; every_days between runs (default 7), or `at: [dates]` for a slow detector
 #   events          {key, from, to}: a raise whose key holds `key`, made by a run between `from` and `to`, is true
 #   gates           floors for recall and precision, where the detector's own differ from sweep.GATES
+#   plan            true: the plan is brought in from its sources (SAP orders, maintenance plans) before the runs
 #   not_here        why the detector has nothing to find on this bundle
 #
 # A raise that matches no event is a false alarm. Where a detector's floor sits under the default it is because of
@@ -168,6 +169,23 @@ detectors:
       - {key: "PTW-30023", from: "today", to: "today"}
       - {key: "PTW-30027", from: "today", to: "today"}
       - {key: "PTW-30031", from: "today", to: "today"}
+
+  plan_changes:  # the late parts and lapsed permits above, where they hold planned work (P5.21)
+    plan: true
+    since: "today"
+    until: "today+1d"
+    at: ["today"]
+    events:  # each late order's own job waits for its parts; PTW-30003's plant has three jobs planned, the others none
+      - {key: "parts_not_ready:50000274", from: "today", to: "today"}
+      - {key: "parts_not_ready:50000277", from: "today", to: "today"}
+      - {key: "parts_not_ready:50000278", from: "today", to: "today"}
+      - {key: "parts_not_ready:50000280", from: "today", to: "today"}
+      - {key: "parts_not_ready:50000281", from: "today", to: "today"}
+      - {key: "parts_not_ready:50000287", from: "today", to: "today"}
+      - {key: "parts_not_ready:50000290", from: "today", to: "today"}
+      - {key: "parts_not_ready:50000291", from: "today", to: "today"}
+      - {key: "parts_not_ready:50000299", from: "today", to: "today"}
+      - {key: "permit_lapsed:PTW-30003", from: "today", to: "today"}
 
   # The entries below land the next delivery in Okan's history first; what they land stays, so they come last.
   source_health:

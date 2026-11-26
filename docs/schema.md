@@ -1935,7 +1935,7 @@ Re-planning when something breaks (P5.21, ops/replan.py): a trip, a late part or
 
 | Column | Type | Note |
 |---|---|---|
-| `key` | text | the disruption: its exception's type and id (machine_trip:812) |
+| `key` | text | the disruption: its exception's type and key (parts_not_ready:50000277) |
 | `exception_id` | bigint, | the plan change's own exception (its case is the planner's) |
 | `proposal` | jsonb, | the moves, their reasons and the KPIs before and after |
 | `updated_at` | timestamptz |  |

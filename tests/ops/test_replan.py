@@ -54,7 +54,7 @@ def _late_part(c, order: str, need: str, days_late: int) -> dict:
 
 
 def _change(c, cause: dict) -> dict:
-    pc = c.execute("select exception_id from plan_change where key = %s", (f"{cause['type']}:{cause['id']}",)).fetchone()
+    pc = c.execute("select exception_id from plan_change where key = %s", (f"{cause['type']}:{cause['key']}",)).fetchone()
     return replan.change(c, pc["exception_id"])
 
 
@@ -128,7 +128,7 @@ def test_a_day_is_read_as_a_planner_types_it():
 def test_a_constraint_typed_in_words_changes_the_proposal(c):
     part = _late_part(c, "50000306", "2026-04-08", 3)
     replan.watch(c)
-    pid = c.execute("select exception_id from plan_change where key = %s", (f"{part['type']}:{part['id']}",)).fetchone()["exception_id"]
+    pid = c.execute("select exception_id from plan_change where key = %s", (f"{part['type']}:{part['key']}",)).fetchone()["exception_id"]
     first = replan.change(c, pid)
     assert first["constraints"] == [] and len(first["forms"]) == 3
 
