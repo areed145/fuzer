@@ -228,7 +228,8 @@ its kind (**project**, **turnaround**, **package**); a booking shows as the crew
 Each step is a pull request that ships on its own. The first three fix today's gaps in the plan, schedule and dispatch
 flow before the larger moves.
 
-1. **Close the bar with its case.** Closing a case marks its plan item done; cancelling a plan item with an open case asks first.
+1. **Close the bar with its case.** Closing a case marks its plan item done, and so does the field's Done on its field job;
+   cancelling a plan item with an open case asks first.
 2. **The plan item becomes a job.** `plan_item` gains its case (`item_id`), where it happens (field or desk) and a link to its result.
 3. **Bookings and one crew capacity.** Crew is picked from the resources, with capacity and clashes shown on booking.
    Urgent dispatches and released jobs book demand, and the ready check reads that one ledger.

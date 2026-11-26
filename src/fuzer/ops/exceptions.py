@@ -995,6 +995,10 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
                                        _payload(_row(conn, exception_id)))
                 else:  # back to the IOC: never a fresh field check
                     work.return_to(conn, row["item_id"], by, IOC_QUEUE, back)
+    if status == "done":
+        from . import plan
+
+        plan.finish_field_job(conn, exception_id, by)  # the field job is over, whenever the IOC closes the case
     row = _row(conn, exception_id)
     from . import closeout
 

@@ -328,10 +328,9 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 
 /* The integrated plan: a label and a timeline bar per item; on a phone the bar drops below the label. */
 .plan-rows { list-style: none; margin: 0; padding: 0; }
-.plan-row { display: grid; grid-template-columns: minmax(14rem, 2fr) 3fr; gap: 0.25rem 0.75rem; align-items: center;
+.plan-row { display: grid; grid-template-columns: minmax(14rem, 2fr) minmax(0, 3fr); gap: 0.25rem 0.75rem; align-items: center;
   padding: 0.35rem 0; border-top: 1px solid var(--line); }
 .plan-row:first-child { border-top: 0; }
-.plan-row.status-done .plan-label, .plan-row.status-cancelled .plan-label { opacity: 0.55; }
 .plan-label { all: unset; cursor: pointer; display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: baseline; }
 .plan-label:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: 2px; }
 .plan-track { position: relative; height: 0.9rem; background: color-mix(in srgb, var(--muted) 16%, transparent); border-radius: 0.25rem; }
@@ -339,8 +338,10 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .plan-bar.shutdown { background: var(--warn, #b45309); }
 .plan-bar.kind-exception { background: var(--danger, #b91c1c); }
 .plan-today { position: absolute; top: -0.15rem; bottom: -0.15rem; width: 2px; background: var(--text, #222); opacity: 0.5; }
-.plan-detail { grid-column: 1 / -1; padding: 0.25rem 0 0.5rem; }
-@media (max-width: 640px) { .plan-row { grid-template-columns: 1fr; } }
+/* A job's panel fits its card: its readiness lines and a long name in Who wrap, never run off a phone (tour E, E3). */
+.plan-detail { grid-column: 1 / -1; min-width: 0; padding: 0.25rem 0 0.5rem; overflow-wrap: anywhere; }
+.plan-detail label, .plan-detail select { min-width: 0; max-width: 100%; }
+@media (max-width: 640px) { .plan-row { grid-template-columns: minmax(0, 1fr); } }
 /* A turnaround opens beside the timeline and shades its window on every row (#554). */
 .plan-layout.with-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem); gap: 1rem; align-items: start; }
 .plan-panel { position: sticky; top: 0.5rem; max-height: calc(100vh - 1rem); overflow: auto; }
@@ -470,12 +471,13 @@ dl.perf-hours dd { margin: 0; font-variant-numeric: tabular-nums; }
 .report-day .warn-text { color: var(--warn); }
 .report-versions { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--line); flex-wrap: wrap; }
 /* The plan's date axis and week lines (#1078): Mondays labelled above each area's tracks, a line per week on each track,
-   and today named. */
+   and today named on its own line above the labels, so it never hides the hours before it. */
 .plan-axis { border-top: 0; padding: 0 0 0.15rem; }
-.plan-axis-track { position: relative; height: 1.1rem; font-size: 11px; color: var(--muted); }
+.plan-axis-track { position: relative; height: 1.1rem; font-size: 11px; line-height: 1.1rem; color: var(--muted); }
+.plan-axis-track.with-now { height: 2.3rem; }
 .plan-axis-week { position: absolute; bottom: 0; transform: translateX(-50%); white-space: nowrap; }
 .plan-axis-week::after { content: ""; position: absolute; left: 50%; bottom: -0.3rem; height: 0.25rem; border-left: 1px solid var(--line); }
-.plan-axis-today { position: absolute; bottom: 0; transform: translateX(-50%); padding: 0 4px; border-radius: 3px;
+.plan-axis-today { position: absolute; top: 0; transform: translateX(-50%); padding: 0 4px; border-radius: 3px;
   background: var(--text); color: var(--bg); font-weight: 600; }
 .plan-timeline .plan-track { background-image: linear-gradient(to right, var(--line) 0 1px, transparent 1px);
   background-size: var(--week) 100%; background-repeat: repeat-x; background-position: var(--week-at) 0; }

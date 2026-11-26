@@ -257,6 +257,39 @@ def test_a_bar_becomes_its_cases_job_and_closes_with_the_case(conn, monkeypatch)
     conn.rollback()
 
 
+def test_plans_day_lists_only_the_work_still_to_do(conn, monkeypatch):
+    """Tour E (E11): the day view listed a closed case's bar and a field job the field had said Done as today's work.
+    A Done from the field finishes its bar, a closed case's bar is done, and `active` keeps the rest."""
+    from fuzer.core import work
+    from fuzer.core.exceptions import TYPES, ExceptionType, raise_exception
+    from fuzer.ops import exceptions
+
+    monkeypatch.setitem(TYPES, "minor_leak", ExceptionType("minor_leak", "Minor leak", joins=False))
+    day = ("2026-11-26", "2026-11-27")
+    went = raise_exception(conn, "minor_leak", "P-106 drip", "P-106 drip", "olga", refs=["tag:P-101"])
+    exceptions.dispatch(conn, went["id"], "ann", "role:operator")
+    closed = raise_exception(conn, "minor_leak", "P-107 drip", "P-107 drip", "olga", refs=["tag:P-101"])
+    shut = plan.plan_exception(conn, closed["id"], "ann", "2026-11-26T08:00:00+00:00", "2026-11-26T12:00:00+00:00")
+    still = raise_exception(conn, "minor_leak", "P-108 drip", "P-108 drip", "olga", refs=["tag:P-101"])
+    todo = plan.plan_exception(conn, still["id"], "ann", "2026-11-26T09:00:00+00:00", "2026-11-26T13:00:00+00:00")
+    bar = conn.execute("select * from plan_item where exception_id = %s", (went["id"],)).fetchone()
+    conn.execute("update plan_item set start_at = '2026-11-26T07:00:00+00:00', end_at = '2026-11-26T11:00:00+00:00' "
+                 "where id = %s", (bar["id"],))
+    exceptions.report(conn, went["id"], "fred", "on_site")
+    assert conn.execute("select status from plan_item where id = %s", (bar["id"],)).fetchone()["status"] == "in_progress"
+    exceptions.report(conn, went["id"], "fred", "done", "nothing leaking")
+    assert conn.execute("select status from plan_item where id = %s", (bar["id"],)).fetchone()["status"] == "done"
+    work.close_case(conn, closed["item_id"], "done", "ann", reason="fixed")
+    exceptions.reconcile(conn)
+    everything = {i["id"] for i in plan.items(conn, *day)}
+    assert {bar["id"], shut["id"], todo["id"]} <= everything  # the plan itself keeps its history
+    assert {i["id"] for i in plan.items(conn, *day, active=True)} & {bar["id"], shut["id"], todo["id"]} == {todo["id"]}
+    # sent to the field again, the bar is work to do again
+    exceptions.dispatch(conn, went["id"], "ann", "role:operator")
+    assert conn.execute("select status from plan_item where id = %s", (bar["id"],)).fetchone()["status"] == "in_progress"
+    conn.rollback()
+
+
 def _crew(conn, capacity=1):
     conn.execute("insert into entity (fuzer_id, kind) values ('fz-wc-mech', 'work_center') on conflict do nothing")
     conn.execute("insert into entity_label (fuzer_id, label) values ('fz-wc-mech', 'MECH-WC') on conflict do nothing")

@@ -28,6 +28,8 @@ const short = (at: string) => whenDay(at);
 /** Who a job is booked on, as people say it: a role's queue ("role:operator" is the "operator queue") or the person by
  * name ("user:demo" is the account's name), never the actor the plan keeps (tour D8). */
 const crewName = (crew: string) => (crew.startsWith("role:") ? queue(crew) : personName(crew));
+/** A crew in a job's Who picker, told apart from a person or a queue by its value only: picking it books the crew. */
+const CREW = "crew-resource:";
 
 /** An area's rows, with the exceptions about one piece of equipment together: an item alone, or a list of two or more
  * exceptions on the same equipment where the first of them would be (the field raises one per condition, so a machine
@@ -45,15 +47,15 @@ function byEquipment(list: PlanItem[]): (PlanItem | PlanItem[])[] {
   return out;
 }
 
-/** The axis labels that fit a track `width` px wide: a label is left out where it would run into the one before it, off
- * the track's right end, or under the Today mark, so no two read as one ("Jan 4, 2027Jan 11, 2027"). */
-function fitLabels(ticks: { at: number; text: string }[], width: number, today: { at: number; text: string } | null): string[] {
+/** The axis labels that fit a track `width` px wide: a label is left out where it would run into the one before it or
+ * off the track's right end, so no two read as one ("Jan 4, 2027Jan 11, 2027"). The Now or Today mark sits on its own
+ * line above them, so it never hides the hours before it (tour E, D12). */
+function fitLabels(ticks: { at: number; text: string }[], width: number): string[] {
   const wide = (text: string) => text.length * 6.5 + 10;  // the 11px axis font, with a gap either side
   let right = 0;
   return ticks.map(({ at, text }) => {
     const x = (at / 100) * width, half = wide(text) / 2;
-    if (!width || x - half < right || x + half > width
-        || (today && Math.abs(x - (today.at / 100) * width) < half + wide(today.text) / 2)) return "";
+    if (!width || x - half < right || x + half > width) return "";
     right = x + half;
     return text;
   });
@@ -101,7 +103,8 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
     return () => seen?.disconnect();
   }, []);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
-  const plan = useAsync(() => api.plan({ start: from, end: to, within }), [from, to, within]);
+  // the work still to do: a job that is done or cancelled leaves the timeline (tour E, E11)
+  const plan = useAsync(() => api.plan({ start: from, end: to, within, active: true }), [from, to, within]);
   const { busy, error, run } = useAction();
   const [open, setOpen] = useState<number | null>(() => Number(query.get("item")) || null);
   const askedItem = Number(query.get("item")) || null, askedFrom = query.get("from");
@@ -148,12 +151,12 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
                   "--week-at": `${week < 100 && ticks.length ? (100 * weekAt(ticks[0])) / (100 - week) : 0}%` } as CSSProperties;
   const nowMark = today > 0 && today < 100 ? { at: today, text: days === 1 ? "Now" : "Today" } : null;
   const labels = fitLabels(ticks.map((t) => ({ at: weekAt(t), text: days === 1 ? whenHour(t) : short(new Date(t).toISOString()) })),
-                           axisWidth, nowMark);
+                           axisWidth);
   const taWindow = turnaround?.window ? { left: pos(turnaround.window.start), right: pos(turnaround.window.end) } : null;
   const changed = () => { plan.reload(); scope.reload(); };
   const bar = (i: PlanItem) => <span key={i.id} className={`plan-bar kind-${i.kind}${i.needs_shutdown ? " shutdown" : ""}`}
     style={{ left: `${pos(i.start_at)}%`, width: `${Math.max(0.8, pos(i.end_at) - pos(i.start_at))}%` }} />;
-  const row = (i: PlanItem) => <li key={i.id} id={`plan-item-${i.id}`} className={`plan-row status-${i.status}`}>
+  const row = (i: PlanItem) => <li key={i.id} id={`plan-item-${i.id}`} className="plan-row">
     <button type="button" className="plan-label" aria-expanded={open === i.id} onClick={() => setOpen(open === i.id ? null : i.id)}>
       <strong>{acronyms(i.title)}</strong>
       <Text small muted> {i.kind.replace(/_/g, " ")} · {short(i.start_at)}–{short(i.end_at)}{i.crew ? ` · ${crewName(i.crew)}` : ""}</Text>
@@ -174,7 +177,7 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
   const axis = (
     <div className="plan-row plan-axis" aria-hidden="true">
       <span />
-      <div className="plan-axis-track" ref={measure}>
+      <div className={nowMark ? "plan-axis-track with-now" : "plan-axis-track"} ref={measure}>
         {ticks.map((t, n) => <span key={t} className="plan-axis-week" style={{ left: `${weekAt(t)}%` }}>{labels[n]}</span>)}
         {nowMark && <span className="plan-axis-today">{nowMark.text}</span>}
       </div>
@@ -246,15 +249,18 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
   const { busy, error, run } = useAction();
   const [start, setStart] = useState(item.start_at.slice(0, 10));
   const [end, setEnd] = useState(item.end_at.slice(0, 10));
-  const [crew, setCrew] = useState(item.crew ?? "");
+  // One picker for who goes (tour E, D12): a person or a role's queue is who the job is booked on; a crew books that
+  // many of the crew's people for the job's dates.
+  const [who, setWho] = useState(item.crew ?? "");
+  const resource = who.startsWith(CREW) ? who.slice(CREW.length) : "";
+  const crew = resource ? item.crew ?? "" : who;
   const change = (c: Parameters<typeof api.planChange>[2]) => person && run("Saving", () => api.planChange(item.id, person, c), onChange);
   const resources = useAsync(() => api.planResources(), []);
   const crews = (resources.data ?? []).filter((r) => r.kind === "crew");
-  const [resource, setResource] = useState("");
   const [people, setPeople] = useState("1");
   // a booking over the crew's capacity is refused with what it clashes with; it goes ahead only with a reason
   const book = () => person && resource && run("Booking", async () => {
-    const b = { resource, quantity: Number(people) || 1, person: crew.trim() || undefined };
+    const b = { resource, quantity: Number(people) || 1 };
     try { return await api.planBook(item.id, person, b); }
     catch (e) {
       if ((e as { status?: number }).status !== 409) throw e;
@@ -308,21 +314,21 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
         <Field inline label="Start"><Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
         <Field inline label="End"><Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
         {/* who goes, from the roster: a person or a role's queue, never typed as "role:…" (P5.28g) */}
-        <Field inline label="Who"><AssignPicker value={crew} onChange={setCrew} label="Who" /></Field>
+        <Field inline label="Who"><AssignPicker value={who} onChange={setWho} label="Who">
+          {crews.length > 0 && <optgroup label="Crews">
+            {crews.map((r) => <option key={r.code} value={`${CREW}${r.code}`}>{r.name} ({r.capacity})</option>)}
+          </optgroup>}
+        </AssignPicker></Field>
+        {resource && <>
+          <Field inline label="People"><Input type="number" min={1} value={people} onChange={(e) => setPeople(e.target.value)} /></Field>
+          <Button size="sm" disabled={!!busy} onClick={book}>Book</Button>
+        </>}
         <Field inline label="Done"><Select aria-label="Where it is done" value={item.place ?? "field"} disabled={!!busy}
           onChange={(e) => change({ place: e.target.value === "desk" ? "desk" : "field" })}>
           <option value="field">in the field</option><option value="desk">at a desk</option>
         </Select></Field>
         <Button size="sm" disabled={!!busy} onClick={reschedule}>Reschedule</Button>
         {fieldJob && !item.released_at && <Button size="sm" variant="primary" disabled={!!busy} onClick={release}>Release</Button>}
-        {crews.length > 0 && <>
-          <Field inline label="Crew"><Select aria-label="Crew" value={resource} onChange={(e) => setResource(e.target.value)}>
-            <option value="">choose a crew</option>
-            {crews.map((r) => <option key={r.code} value={r.code}>{r.name} ({r.capacity})</option>)}
-          </Select></Field>
-          <Field inline label="People"><Input type="number" min={1} value={people} onChange={(e) => setPeople(e.target.value)} /></Field>
-          <Button size="sm" disabled={!!busy || !resource} onClick={book}>Book</Button>
-        </>}
         <Select aria-label="Status" value={item.status} disabled={!!busy} onChange={async (e) => {
           const status = e.target.value;
           // taking planned work off the plan leaves the work itself open, for the IOC to decide again

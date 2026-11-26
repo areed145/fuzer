@@ -9,6 +9,7 @@
     book(conn, id, by, resource) book a job on a crew (or any resource): checked against capacity, over it only with a reason
     book_dispatch(conn, ...)     work sent to a field operator now is a bar booked to them, never to a maintenance crew
     finish_closed_work(conn)     bars whose work closed are done (or cancelled with a cancelled case), never left behind
+    finish_field_job(conn, id)   the bar of a field job the field said Done is done
 
 Clashes: two active items on one asset at the same time (simultaneous operations on it), and one person booked on
 two items at once. Bundling: an item due within BUNDLE_DAYS of a turnaround or shutdown of its area could be
@@ -177,11 +178,13 @@ def _clashes(rows: list[dict]) -> dict[int, list[dict]]:
 
 
 def items(conn, start=None, end=None, area: str | None = None, status: str | None = None,
-          subject: str | None = None, crew: str | None = None, within: str | None = None) -> list[dict]:
+          subject: str | None = None, crew: str | None = None, within: str | None = None,
+          active: bool = False) -> list[dict]:
     """The plan between start and end (default: from a week ago to eight weeks ahead), in start order, each item
     with its subjects' and area's labels, its clashes and bundling chances. Items just outside the window that
     touch the same areas are compared too, so a clash at its edge still shows. `within` keeps the items about an
-    entity or anything beneath it (an entity page's Schedule)."""
+    entity or anything beneath it (an entity page's Schedule); `active` keeps the work still to do (Plan's timeline:
+    a job that is done or cancelled is no longer on the day)."""
     now = datetime.now(UTC)
     inside = None
     if within:
@@ -210,7 +213,7 @@ def items(conn, start=None, end=None, area: str | None = None, status: str | Non
     for item_id, found in simops.on_plan(conn, rows).items():  # hazards side by side in one area (P5.11b)
         clashes[item_id].extend(found)
     shown = [r for r in rows if r["start_at"] < end and r["end_at"] > start and (status is None or r["status"] == status)
-             and (crew is None or r["crew"] == crew)]
+             and (crew is None or r["crew"] == crew) and (not active or r["status"] in ACTIVE)]
     short = _parts_short(conn, shown, now)
     return [{**r, "clashes": clashes[r["id"]], "parts_short": short.get(r["id"], []), "stage": job_stage(r)}
             for r in shown]
@@ -472,12 +475,30 @@ def finish_closed_work(conn, exception_ids: list[int] | None = None, by: str = "
         from over where p.id = over.id
         returning p.id, p.title, p.status, p.start_at, p.end_at, p.exception_id, p.item_id
         """, {"by": by, "active": list(ACTIVE), "ids": exception_ids}).fetchall()
+    _finished(conn, rows, by, "its work closed")
+    return rows
+
+
+def finish_field_job(conn, exception_id: int, by: str) -> list[dict]:
+    """The field said Done: the field job it was sent to do is over, so its bar is done now, not when the IOC closes
+    the case later. Plan's day no longer lists it as work to do, and crew load stops counting it (tour E, E11).
+    Sending the case to the field again brings the bar back (book_dispatch)."""
+    rows = conn.execute(
+        """
+        update plan_item set status = 'done', updated_by = %(by)s, updated_at = now()
+        where exception_id = %(id)s and status = any(%(active)s) and place = 'field'
+        returning id, title, status, start_at, end_at, exception_id, item_id
+        """, {"by": by, "id": exception_id, "active": list(ACTIVE)}).fetchall()
+    _finished(conn, rows, by, "done in the field")
+    return rows
+
+
+def _finished(conn, rows: list[dict], by: str, reason: str) -> None:
     for r in rows:
         events.publish(conn, "plan.changed", f"plan_item:{r['id']}",
                        {"id": r["id"], "change": "updated", "by": by, "fields": ["status"], "title": r["title"],
                         "start": r["start_at"].isoformat(), "end": r["end_at"].isoformat(), "status": r["status"],
-                        "reason": "its work closed"})
-    return rows
+                        "reason": reason})
 
 
 DISPATCH_HOURS = 4.0  # what work sent to the field now is booked for, to whoever it went to, until it comes back

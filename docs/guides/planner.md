@@ -20,9 +20,10 @@ flowchart TB
 
 ## Read the plan
 
-Open **Plan**. It opens on today, one day long, with the hours marked; choose a range of 1 to 26 weeks for longer
-and shade a turnaround's window. Each area has its own lane on the timeline; each bar is an activity with its kind,
-dates and flags such as **parts short** or **shutdown**. Exceptions the field raised about one piece of equipment are
+Open **Plan**. It opens on today, one day long, with the hours marked and **Now** above them; choose a range of 1 to
+26 weeks for longer and shade a turnaround's window. It lists the work still to do: a job that is done or cancelled
+leaves it, and a field job leaves it when the field says **Done**. Each area has its own lane on the timeline; each
+bar is an activity with its kind, dates and flags such as **parts short** or **shutdown**. Exceptions the field raised about one piece of equipment are
 one row, named for it with how many there are; it opens to each of them. Above the
 timeline, **Production at risk from planned shutdowns** estimates the oil and gas behind each unit for the time it is
 down over the next 90 days, counting each well once however many overlapping jobs take it down.
@@ -135,8 +136,9 @@ How each system's updates go back (not at all, drafted for approval, or sent) is
 ## Good to know
 
 - **Coming up** on a field operator's My work lists planned work they (or a role they hold) are booked on as crew.
-  Open a bar on Plan and choose **Who** from the roster (a person or a role's queue); **Crew** books it on a crew's
-  capacity. Their **Started** and **Done** update the plan.
+  Open a bar on Plan and choose **Who**: a person or a role's queue from the roster is who it is booked on, and a
+  crew books that many of its people (**People**, then **Book**) on the crew's capacity. Their **Started** and
+  **Done** update the plan.
 - A job planned from an exception stays linked to its case: the row on All work says it is planned, and it leaves
   **To dispatch** until the day.
 - Scheduled work holds back findings it explains. If the IOC asks why a trip did not raise a case, the answer is

@@ -5047,10 +5047,10 @@ test("P5.28g Plan opens on the planner's day, one row per machine's exceptions, 
   assert.equal(await page.getByRole("button", { name: /K-101 needs action/ }).count(), 0);
   await group.click();
   assert.equal(await page.getByRole("button", { name: /K-101 needs action/ }).count(), 4);
-  // a job: one crew field, who goes from the roster, a part once
+  // a job: one picker for who goes (a person, a queue or a crew, P5.29f), from the roster, a part once
   await page.getByRole("button", { name: /Replace P-101 seal/ }).click();
-  await page.getByRole("combobox", { name: "Crew" }).waitFor();
-  await page.getByRole("combobox", { name: "Who" }).waitFor();
+  await page.getByRole("combobox", { name: "Who" }).locator("optgroup[label=Crews] option", { hasText: "Mechanical fitters (6)" }).waitFor({ state: "attached" });
+  assert.equal(await page.getByRole("combobox", { name: "Crew" }).count(), 0);
   assert.equal(await page.getByLabel("Book on").count(), 0);
   assert.equal(await page.getByPlaceholder(/person or role/).count(), 0);
   // the part once, in its Spares line from the job's own order (tour E, D3), not again from the BOM
@@ -5063,13 +5063,103 @@ test("P5.28g Plan opens on the planner's day, one row per machine's exceptions, 
     await page.setViewportSize({ width, height: 1000 });
     await page.locator(".plan-axis-today", { hasText: "Today" }).first().waitFor();
     await page.waitForTimeout(100);
-    const boxes = await page.locator(".plan-area").last().evaluate((card) => [...card.querySelectorAll(".plan-axis-week, .plan-axis-today")]
-      .filter((el) => el.textContent.trim()).map((el) => { const r = el.getBoundingClientRect(); return { text: el.textContent, left: r.left, right: r.right }; })
+    const boxes = await page.locator(".plan-area").last().evaluate((card) => [...card.querySelectorAll(".plan-axis-week")]
+      .filter((el) => el.textContent.trim()).map((el) => { const r = el.getBoundingClientRect(); return { text: el.textContent, left: r.left, right: r.right, top: r.top }; })
       .sort((a, b) => a.left - b.left));
     assert.ok(boxes.length >= 3, `at ${width}px: ${JSON.stringify(boxes)}`);
     for (let n = 1; n < boxes.length; n++)
       assert.ok(boxes[n].left >= boxes[n - 1].right, `at ${width}px "${boxes[n - 1].text}" runs into "${boxes[n].text}"`);
+    // Today sits on its own line above the labels, so it never covers one (P5.29f)
+    const mark = await page.locator(".plan-area").last().locator(".plan-axis-today").boundingBox();
+    assert.ok(mark.y + mark.height <= boxes[0].top + 1, `at ${width}px Today overlaps the labels`);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  }
+});
+
+// P5.29f (#1405, tour E: E3, E11, D12): the planner's day on a phone and a desk. The job panel's readiness lines wrap
+// inside the card, the day asks for the work still to do, the hours before Now keep their labels, and one picker says
+// who goes: a person, a queue, or a crew whose people it books.
+for (const [size, viewport, ios] of [["phone", { width: 390, height: 844 }, "?ios=1"], ["desktop", { width: 1440, height: 900 }, ""]]) {
+  test(`P5.29f Plan's day: the job panel fits, only work to do, hours before Now labelled, one picker for who goes (${size})`, async () => {
+    await page.clock.setFixedTime(new Date("2026-11-26T04:30:00Z"));
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+    await page.setViewportSize(viewport);
+    const item = { id: 5, kind: "maintenance", title: "Preventive maintenance crude cooler", source: "sap", source_key: "50000292",
+      subjects: ["fz-equipment-e3001"], assets: [{ fuzer_id: "fz-equipment-e3001", label: "10-E-3001" }], area_id: "fz-area-10",
+      area_label: "North", start_at: "2026-11-26T00:00:00Z", end_at: "2026-11-27T00:00:00Z", status: "scheduled", crew: null,
+      crew_hours: null, needs_shutdown: false, deferment_usd: null, exception_id: null, notes: "SAP order 50000292", clashes: [], parts_short: [] };
+    const asked = [], booked = [];
+    await page.route("**/plan?*", (route) => { asked.push(Object.fromEntries(new URL(route.request().url()).searchParams)); return route.fulfill({ json: [item] }); });
+    await page.route("**/plan/resources/load*", (route) => route.fulfill({ json: { start: "2026-11-26", end: "2026-11-26", days: 1, resources: [] } }));
+    await page.route("**/plan/resources", (route) => route.fulfill({ json: [{ code: "MECH", name: "Mechanical maintenance crew", kind: "crew", capacity: 6 }] }));
+    await page.route("**/plan/5/prerequisites", (route) => route.fulfill({ json: { item_id: 5, ready: false, released_at: null, released_by: null,
+      prerequisites: [{ kind: "scheduled", label: "Scheduled", satisfied: true, detail: [] },
+        { kind: "spares", label: "Spares", satisfied: false, detail: ["Bearing set, Kelvion KEL-600: 0 in stock, 1 needed; on order (4500000010), due 2026-12-09"] },
+        { kind: "crew", label: "Crew", satisfied: false, detail: ["Mechanical maintenance crew (MECH): 8 of 6 booked today, with Unusual noise from 10-V-2002 (LP Production Separator)"] }] } }));
+    await page.route("**/plan/5/book", (route) => { booked.push(route.request().postDataJSON()); return route.fulfill({ json: item }); });
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "sam", display_name: "Sam Okafor-Lindqvist", roles: ["operator", "maintenance_planner"], holding: 3 }] }));
+    await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "operator", kind: "person" }] }));
+    await page.goto(`${url}/${ios}#/plan`);
+    await page.getByRole("heading", { name: "North", exact: true }).waitFor();
+    assert.equal(asked.at(-1).active, "true", "the day asks for the work still to do");
+    // the hours before Now keep their labels; Now sits above them
+    const card = page.locator(".plan-area", { hasText: "North" });
+    await card.locator(".plan-axis-today", { hasText: "Now" }).waitFor();
+    await card.locator(".plan-axis-week", { hasText: /^3 AM$/ }).waitFor();
+    // the job panel: every line inside the card, nothing wider than the screen
+    await page.getByRole("button", { name: /Preventive maintenance crude cooler/ }).click();
+    await page.getByText(/Crew: Mechanical maintenance crew \(MECH\): 8 of 6/).waitFor();
+    const who = page.getByRole("combobox", { name: "Who" });
+    await who.locator("option", { hasText: "Sam Okafor-Lindqvist" }).waitFor({ state: "attached" });
+    const spill = await card.evaluate((c) => {
+      const edge = c.getBoundingClientRect().right;
+      return [...c.querySelectorAll(".plan-detail *, .plan-label *")].filter((el) => el.getBoundingClientRect().right > edge + 1)
+        .map((el) => `${el.tagName} ${el.textContent.slice(0, 40)}`);
+    });
+    assert.deepEqual(spill, [], "nothing in the job panel runs past the card");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    // one picker: a crew in Who books that many of its people; there is no second crew field
+    assert.equal(await page.getByRole("combobox", { name: "Crew" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Book" }).count(), 0);
+    await who.selectOption("crew-resource:MECH");
+    await page.getByLabel("People").fill("2");
+    await page.getByRole("button", { name: "Book" }).click();
+    await expectReports(booked, 1);
+    assert.equal(booked[0].resource, "MECH");
+    assert.equal(booked[0].quantity, 2);
+    assert.equal(booked[0].person, undefined);
+    await who.selectOption("sam");
+    assert.equal(await page.getByRole("button", { name: "Book" }).count(), 0);
+    assert.deepEqual(errors, []);
+  });
+}
+
+// P5.29f (#1405, tour E: E8): a panel a phone leaves out isn't read on a phone, so the report's own rows (Plan lines)
+// aren't held behind two whole-register analyses; on an iPad every panel reads.
+test("P5.29f a report reads no phone: false panel on a phone, and shows Plan lines there; an iPad reads them all", async () => {
+  const win = { key: "qtd", at: "2026-11-26", start: "2026-10-01", end: "2026-11-26", days: 57, label: "Quarter to 26 Nov 2026",
+    previous: { start: "2026-07-01", end: "2026-09-30" } };
+  const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
+  const view = { scope, window: win, repeats: {}, scopes: [scope], unknown: [],
+    definition: { schema: 1, key: "plan", title: "Plan against actual", version: 4, for: [], scope: { kinds: ["facility"] },
+      window: { default: "qtd", options: ["qtd"] }, source: "platform", rows: [
+        { id: "lines", panels: [{ id: "plan-lines", type: "table", size: 4, title: "Plan lines" }] },
+        { id: "maintenance", panels: [{ id: "backlog-burn", type: "view", view: "backlog-burn", size: 4, phone: false }] }] } };
+  const read = [];
+  await page.route("**/reports/plan?*", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/plan", (route) => route.fulfill({ json: view }));
+  await page.route("**/reports/plan/panels/plan-lines*", (route) => route.fulfill({ json: { id: "plan-lines", type: "table", title: "Plan lines",
+    scope, window: win, as_of: "2026-11-26", note: null, scoped: true, refs: [], href: "/plan?portfolio=1", total: 1,
+    columns: [{ key: "program", label: "Program" }, { key: "hours", label: "Planned hours", align: "end" }],
+    rows: [{ key: "a", cells: { program: "Maintenance", hours: 71.9 } }] } }));
+  await page.route("**/plant/backlog-burn", (route) => { read.push("backlog-burn"); return route.fulfill({ json: { months: [] } }); });
+  for (const [viewport, reads] of [[{ width: 390, height: 844 }, 0], [{ width: 834, height: 1194 }, 1]]) {
+    read.length = 0;
+    await page.setViewportSize(viewport);
+    await page.goto(`${url}/#/reports/plan`);
+    await page.getByRole("table", { name: "Plan lines" }).getByText("Maintenance").waitFor();
+    await page.waitForTimeout(300);
+    assert.equal(read.length, reads, `${viewport.width} px reads the phone: false analysis ${reads} times`);
   }
 });
 
