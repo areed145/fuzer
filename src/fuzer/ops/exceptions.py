@@ -799,7 +799,7 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
         from . import plan
         plan.link_case(conn, row["id"], item_id)  # a bar it was planned as is now this case's job
     row = _row(conn, exception_id)
-    if not planned and (to == f"role:{OPERATOR_ROLE}" or to in operators(conn)):  # to the field now: crew time (step 3)
+    if not planned and (to == f"role:{OPERATOR_ROLE}" or to in operators(conn)):  # to the field now: their time (step 3)
         from . import plan
         plan.book_dispatch(conn, row["id"], row["item_id"], to, by)
     if override:  # sent though not ready (P5.5): what blocked it and why it went anyway, on the case's history

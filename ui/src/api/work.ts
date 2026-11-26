@@ -346,6 +346,8 @@ export interface OptionDecision { id: number; chosen: CaseOption["key"]; recomme
 export interface CaseOptions {
   applies: boolean; why_not: string | null; exception_id: number | null; item_id?: number | null; type?: string;
   stage?: string; at?: string;
+  /** A case a field operator already has on the same asset: said and linked, never a clash (#1401). */
+  field_case?: { exception: number; item_id: number; title: string } | null;
   loss?: { oil_bbld: number; gas_mscfd: number; usd_per_day: number; wells: number; basis: string } | null;
   if_it_trips?: { oil_bbld: number; gas_mscfd: number; usd_per_day: number; wells: number; basis: string } | null;
   criticality?: string | null; prices?: { oil_bbl: number; gas_mscf: number; source: string };
@@ -360,6 +362,8 @@ export interface OptionAcceptance {
 
 export interface Readiness {
   ready: boolean; blockers: string[];
+  /** For a send to someone: whether the checks hold it at all (a send to the planner never is, #1391). */
+  holds?: boolean;
   /** What whoever sends the job should know that never holds it: an open MOC on the equipment, a permit to confirm. */
   warnings?: string[];
   /** Each check that can't be said, with why ("Parts readiness unknown: no stock source."). */
@@ -996,8 +1000,9 @@ export interface PlanItem {
   stage?: "planned" | "scheduled" | "released" | "in_progress" | "done" | "cancelled";
   assets: { fuzer_id: string; label: string | null }[];
   clashes: { kind: "same_asset" | "crew" | "bundle" | "simops"; with: number; title: string; say: string }[];
-  /** Spare parts for its assets recorded with zero stock, for active work starting within 30 days. */
-  parts_short?: { id: string; label: string | null; description: string | null; mpn: string | null; bin: string | null; for: string }[];
+  /** Parts on its own work order that stock does not cover, for active work starting within 30 days (the Spares
+   * check's parts, never the equipment's BOM). */
+  parts_short?: { id: string; label: string | null; description: string | null }[];
 }
 
 /** What a job needs before it is released: each prerequisite satisfied or not, with what holds it. */
@@ -1248,7 +1253,7 @@ export const workApi = {
   dispatch: (id: number, by: string, to: string, reason?: string, override?: string, due?: string) =>
     request<ExceptionRow>("POST", `/exceptions/${id}/dispatch`, undefined, { by, to, reason: reason ?? null, override: override ?? null,
       ...(due ? { due } : {}) }),
-  exceptionReadiness: (id: number) => request<Readiness>("GET", `/exceptions/${id}/readiness`),
+  exceptionReadiness: (id: number, to: string) => request<Readiness>("GET", `/exceptions/${id}/readiness`, { to }),
   exceptionOptions: (id: number) => request<CaseOptions>("GET", `/exceptions/${id}/options`),
   caseOptions: (itemId: number) => request<CaseOptions>("GET", `/work/items/${itemId}/options`),
   chooseOption: (id: number, by: string, option: CaseOption["key"], c: { reason?: string; to?: string; ask?: string;

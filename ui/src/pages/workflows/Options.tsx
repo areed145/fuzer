@@ -7,6 +7,7 @@ import { estimate, money, twoFigures, when } from "../../format";
 import { Status, notifyChanged, useAction, useAsync } from "../../lib";
 import { ActionStatus, Badge, Button, Card, Field, Input, Line, Notice, Select, Text, type Tone } from "../../ui";
 import { person as personName, queue, say } from "../../wording";
+import { caseHref } from "./shared";
 
 const RISK: Record<string, Tone> = { Low: "ok", Medium: "warn", High: "danger" };
 /** What the button does, said as the act. */
@@ -72,6 +73,8 @@ function OptionsView({ d, person, readOnly, onChosen }: {
   return (
     <Card className="case-options" aria-label="Options" title="Options">
       <Cost d={d} />
+      {d.field_case && <Text as="div" small>The field already has a case on it:{" "}
+        <a href={caseHref(d.field_case.item_id)}>{d.field_case.title}</a></Text>}
       {/* nothing recommended (it can't go now and escalating would come back to the reader): the reason is the line */}
       {!d.recommended && d.reason && <Text as="div" small>{d.reason}</Text>}
       <ul className="case-options-list">

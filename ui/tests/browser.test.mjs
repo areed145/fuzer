@@ -870,6 +870,35 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
   });
 }
 
+// P5.29b (#1401): a message about a tag the field already has a case on says so and links that case, with no clash;
+// a shelf that is not offered says why in words, never a word quoted from the title (tour E, E6, E14).
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.29b the case the field already has is linked, and a refused shelf says why in words (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    const base = caseOptions();
+    const options = caseOptions({
+      field_case: { exception: 5, item_id: 1170, title: "25-XV-4021 position indicator flickers" },
+      options: base.options.map((o) => (o.key === "shelve" ? { key: "shelve", label: "Shelve for 30 days", available: false,
+        unavailable: "it is past or heading past a limit with about 210 bbl/d behind it" } : o)),
+    });
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "25-XV-4021 flickers", type: "message",
+      state: "open", subjects: [], created_by: "user:demo", created_at: "2026-11-26T01:00:00Z", events: [], processes: [],
+      payload: { exception_id: 7 } } }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: options }));
+    await page.goto(`${url}/#/cases/21`);
+    const card = page.getByLabel("Options");
+    await card.getByText("The field already has a case on it:").waitFor();
+    const link = card.getByRole("link", { name: "25-XV-4021 position indicator flickers" });
+    assert.match(await link.getAttribute("href") ?? "", /#\/cases\/1170$/);
+    await card.getByText("Shelve for 30 days").waitFor();
+    await card.getByText(": it is past or heading past a limit with about 210 bbl/d behind it").waitFor();
+    assert.equal(await card.getByText(/“limits?”/).count(), 0);
+    assert.equal(await card.getByText("clash", { exact: true }).count(), 0);
+    const width = await page.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(width <= viewport.width, `no sideways scroll (${width})`);
+  });
+}
+
 test("another option than the recommended one takes an optional why, which goes with the choice (P5.20, #1347)", async () => {
   const chosen = [];
   await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "20-K-2300B tripped", type: "machine_trip",
@@ -4910,8 +4939,7 @@ test("the integrated plan shows clashes and bundling by area and reschedules an 
       status: "scheduled", needs_shutdown: false,
       clashes: [{ kind: "bundle", with: 2, title: "North train overhaul", say: "could be done during “North train overhaul”" },
         { kind: "same_asset", with: 3, title: "Lube P-101", say: "at the same time as “Lube P-101” on the same asset" }],
-      parts_short: [{ id: "fz-material-0123456789ab", label: "10001 seal kit", description: "Mechanical seal", mpn: null, bin: null,
-        for: "fz-equipment-0123456789ab" }] },
+      parts_short: [{ id: "fz-material-0123456789ab", label: "10001 seal kit", description: "Mechanical seal" }] },
     { ...base, id: 2, kind: "turnaround", title: "North train overhaul", source_key: "4000002", start_at: at(10), end_at: at(15),
       status: "proposed", needs_shutdown: true, clashes: [] },
   ];
@@ -4928,7 +4956,8 @@ test("the integrated plan shows clashes and bundling by area and reschedules an 
   await page.getByText(/Clash: at the same time as “Lube P-101”/).waitFor();
   await page.getByText(/Bundle: could be done during/).waitFor();
   await page.getByText("1 waiting on parts").waitFor();
-  await page.getByText(/no stock on record.*10001 seal kit \(Mechanical seal\)/).waitFor();
+  // the parts are said once, by the Spares check on the job's own order (tour E, D3), not again from the BOM
+  assert.equal(await page.getByText(/no stock on record/).count(), 0);
   await page.getByRole("combobox", { name: "Who" }).selectOption("fred");
   await page.getByRole("button", { name: "Reschedule" }).click();
   await expectReports(changes, 1);
@@ -4990,13 +5019,15 @@ test("P5.28g Plan opens on the planner's day, one row per machine's exceptions, 
       title: `K-101 needs action: flag ${n}`, start_at: hour(-2 + n * 0.1), end_at: hour(2 + n) })),
     { ...base, id: 5, kind: "maintenance", exception_id: null, source: "sap", source_key: "4000005", title: "Replace P-101 seal",
       subjects: ["fz-equipment-p101"], assets: [{ fuzer_id: "fz-equipment-p101", label: "P-101" }], start_at: hour(1), end_at: hour(5),
-      parts_short: [{ id: "fz-material-1", label: "MAT-1", description: "Bearing set", mpn: null, bin: null, for: "fz-equipment-p101" }] },
+      parts_short: [{ id: "fz-material-1", label: "MAT-1", description: "Bearing set" }] },
   ];
   const asked = [];
   await page.route("**/plan?*", (route) => { asked.push(Object.fromEntries(new URL(route.request().url()).searchParams)); return route.fulfill({ json: items }); });
   await page.route("**/plan/resources/load*", (route) => route.fulfill({ json: { start: today, end: today, days: 1, resources: [] } }));
   await page.route("**/plan/resources", (route) => route.fulfill({ json: [{ code: "MECH", name: "Mechanical fitters", kind: "crew", capacity: 6 }] }));
-  await page.route("**/plan/*/prerequisites", (route) => route.fulfill({ json: { item_id: 5, ready: true, released_at: null, released_by: null, prerequisites: [] } }));
+  await page.route("**/plan/*/prerequisites", (route) => route.fulfill({ json: { item_id: 5, ready: false, released_at: null,
+    released_by: null, prerequisites: [{ kind: "spares", label: "Spares", satisfied: false,
+      detail: ["Bearing set: 0 in stock, 1 needed; nothing on order"] }] } }));
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
   await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "operator", kind: "person" }] }));
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -5022,7 +5053,9 @@ test("P5.28g Plan opens on the planner's day, one row per machine's exceptions, 
   await page.getByRole("combobox", { name: "Who" }).waitFor();
   assert.equal(await page.getByLabel("Book on").count(), 0);
   assert.equal(await page.getByPlaceholder(/person or role/).count(), 0);
-  assert.equal(await page.getByText(/MAT-1 \(Bearing set\)/).count(), 1);
+  // the part once, in its Spares line from the job's own order (tour E, D3), not again from the BOM
+  await page.getByText(/Spares: Bearing set: 0 in stock/).waitFor();
+  assert.equal(await page.getByText(/Bearing set/).count(), 1);
   // the axis labels never touch each other or the Today mark, on iPad portrait, a phone and a desktop
   await showing.selectOption("56");
   await page.getByLabel("From").fill(new Date(Date.now() - 4 * 86_400_000).toISOString().slice(0, 10));
@@ -7495,7 +7528,7 @@ test("the dispatch card shows what blocks a job and sends a blocked one only wit
     raised_count: 1, last_seen: "2026-11-12T05:00:00Z", first_seen: "2026-11-12T05:00:00Z", joined: [], planned: null };
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: [job] }));
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }, { name: "ines", roles: ["ops_lead"] }] }));
-  await page.route("**/exceptions/7/readiness", (route) => route.fulfill({ json: { ready: false,
+  await page.route("**/exceptions/7/readiness*", (route) => route.fulfill({ json: { ready: false,
     blockers: ["Spares: Compressor valve assembly: 2 in stock, 4 needed; on order (4500007101), due 2026-11-15",
       "Spares: Rod packing set: 0 in stock, 2 needed; nothing on order"],
     checks: [{ check: "spares", label: "Spares", ready: false, checked: true, note: null, blockers: [] }] } }));
@@ -7527,11 +7560,17 @@ test("a send to the planner goes without a reason, whatever readiness says (P5.2
     item_id: null, assignee: null, role: null, raised_count: 1, last_seen: "2026-11-12T05:00:00Z",
     first_seen: "2026-11-12T05:00:00Z", joined: [], planned: null };
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: [job] }));
-  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] },
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "mo", roles: ["maintenance"] },
     { name: "pat", roles: ["maintenance_planner"] }] }));
-  await page.route("**/exceptions/7/readiness", (route) => route.fulfill({ json: { ready: false,
-    blockers: ["Crew: Mechanical maintenance crew (MECH): 9 of 6 booked today"],
-    checks: [{ check: "crew", label: "Crew", ready: false, checked: true, note: null, blockers: [] }] } }));
+  // the server says whether the checks hold this send (#1401): a send to the planner is not held, so nothing shows
+  const asked = [];
+  await page.route("**/exceptions/7/readiness*", (route) => {
+    const to = new URL(route.request().url()).searchParams.get("to");
+    asked.push(to);
+    return route.fulfill({ json: to === "pat" ? { ready: true, holds: false, blockers: [], checks: [] } : { ready: false, holds: true,
+      blockers: ["Crew: Mechanical maintenance crew (MECH): 9 of 6 booked today"],
+      checks: [{ check: "crew", label: "Crew", ready: false, checked: true, note: null, blockers: [] }] } });
+  });
   const sent = [];
   await page.route("**/exceptions/7/dispatch", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
   for (const width of [390, 1280]) {
@@ -7539,9 +7578,11 @@ test("a send to the planner goes without a reason, whatever readiness says (P5.2
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${url}/#/list`);
     await page.getByRole("button", { name: "Send to", exact: true }).click();
-    await page.getByLabel("Dispatch to").selectOption("fred");
-    await page.getByText("9 of 6 booked today", { exact: false }).waitFor();  // the field still sees what holds it
+    await page.getByLabel("Dispatch to").selectOption("mo");
+    await page.getByText("9 of 6 booked today", { exact: false }).waitFor();  // a fitter still sees what holds it
     await page.getByLabel("Dispatch to").selectOption("pat");
+    await page.getByText("9 of 6 booked today", { exact: false }).waitFor({ state: "detached" });
+    assert.equal(asked.at(-1), "pat");
     await page.getByLabel("What to do").fill("Plan and schedule the 365-day PM");
     assert.equal(await page.getByText("not ready", { exact: true }).count(), 0);
     assert.equal(await page.getByLabel("Why send it anyway").count(), 0);
@@ -7565,13 +7606,13 @@ test("the dispatch card shows the crew's load, its permit, and a full crew block
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: [job(8, "Generator load test"), job(9, "Generator batteries")] }));
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
   const elec = { id: "fz-elec", label: "ELEC", description: "Electrical technicians", crew: 1, busy: 0, full: false, jobs: [] };
-  await page.route("**/exceptions/8/readiness", (route) => route.fulfill({ json: { ready: true, blockers: [],
+  await page.route("**/exceptions/8/readiness*", (route) => route.fulfill({ json: { ready: true, blockers: [],
     checks: [{ check: "spares", label: "Spares", ready: true, checked: false, note: "No BOM for this equipment, so no parts to check.", blockers: [] },
       { check: "crew", label: "Crew", ready: true, checked: true, note: null, blockers: [], centers: [elec] },
       { check: "permits", label: "Permit", ready: true, checked: true, note: null, blockers: [], needed: true,
         permits: [{ id: "fz-p", label: "PTW-24103", type: "electrical", state: "issued", valid_to: "2026-11-13 18:00",
           location_label: "G1-G-7006", valid: true, why_not: null }] }] } }));
-  await page.route("**/exceptions/9/readiness", (route) => route.fulfill({ json: { ready: false,
+  await page.route("**/exceptions/9/readiness*", (route) => route.fulfill({ json: { ready: false,
     blockers: ["Crew: Electrical technicians (ELEC): all 1 busy on open jobs: #3 Look at the standby generator"],
     checks: [{ check: "crew", label: "Crew", ready: false, checked: true, note: null, blockers: [],
       centers: [{ ...elec, busy: 1, full: true, jobs: [{ id: 3, title: "Look at the standby generator", assignee: "fred" }] }] }] } }));
@@ -7628,7 +7669,7 @@ test("an open MOC on the equipment is a warning at dispatch and on the phone, ne
     raised_count: 1, last_seen: "2026-11-12T05:00:00Z", first_seen: "2026-11-12T05:00:00Z", joined: [], planned: null };
   await page.route("**/exceptions?*", (route) => route.fulfill({ json: [job] }));
   await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
-  await page.route("**/exceptions/31/readiness", (route) => route.fulfill({ json: { ready: true, blockers: [], warnings: [warn],
+  await page.route("**/exceptions/31/readiness*", (route) => route.fulfill({ json: { ready: true, blockers: [], warnings: [warn],
     checks: [{ check: "moc", label: "MOC", ready: true, checked: true, note: null, blockers: [], warnings: [warn] }] } }));
   await page.goto(`${url}/#/list`);
   await page.getByText("HP separator level control").waitFor();
@@ -11468,7 +11509,7 @@ for (const [size, viewport] of PHONE_IPAD) {
     await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "riley", roles: ["ops_lead"] },
       { name: "pat", roles: ["maintenance_planner"], holding: 2 }] }));
     await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "operator", kind: "person", members: [] }] }));
-    await page.route("**/exceptions/6/readiness", (route) => route.fulfill({ json: { ready: true, blockers: [], checks: [], warnings: [] } }));
+    await page.route("**/exceptions/6/readiness*", (route) => route.fulfill({ json: { ready: true, blockers: [], checks: [], warnings: [] } }));
     await page.route("**/exceptions/6/dispatch", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: exc }); });
     await page.goto(`${url}/#/list?stage=dispatch`);
     await page.getByRole("button", { name: "Send to", exact: true }).click();

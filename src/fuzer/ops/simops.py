@@ -124,29 +124,38 @@ def conflicts(conn, a: dict, b: dict, *, same_asset: bool = True) -> list[dict]:
     return out
 
 
-def at_dispatch(conn, subjects: list[str], exception_id: int | None = None, now: datetime | None = None) -> dict:
+def at_dispatch(conn, subjects: list[str], exception_id: int | None = None, now: datetime | None = None,
+                plan_item: int | None = None) -> dict:
     """Conflicts between a job about to be sent and what is already in the field or planned now: other open jobs
-    sent to the field, and plan items under way or starting within SOON. Ready when there are none."""
+    sent to the field, and plan items under way or starting within SOON. Ready when there are none. A job never
+    clashes with its own case, its own bars or the visit it rides along with (`plan_item`, or any bar of the
+    exception). The same asset as a case a field operator already has is no clash: the field is already on it, and
+    `field_cases` names that case so whoever sends this one can see it (tour E, E14)."""
+    from . import exceptions
+
     now = now or datetime.now(UTC)
-    title = None
+    title = case = None
     if exception_id is not None:
-        row = conn.execute("select title from exception_record where id = %s", (exception_id,)).fetchone()
-        title = row and row["title"]
+        row = conn.execute("select title, item_id from exception_record where id = %s", (exception_id,)).fetchone()
+        title, case = (row["title"], row["item_id"]) if row else (None, None)
     from .safeguards import records
 
     on_file = records(conn)
     plant = structure.load(conn) if on_file else None  # once for this job and every job it is checked against
     me = job(conn, title or "this job", subjects, plant=plant, on_file=on_file)
-    others = [job(conn, r["title"], list(r["subjects"] or []), ref={"exception": r["id"]}, plant=plant,
-                  on_file=on_file)
-              for r in conn.execute(
+    field = exceptions.operators(conn)
+    rows = conn.execute(
         """
-        select e.id, e.title, e.subjects from exception_record e join work_item w on w.id = e.item_id
+        select e.id, e.title, e.subjects, e.item_id, w.role, w.assignee from exception_record e
+        join work_item w on w.id = e.item_id
         where e.state = 'open' and e.joined_to is null and w.state not in ('done', 'cancelled')
-          and e.id is distinct from %s
+          and e.id is distinct from %s and e.item_id is distinct from %s
           and exists (select 1 from event_outbox o where o.topic = 'exception.dispatched' and o.ref = 'exception:' || e.id)
         order by e.id
-        """, (exception_id,)).fetchall()]
+        """, (exception_id, case)).fetchall()
+    others = [job(conn, r["title"], list(r["subjects"] or []), ref={"exception": r["id"]}, plant=plant,
+                  on_file=on_file) | {"field": r["role"] == exceptions.OPERATOR_ROLE or r["assignee"] in field,
+                                      "item_id": r["item_id"]} for r in rows]
     # a job sent to the field that is also on the plan is one job: counted once, as sent, not again as its plan item
     # (the same clash line twice on a case, tour D16)
     sent = [o["ref"]["exception"] for o in others]
@@ -154,14 +163,26 @@ def at_dispatch(conn, subjects: list[str], exception_id: int | None = None, now:
                    on_file=on_file)
                for r in conn.execute(
         """
+        with mine as (select id, rides_with from plan_item
+                      where id = %(item)s or (%(e)s::bigint is not null and exception_id = %(e)s))
         select id, title, subjects, area_id from plan_item
         where status in ('proposed', 'scheduled', 'in_progress') and start_at <= %(soon)s and end_at >= %(now)s
           and exception_id is distinct from %(e)s and (exception_id is null or exception_id <> all(%(sent)s))
+          and (%(case)s::bigint is null or item_id is distinct from %(case)s)
+          and id not in (select id from mine) and id not in (select rides_with from mine where rides_with is not null)
+          and (rides_with is null or rides_with not in (select id from mine))
         order by start_at, id
-        """, {"now": now, "soon": now + SOON, "e": exception_id, "sent": sent}).fetchall()]
-    found = [{**c, "with": o["ref"], "title": o["title"]} for o in others for c in conflicts(conn, me, o)]
+        """, {"now": now, "soon": now + SOON, "e": exception_id, "sent": sent, "item": plan_item,
+              "case": case}).fetchall()]
+    found, there = [], []
+    for o in others:
+        for c in conflicts(conn, me, o):
+            if c["kind"] == "same_asset" and o.get("field"):
+                there.append({"exception": o["ref"]["exception"], "item_id": o["item_id"], "title": o["title"]})
+            else:
+                found.append({**c, "with": o["ref"], "title": o["title"]})
     return {"check": "simops", "label": "Simultaneous operations", "ready": not found,
-            "blockers": [c["say"] for c in found], "conflicts": found, "checked": True,
+            "blockers": [c["say"] for c in found], "conflicts": found, "field_cases": there, "checked": True,
             "note": None if found else "Nothing else in the field or planned now clashes with it."}
 
 

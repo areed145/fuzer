@@ -60,7 +60,8 @@ stock or an order due in time covers every line.
 
     **clash** (red): another job on the same asset at the same time, a person booked twice, or two jobs whose permits
     must not run side by side. **bundle** (green): the job falls near a shutdown of its area and could be done in
-    it. **parts short**: a spare on the equipment's bill of materials is recorded at zero stock. **shutdown**: the
+    it. **parts short**: a part reserved on the job's own work order is not covered by stock; open the job to read
+    which under **Spares**. A job with no order has no parts to be short of. **shutdown**: the
     job needs the unit down, so it counts in production at risk and holds back trips and upsets on that unit while it
     runs.
 

@@ -318,11 +318,8 @@ export function DispatchControls({ r, person, onDone }: { r: ExceptionRow; perso
   const [why, setWhy] = useState("");
   const [ready, setReady] = useState<Readiness | null>(null);
   const [missing, setMissing] = useState<string | null>(null);
-  // the planner plans the parts and crew a job waits on: a send to the planner is never held on them (#1391)
-  const people = useAsync(() => api.workPeople(), []);
-  const planner = to === "role:maintenance_planner"
-    || (!to.startsWith("role:") && !!people.data?.find((p) => p.name === to)?.roles.includes("maintenance_planner"));
-  const blocked = !planner && !!ready && !ready.ready;
+  // readiness is for this send: the server says which checks it needs and whether they hold it (#1391, #1401)
+  const blocked = !!ready && !ready.ready;
   // Send stays enabled: a tablet has no hover to read a greyed button's reason by, so a tap without what it needs says
   // what is missing beside the button (P5.28f).
   const send = () => {
@@ -339,7 +336,7 @@ export function DispatchControls({ r, person, onDone }: { r: ExceptionRow; perso
       {to.trim() && <Field label="What to do" width="lg"><Input placeholder="what to check or do (they see this)"
         value={ask} onChange={(e) => { setAsk(e.target.value); setMissing(null); }} /></Field>}
     </Line>
-    {to.trim() && !planner && <ReadyToDispatch id={r.id} onResult={setReady} />}
+    {to.trim() && <ReadyToDispatch id={r.id} to={to.trim()} onResult={setReady} />}
     {to.trim() && blocked && <Input width="full" aria-label="Why send it anyway"
       placeholder="why it should go anyway (kept on its case)" value={why} onChange={(e) => { setWhy(e.target.value); setMissing(null); }} />}
     <Line>
@@ -351,11 +348,12 @@ export function DispatchControls({ r, person, onDone }: { r: ExceptionRow; perso
 }
 
 /** Ready to dispatch (P5.5, #684): ready, or each blocker by name, read from the job's equipment records. */
-function ReadyToDispatch({ id, onResult }: { id: number; onResult: (r: Readiness | null) => void }) {
-  const check = useAsync(() => api.exceptionReadiness(id), [id]);
+function ReadyToDispatch({ id, to, onResult }: { id: number; to: string; onResult: (r: Readiness | null) => void }) {
+  const check = useAsync(() => api.exceptionReadiness(id, to), [id, to]);
   const r = check.data && Array.isArray(check.data.blockers) ? check.data : null;
   useEffect(() => { onResult(r); }, [r]);  // eslint-disable-line react-hooks/exhaustive-deps
   if (!r) return check.error ? <ErrorText>Readiness not checked: {check.error}</ErrorText> : null;
+  if (r.holds === false) return null;  // the planner plans what it would wait on: nothing to say (#1391)
   const warned = r.warnings?.length ? <ul className="plain small ready-warnings" aria-label="Before you send it">
     {r.warnings.map((w) => <li key={w}><Badge tone="warn">check</Badge> {w}</li>)}</ul> : null;
   const confirm = r.checks.some((c) => c.confirm);  // needs a permit, none to check it against (#742)

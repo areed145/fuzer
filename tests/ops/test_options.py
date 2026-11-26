@@ -322,9 +322,12 @@ def test_a_limit_or_a_leak_with_production_behind_it_is_never_shelved(conn, repo
     out = options.for_exception(conn, hot["id"])
     assert out["if_it_trips"]["oil_bbld"] > 0
     s = by_key(out)["shelve"]
-    assert s["available"] is False and s["unavailable"].startswith("“limits” with about"), s
-    assert "bbl/d behind it can't be shelved" in s["unavailable"]
+    # the reason in words, never a word quoted from the title (tour E, E6: "“limits” with about 210 bbl/d ...")
+    assert s["available"] is False and s["unavailable"].startswith("it is past or heading past a limit with about"), s
+    assert s["unavailable"].endswith("bbl/d behind it") and "“" not in s["unavailable"]
     assert out["recommended"] != "shelve"
+    weep = raise_report(conn, "weep", f"Seal weeping on the {WELLS[3]} flowline pump", [f"well:{WELLS[3]}"])
+    assert by_key(options.for_exception(conn, weep["id"]))["shelve"]["unavailable"].startswith("it leaks with about")
     # what the message said counts as the title does
     header = raise_report(conn, "header", "Lift gas on the pad", [f"well:{WELLS[2]}"])
     message(conn, header["id"], "Lift gas header pressure dropping, down to 1150 psig from 1276.")
@@ -517,3 +520,76 @@ def test_a_question_or_a_bulletin_gets_no_options(conn, report_type):
     # a question that asks for work, or a bulletin with something wrong, still gets them
     assert not messages.info_only("Anyone know why 20-K-2300A tripped? Can someone check the discharge temp?")
     assert not messages.info_only("Service bulletin: fuel nozzles on train B leaking, please check")
+
+
+def test_a_look_is_not_held_on_a_maintenance_crew_it_does_not_use(conn, report_type):
+    """Tour E, E2: Dispatch now (to a field operator) read "not ready: Crew: Mechanical maintenance crew (MECH): 8 of 6
+    booked today" on simple looks (1203, 1233, 1215, 1216), so Escalate was recommended. A look is the field
+    operator's: the fitters' crew is not checked for it, and sending one books none of it."""
+    from fuzer.ops import readiness, schedule
+
+    e = raise_report(conn, "seal vent", "20-K-2300B dry gas seal vent past its alarm", ["tag:20-K-2300B"])
+    subjects = list(conn.execute("select subjects from exception_record where id = %s", (e["id"],)).fetchone()["subjects"])
+    centers = [c["label"] for c in readiness.crew(conn, subjects)["centers"]]
+    assert centers, "the compressor's work orders name a work center"
+    schedule.set_resource(conn, "FULL", "planner", name="Fitters", kind="crew", capacity=1, work_center=centers[0])
+    start = datetime.now(UTC) - timedelta(hours=1)
+    job = plan.propose(conn, "maintenance", "Seal change elsewhere", "planner", start, start + timedelta(hours=8),
+                       status="scheduled")
+    plan.book(conn, job["id"], "planner", "FULL", 1)
+    conn.commit()
+    try:
+        assert not readiness.crew(conn, subjects, e["id"])["ready"]  # the crew is full today
+        out = options.for_exception(conn, e["id"])
+        d = by_key(out)["dispatch"]
+        assert not any(b.startswith("Crew") for b in d["blockers"]), d["blockers"]
+        assert "Crew" not in out["reason"] and out["recommended"] != "escalate", out["reason"]
+        options.choose(conn, e["id"], "riley", "dispatch")
+        conn.commit()
+        bar = conn.execute("select id from plan_item where exception_id = %s", (e["id"],)).fetchone()
+        assert conn.execute("select 1 from plan_demand where item_id = %s", (bar["id"],)).fetchone() is None
+    finally:
+        conn.rollback()
+        conn.execute("delete from plan_resource where code = 'FULL'")
+        conn.commit()
+
+
+def test_a_message_about_a_tag_the_field_has_a_case_on_links_it_and_is_no_clash(conn, report_type):
+    """Tour E, E14: a message repeating a fault already with the field (1204 on 25-XV-4021) showed a simultaneous
+    operations clash and recommended Escalate. The field is already on it: Options says so and links that case."""
+    first = raise_report(conn, "xv flicker", "25-XV-4021 position indicator flickers", ["tag:25-XV-4021"])
+    options.choose(conn, first["id"], "riley", "dispatch")  # to the operator queue: nobody on site yet
+    conn.commit()
+    again = raise_report(conn, "xv flicker 2", "25-XV-4021 position indicator flickers between open and closed",
+                         ["tag:25-XV-4021"])
+    message(conn, again["id"], "25-XV-4021 position indicator flickers between open and closed.")
+    out = options.for_exception(conn, again["id"])
+    held = conn.execute("select item_id from exception_record where id = %s", (first["id"],)).fetchone()["item_id"]
+    assert out["field_case"] == {"exception": first["id"], "item_id": held,
+                                 "title": "25-XV-4021 position indicator flickers"}, out["field_case"]
+    d = by_key(out)["dispatch"]
+    assert d["clashes"] == [] and d["ready"] is True, d
+    assert out["recommended"] != "escalate", out["reason"]
+
+
+def test_a_case_never_clashes_with_itself_or_the_visit_it_rides_along_with(conn, report_type):
+    """Tour E, D16: 1168's ride along read "clash Sam is also booked on “30-V-2001 level gauge glass is fogged inside”"
+    (its own bar), and on Plan the visit it rode along with showed as its clash, twice."""
+    e = raise_report(conn, "fogged", "20-TT-2250B local display fogged inside", ["tag:20-TT-2250B"])
+    start = (datetime.now(UTC) + timedelta(days=2)).replace(microsecond=0)
+    v = plan.propose(conn, "maintenance", "Clean 20-E-2250B", "planner", start, start + timedelta(hours=8),
+                     refs=["tag:20-E-2250B"], status="scheduled", crew="sam")
+    plan.plan_exception(conn, e["id"], "planner", start, start + timedelta(hours=4), crew="sam")  # its own bar, sam's
+    conn.commit()
+    w = by_key(options.for_exception(conn, e["id"]))["window"]
+    assert w["available"] and w["plan_item"] == v["id"], w
+    assert not any("fogged" in c for c in w["clashes"]), w["clashes"]
+    options.choose(conn, e["id"], "riley", "window")
+    conn.commit()
+    bar = conn.execute("select * from plan_item where exception_id = %s and status = 'scheduled'", (e["id"],)).fetchone()
+    assert bar["rides_with"] == v["id"]
+    rows = {i["id"]: i for i in plan.items(conn, start - timedelta(days=1), start + timedelta(days=1))}
+    assert not [c for c in rows[bar["id"]]["clashes"] if c["with"] == v["id"]], rows[bar["id"]]["clashes"]
+    assert not [c for c in rows[v["id"]]["clashes"] if c["with"] == bar["id"]], rows[v["id"]]["clashes"]
+    clash = next(p for p in plan.prerequisites(conn, bar["id"])["prerequisites"] if p["kind"] == "clash")
+    assert clash["satisfied"], clash

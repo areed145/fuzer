@@ -740,7 +740,7 @@ def exception_dispatch(exception_id: int, d: ExceptionDispatch, conn=Depends(get
     not ready to dispatch (P5.5) goes only with a reason, kept on its case's history."""
     from ..ops import exceptions, readiness
     try:
-        ready = readiness.for_exception(conn, exception_id)
+        ready = readiness.for_exception(conn, exception_id, d.to)
     except LookupError as e:
         raise HTTPException(404, str(e)) from e
     override = (d.override or "").strip()
@@ -749,8 +749,6 @@ def exception_dispatch(exception_id: int, d: ExceptionDispatch, conn=Depends(get
         # A field operator taking a job the IOC already sent to their queue: readiness was the sender's call (with
         # its reason, when it went though not ready), and the operator has no say on spares or crew.
         return _exception_call(conn, exceptions.dispatch, exception_id, d.by, d.to, d.reason)
-    if not readiness.holds(conn, d.to):  # the planner plans the parts and crew a not-ready job waits on (#1391)
-        ready = {**ready, "ready": True, "blockers": []}
     if not ready["ready"] and not override:
         raise HTTPException(409, "Not ready to dispatch: " + "; ".join(ready["blockers"])
                             + ". Say why it should go anyway.")
@@ -764,11 +762,12 @@ def exception_dispatch(exception_id: int, d: ExceptionDispatch, conn=Depends(get
 
 
 @router.get("/exceptions/{exception_id}/readiness")
-def exception_readiness(exception_id: int, conn=Depends(get_conn)):
-    """Is this job ready to dispatch (P5.5)? Ready, or each blocker by name, from its equipment's records."""
+def exception_readiness(exception_id: int, to: str | None = None, conn=Depends(get_conn)):
+    """Is this job ready to dispatch (P5.5)? Ready, or each blocker by name, from its equipment's records; for a send
+    to `to`, the checks that send needs and whether they hold it (#1401)."""
     from ..ops import readiness
     try:
-        return readiness.for_exception(conn, exception_id)
+        return readiness.for_exception(conn, exception_id, to)
     except LookupError as e:
         raise HTTPException(404, str(e)) from e
 

@@ -172,38 +172,41 @@ def test_maintenance_plans_put_their_next_due_task_on_the_plan_and_roll_forward(
     conn.rollback()
 
 
-def test_work_starting_soon_shows_spare_parts_with_no_stock(conn):
+def test_work_starting_soon_shows_the_parts_its_own_order_is_short_of_never_the_bom(conn):
+    """Tour E, D3: Plan flagged "parts short" with the vessel's gasket set (a BOM spare at zero stock) on a fogged level
+    glass that has no order, while its Spares check read ✓. Parts short is the Spares check's parts: those reserved on
+    the job's own work order that stock does not cover."""
     from datetime import datetime, timedelta
 
     now = datetime.now(UTC)
     conn.execute("insert into entity (fuzer_id, kind) values ('fz-mat-seal', 'material'), ('fz-mat-brg', 'material'), "
-                 "('fz-mat-oring', 'material') on conflict do nothing")
+                 "('fz-mat-oring', 'material'), ('fz-mat-gasket', 'material'), ('fz-wo-reseal', 'work_order'), "
+                 "('fz-wo-later', 'work_order') on conflict do nothing")
     conn.execute("insert into entity_label (fuzer_id, label) values ('fz-mat-seal', '10001 seal kit') "
                  "on conflict do nothing")
-    for m in ("fz-mat-seal", "fz-mat-brg", "fz-mat-oring"):
-        conn.execute("insert into edge (src, rel, dst, sources, confidence) values ('fz-pump-1', 'uses_part', %s, "
-                     "'{t}', 1)", (m,))
-    for m, stock in (("fz-mat-seal", 0), ("fz-mat-brg", 4)):  # the o-ring has no stock record: unknown, not short
+    # the pump's BOM: a gasket set at zero stock that no order reserves
+    conn.execute("insert into edge (src, rel, dst, sources, confidence) values ('fz-pump-1', 'uses_part', "
+                 "'fz-mat-gasket', '{t}', 1)")
+    for m, stock in (("fz-mat-seal", 0), ("fz-mat-brg", 4), ("fz-mat-gasket", 0)):  # o-ring: no stock record, unknown
         conn.execute("insert into golden (fuzer_id, field, value, source, rule) values (%s, 'stock', %s, 'sap', 't')",
                      (m, Jsonb(stock)))
-    soon = propose(conn, "maintenance", "Reseal P-101", "ann", now + timedelta(days=5), now + timedelta(days=6),
-                   refs=["fz-pump-1"])
-    later = propose(conn, "maintenance", "Reseal P-101 again", "ann", now + timedelta(days=45), now + timedelta(days=46),
-                    refs=["fz-pump-1"])
+    for wo in ("fz-wo-reseal", "fz-wo-later"):
+        for m in ("fz-mat-seal", "fz-mat-brg", "fz-mat-oring"):
+            conn.execute("insert into edge (src, rel, dst, sources, confidence, props) values (%s, 'reserves', %s, "
+                         "'{sap}', 1, %s)", (wo, m, Jsonb({"quantity": 1, "status": "open"})))
+    soon = propose(conn, "maintenance", "Reseal P-101", "sap", now + timedelta(days=5), now + timedelta(days=6),
+                   refs=["fz-pump-1"], source="sap", source_key="fz-wo-reseal")
+    later = propose(conn, "maintenance", "Reseal P-101 again", "sap", now + timedelta(days=45), now + timedelta(days=46),
+                    refs=["fz-pump-1"], source="sap", source_key="fz-wo-later")
+    look = propose(conn, "exception", "P-101 sight glass fogged", "ann", now + timedelta(days=1),
+                   now + timedelta(days=1, hours=4), refs=["fz-pump-1"])
     rows = {r["id"]: r for r in plan.items(conn, now, now + timedelta(days=60))}
-    assert [p["id"] for p in rows[soon["id"]]["parts_short"]] == ["fz-mat-seal"]
-    assert rows[soon["id"]]["parts_short"][0]["label"] == "10001 seal kit"
+    assert rows[soon["id"]]["parts_short"] == [{"id": "fz-mat-seal", "label": "10001 seal kit", "description": None}]
     assert rows[later["id"]]["parts_short"] == []  # too far out to chase yet
-    # A job on a tag and the equipment installed at it (an SAP order names both) lists each part once, not once a
-    # subject (P5.28g: MAT-100011 twice on one job).
-    conn.execute("insert into entity (fuzer_id, kind) values ('fz-tag-p101', 'tag') on conflict do nothing")
-    conn.execute("insert into edge (src, rel, dst, sources, confidence) values ('fz-pump-1', 'installed_at', 'fz-tag-p101', "
-                 "'{t}', 1)")
-    both = propose(conn, "maintenance", "Reseal P-101 by its order", "ann", now + timedelta(days=5),
-                   now + timedelta(days=6), refs=["fz-pump-1", "fz-tag-p101"])
-    rows = {r["id"]: r for r in plan.items(conn, now, now + timedelta(days=60))}
-    assert set(both["subjects"]) == {"fz-pump-1", "fz-tag-p101"}
-    assert [p["id"] for p in rows[both["id"]]["parts_short"]] == ["fz-mat-seal"]
+    assert rows[look["id"]]["parts_short"] == []  # no order: no parts, whatever the pump's BOM holds at zero
+    # and it agrees with the job's Spares check, the one place its parts are read
+    spares = next(p for p in plan.prerequisites(conn, soon["id"])["prerequisites"] if p["kind"] == "spares")
+    assert not spares["satisfied"] and spares["detail"][0].startswith("10001 seal kit: 0 in stock, 1 needed")
     conn.rollback()
 
 
@@ -280,7 +283,12 @@ def test_booking_a_crew_is_checked_against_its_capacity(conn):
     conn.rollback()
 
 
-def test_work_sent_out_now_takes_its_crews_time_and_the_ready_check_reads_the_plan(conn, monkeypatch):
+def test_work_sent_to_a_field_operator_is_on_the_plan_and_holds_no_maintenance_crew(conn, monkeypatch):
+    """Tour E, E2: every look sent to a field operator booked one of the fitters (MECH 8 of 6 booked today), so the
+    next simple look read not ready and Escalate was recommended. A look is the operator's work: it is a bar booked to
+    them and holds none of the crew; a field operator's send is never checked against it."""
+    from datetime import datetime, timedelta
+
     from fuzer.core import clock
     from fuzer.core.exceptions import TYPES, ExceptionType, raise_exception
     from fuzer.ops import exceptions, readiness
@@ -292,15 +300,27 @@ def test_work_sent_out_now_takes_its_crews_time_and_the_ready_check_reads_the_pl
     sent = exceptions.dispatch(conn, e["id"], "ann", "role:operator")
     bar = conn.execute("select * from plan_item where exception_id = %s", (e["id"],)).fetchone()
     assert bar["status"] == "in_progress" and bar["item_id"] == sent["item_id"] and bar["start_at"] <= clock.aware(clock.now())
-    assert conn.execute("select resource, quantity from plan_demand where item_id = %s", (bar["id"],)).fetchone() == \
-        {"resource": "MECH", "quantity": 1}
-    assert plan.coming_up(conn, "fred") == [] or all(i["id"] != bar["id"] for i in plan.coming_up(conn, "fred"))
-    # the next job for the same crew sees it booked: the crew of one is full today
+    assert bar["crew"] == "role:operator"
+    assert conn.execute("select 1 from plan_demand where item_id = %s", (bar["id"],)).fetchone() is None
+    assert readiness.crew(conn, ["fz-pump-1"])["ready"]  # the look holds none of the fitters
+    # planned work booked on the crew fills it, and the ready check reads the plan's one ledger
+    now = clock.aware(clock.now())
+    start = datetime.combine(now.date(), datetime.min.time(), tzinfo=now.tzinfo) + timedelta(hours=1)
+    job = propose(conn, "maintenance", "Seal change", "ann", start, start + timedelta(hours=20), refs=["fz-pump-1"])
+    plan.book(conn, job["id"], "ann", "MECH", 1)
     check = readiness.crew(conn, ["fz-pump-1"])
     assert not check["ready"] and check["blockers"][0].endswith("1 of 1 booked today")
-    assert [j["title"] for j in check["centers"][0]["jobs"]] == ["P-105 drip"]  # on the crew, not in the blocker
-    # but the job itself does not count against itself
-    assert readiness.crew(conn, ["fz-pump-1"], job=e["id"])["ready"]
+    assert [j["title"] for j in check["centers"][0]["jobs"]] == ["Seal change"]  # on the crew, not in the blocker
+    # a second look sent to a field operator is not held on the full crew, whoever in the field it goes to
+    from fuzer.core import work
+
+    monkeypatch.setattr(work, "roles_of", lambda conn, p: ["operator"] if p == "olive" else [])
+    second = raise_exception(conn, "minor_leak", "P-106 drip", "P-106 drip", "olga", refs=["tag:P-101"])
+    for to in ("role:operator", "olive"):
+        ready = readiness.check(conn, ["fz-pump-1"], second["id"], to=to)
+        assert "crew" not in [c["check"] for c in ready["checks"]] and not any(b.startswith("Crew") for b in ready["blockers"])
+    # sent to someone who is no field operator, the crew is checked
+    assert any(b.startswith("Crew: ") for b in readiness.check(conn, ["fz-pump-1"], second["id"], to="fred")["blockers"])
     conn.rollback()
 
 

@@ -298,9 +298,6 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
       </Text>}
       {item.clashes.map((c, n) => <p key={n} className={`small ${c.kind === "bundle" ? "" : "error"}`}>
         {c.kind === "bundle" ? "Bundle: " : c.kind === "simops" ? "Simultaneous operations: " : "Clash: "}{say(c.say)}</p>)}
-      {!!item.parts_short?.length && <Text as="p" small>
-        Parts with no stock on record (check with stores before it starts): {item.parts_short.map((p) =>
-          `${p.label ?? p.id}${p.description ? ` (${p.description})` : ""}`).join(", ")}</Text>}
       {/* by name, as every page names entities: equipment by the tag it is installed at, not "S/N 72852" */}
       {item.assets.length > 0 && <Text as="p" small><EntityLinks ids={item.assets.map((a) => a.fuzer_id)} /></Text>}
       {item.item_id != null ? <Text as="p" small><a href={href(`/cases/${item.item_id}`)}>Open its case</a></Text>

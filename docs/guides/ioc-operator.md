@@ -105,8 +105,10 @@ To send it yourself, choose **Send to** on the row. Pick a person (shown with th
 marked if they are away) or a role's queue, and say what to check or do: they see it on their job. Before you send,
 Fuzer checks the job is ready from the equipment's records, such as whether the work centre's crew is free, whether
 a valid permit covers it, and whether the parts reserved on the job's own work order are in stock (a job with no order
-has no parts to wait on). If it is not ready you can still send it, with a reason that is kept on the case. A send to
-the maintenance planner is never held: planning the parts and the crew is their work. A job sent
+has no parts to wait on). The check is for the person you pick: a job sent to a field operator or the operator queue
+is theirs to do, so no maintenance crew is checked for it. If it is not ready you can still send it, with a reason
+that is kept on the case. A send to the maintenance planner is never held: planning the parts and the crew is their
+work. A job sent
 to a queue waits there until one of its holders chooses **Take it**.
 
 ![Dispatch: who, what to do, and whether it is ready](../assets/screens/guides/ioc-dispatch-desktop.png){ loading=lazy }
@@ -164,7 +166,9 @@ incoming lead acknowledges it. The rest of the open work is on **All work**.
   [data steward](data-steward.md#match-a-reference-nothing-matched) can make the reference an alias so the next one
   matches.
 - A job that clashes with another (the same asset at once, hot work beside a line break) is flagged at Dispatch
-  and is only sent with a reason.
+  and is only sent with a reason. A case a field operator already has on the same asset is no clash: Options says
+  **The field already has a case on it** and links that case, so a repeat report can be closed out as a duplicate. A
+  case never clashes with itself or with the visit it rides along with.
 
 - One event, one case: when SAP, a detector and an IOW breach all report the same compressor, you see one row with
   three sources. [How work is routed](../work-routing.md#3-one-event-one-case) explains how.

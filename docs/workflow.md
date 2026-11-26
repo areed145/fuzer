@@ -206,8 +206,11 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   safety or HSE type), which is high to wait on and never reads low; with neither, no risk word is shown and the
   criticality is named as not known. A field report that says the job needs a gas test, a permit, an isolation, a
   scaffold, depressurising or parts holds Dispatch now and a ride along until a later report, and says what it waits
-  on (#1381). The crew checked is the one
+  on (#1381). Dispatch now goes to a field operator, who does the look: no maintenance crew is checked for it, nor
+  for any send to the operator queue or someone in it (#1401). Elsewhere the crew checked is the one
   the job's words need (a transmitter or gauge is the instrument crew's), and a full crew is one line with its count.
+  A case the field already has on the same asset is no clash: the card says so and links it (`field_case`). A case
+  never clashes with its own bars or with the visit it rides along with.
   What it defers now is the producing wells it reaches at their latest test, all of it while a machine is stopped (a
   trip, with its share where parallel trains carry the rest), else the pack's share for a process upset still going
   (`upsets.rate_at_risk_share`, the assumption an upset's value uses). A report of a smell or a drip, or a
