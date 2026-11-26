@@ -127,6 +127,32 @@ def test_the_view_ranks_what_would_answer_it_by_cases_then_value_at_stake(conn, 
         assert seal["count"] == 2 and seal["value_usd"] == 200 and {c["id"] for c in seal["cases"]} == set(items[:2])
         assert drawing["count"] == 2 and drawing["answers"] == 1 and drawing["value_usd"] == 50
         assert flow["count"] == 1 and flow["value_usd"] == 90000 and flow["reasons"] == {"conflicting_evidence": 1}
+        assert drawing["why"] == "no skill 2"
+    finally:
+        conn.execute("delete from work_event where kind = 'undetermined' and data ->> 'source' = 't'")
+        conn.execute("delete from work_item where id = any(%s)", (items,))
+        conn.commit()
+
+
+def test_a_ranked_item_drafts_an_issue_with_its_cases(conn, client):
+    """P6.6: the top of the view drafts an issue for a person to file, naming what to add and the cases behind it."""
+    items = [conn.execute("insert into work_item (type, title, created_by) values ('machine_health', %s, 'test') "
+                          "returning id", (f"stock case {i}",)).fetchone()["id"] for i in range(2)]
+    stock = undetermined.note("Are the parts for this job in stock?", "no_data", "source", "stock register t",
+                              "parts readiness unknown: no stock source", "t")
+    undetermined.keep(conn, [stock], "system", item_id=items[0], value_usd=48000)
+    undetermined.keep(conn, [stock], "system", item_id=items[1])
+    undetermined.keep(conn, [stock], "agent:x", answer="answer-2")
+    conn.commit()
+    try:
+        g = next(g for g in client.get("/work/undetermined").json() if g["needs"]["name"] == "stock register t")
+        assert g["draft"]["title"] == "Add the stock register t source"
+        body = g["draft"]["body"]
+        assert body.startswith("Fuzer couldn't determine 3 times for want of the stock register t source.")
+        assert "- Why: no data 3" in body and "- Value at stake: $48,000" in body
+        assert "- Are the parts for this job in stock?" in body and "Assistant answers: 1" in body
+        assert f"- case {items[0]}: stock case 0 ($48,000): parts readiness unknown: no stock source" in body
+        assert f"- case {items[1]}: stock case 1 (not valued)" in body
         assert client.get("/work/undetermined", params={"since": "2999-01-01T00:00:00Z"}).json() == []
     finally:
         conn.execute("delete from work_event where kind = 'undetermined' and data ->> 'source' = 't'")

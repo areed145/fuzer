@@ -9866,16 +9866,21 @@ test("P7.4 Work performance shows by detector and by skill which earn their keep
   await page.getByText("Agent spend per specialist", { exact: true }).waitFor();
   // What Fuzer couldn't determine, beside the shortfalls (P6.6): by what would answer it, linking its cases.
   await page.route("**/work/undetermined", (route) => route.fulfill({ json: [
-    { needs: { kind: "source", name: "stock levels" }, count: 2, value_usd: 48000, reasons: { no_data: 2 },
+    { needs: { kind: "source", name: "stock levels" }, count: 2, value_usd: 48000, reasons: { no_data: 2 }, why: "no data 2",
       asked: ["Are the parts for this job in stock?"], sources: ["readiness"], answers: 0, last_at: "2026-11-20T10:00:00Z",
       cases: [{ id: 41, title: "20-K-2300B trip", type: "machine_trip", value_usd: 48000, detail: null },
-        { id: 42, title: "P-101 seal", type: "machine_health", value_usd: null, detail: null }] }] }));
+        { id: 42, title: "P-101 seal", type: "machine_health", value_usd: null, detail: null }],
+      draft: { title: "Add the stock levels source", body: "Fuzer couldn't determine 2 times for want of the stock levels source.\n\nCases:\n- case 41: 20-K-2300B trip ($48,000)" } }] }));
   await page.goto(`${url}/#/performance?by=detector`);
   await page.goto(`${url}/#/performance?by=skill`);
   const unknown = page.getByRole("region", { name: "What Fuzer couldn't determine" });
   await unknown.getByText("stock levels", { exact: true }).waitFor();
   assert.equal(await unknown.getByRole("link", { name: "20-K-2300B trip" }).getAttribute("href"), "#/cases/41");
   await unknown.getByText("no data 2", { exact: true }).waitFor();
+  // the item drafts an issue, with its cases, for a person to file
+  await unknown.getByRole("button", { name: "Draft an issue" }).click();
+  const issue = await unknown.getByRole("textbox", { name: "Issue: Add the stock levels source" }).inputValue();
+  assert.ok(issue.startsWith("Add the stock levels source\n\nFuzer couldn't determine 2 times") && issue.includes("- case 41: 20-K-2300B trip"));
 });
 
 test("App search at the top left finds pages, tabs and entities, and sends a question to Ops IQ", async () => {

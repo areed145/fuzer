@@ -283,6 +283,9 @@ never by a model: parts with no stock source, an option's deferred production wi
 brief's methods with no measurement on the register, a case no pack briefs, a measure the assistant read as unknown.
 Viewing options or readiness keeps nothing; choosing an option, writing a brief and saving an answer do. The card
 groups them by what would answer them, the most cases and answers first, then the most at stake, with the cases.
+**Draft an issue** on a row shows an issue written from it (`undetermined.draft`): what to add, how often and why it
+couldn't be settled, what was asked, the value at stake and each case, for a person to copy and file; Fuzer files
+nothing itself.
 Where such a value shows (readiness, the Options card) it reads "unknown" with the reason, never ready or 0 in stock.
 
 ## Skills page

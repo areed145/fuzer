@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { money, percent, when } from "../format";
 import { api, type DetectorEarning, type FindingOrigin, type PerfCell, type PerfRow, type SkillEarning } from "../api";
-import { Badge, Button, Card, Empty, PageHeader, Table, Tabs, Text, type Tone, List } from "../ui";
+import { Badge, Button, Card, Disclosure, Empty, PageHeader, Table, Tabs, Text, Textarea, type Tone, List } from "../ui";
 import { Status, href, useAsync } from "../lib";
 
 const VERDICT: Record<PerfRow["keeping_up"], { text: string; tone: Tone }> = {
@@ -236,13 +236,8 @@ function Skills() {
   </>;
 }
 
-const REASON: Record<string, string> = {
-  no_data: "no data", no_tool: "no tool", no_skill: "no skill", conflicting_evidence: "conflicting evidence",
-  out_of_scope: "out of scope", low_confidence: "low confidence",
-};
-
 /** What Fuzer couldn't determine (P6.6), beside the shortfalls: by the source, tool or skill that would have answered
- * it, the most cases first, then the most at stake, each opening its cases. */
+ * it, the most cases first, then the most at stake, each opening its cases and the issue drafted from them. */
 function Undetermined() {
   const data = useAsync(() => api.workUndetermined(), []);
   const d = data.data;
@@ -251,13 +246,17 @@ function Undetermined() {
     {d.length ? <Table density="compact" className="phone-rows">
       <thead><tr><th>Would answer it</th><th>Cases</th><th>Value at stake</th><th>Why</th><th>Asked</th></tr></thead>
       <tbody>{d.map((g) => <tr key={`${g.needs.kind}:${g.needs.name}`}>
-        <td><strong>{g.needs.name}</strong><Text as="div" small muted>{g.needs.kind}</Text></td>
+        <td><strong>{g.needs.name}</strong><Text as="div" small muted>{g.needs.kind}</Text>
+          <Disclosure label="Draft an issue">
+            <Textarea readOnly width="full" rows={8} aria-label={`Issue: ${g.draft.title}`}
+              value={`${g.draft.title}\n\n${g.draft.body}`} />
+          </Disclosure></td>
         <td>{g.count}
           <List plain small>{g.cases.slice(0, 5).map((c) => <li key={c.id}>
             <a href={href(`/cases/${c.id}`)}>{c.title ?? `case ${c.id}`}</a></li>)}</List>
           {g.answers ? <Text small muted>{g.answers} assistant answers</Text> : null}</td>
         <td>{cost(g.value_usd)}</td>
-        <td>{Object.entries(g.reasons).map(([k, n]) => `${REASON[k] ?? k} ${n}`).join(", ")}</td>
+        <td>{g.why}</td>
         <td><Text small>{g.asked.slice(0, 2).join("; ")}</Text></td>
       </tr>)}</tbody>
     </Table> : <Empty>Nothing left undetermined.</Empty>}
