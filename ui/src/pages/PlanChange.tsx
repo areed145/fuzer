@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from "react";
-import { Badge, Button, Card as UICard, ErrorText, Input, Line, List, Select, Table, Text, Textarea, confirmDialog } from "../ui";
-import { quantity, when } from "../format";
-import { api, type PlanAssign, type PlanChange, type PlanChanged, type PlanKpis, type PlanMove, type PlanNotice } from "../api";
+import { Badge, Button, Card as UICard, ErrorText, Input, Line, List, Select, Table, Text, Textarea, confirmDialog, promptDialog } from "../ui";
+import { count, money, quantity, when, whenDay } from "../format";
+import { api, type OutageWindow, type PlanAssign, type PlanChange, type PlanChanged, type PlanKpis, type PlanMove, type PlanNotice } from "../api";
 import { Status, useAction, useAsync } from "../lib";
 import { Actor } from "../work";
 import { caseHref } from "./workflows/shared";
@@ -29,12 +29,14 @@ function PlanChangeCard({ c, person, readOnly, put }:
   const p = c.proposal;
   const edit = !readOnly && c.open;
   const assign = p?.assign;
+  const windows = p?.windows;
   const booked = assign?.filter((x) => x.crew).length ?? 0;
   const done = c.state === "approved" || c.state === "reverted";
   return (
     <UICard title="Plan change" className="replan">
       <Text as="p">{c.say}: {c.constraint}.</Text>
       {assign && <Assign c={c} lines={assign} edit={edit} person={person} put={put} />}
+      {windows && <Windows c={c} windows={windows} edit={edit} person={person} put={put} />}
       {p && !assign && <>
         {p.kpis && <Kpis before={p.kpis.before} after={p.kpis.after} />}
         {p.moves.length ? <Diff moves={p.moves} /> : <Text as="p">Nothing on the plan moves.</Text>}
@@ -50,8 +52,9 @@ function PlanChangeCard({ c, person, readOnly, put }:
           onClick={() => a.run("remove", () => api.planConstraintRemove(c.exception_id, person, n), put)}>Remove</Button></>}</li>
       ))}</List>}
       {edit && p && <Line wrap>
-        <Button variant="primary" disabled={!!a.busy || !person} onClick={async () => (await confirmDialog(assign
+        <Button variant="primary" disabled={!!a.busy || !person || (!!windows && !windows.length)} onClick={async () => (await confirmDialog(assign
           ? `Book ${booked === 1 ? "this job" : `these ${booked} jobs`} on the crews proposed?`
+          : windows ? `Move the outage to window ${(p.picked ?? 0) + 1}, queue SAP's schedule change for you to approve and draft the notices to its crews and customers?`
           : `Move ${p.moves.length === 1 ? "this job" : `these ${p.moves.length} jobs`} on the plan, queue SAP's schedule change for you to approve and draft the notices?`,
           { confirm: "Approve" })) && a.run("approve", () => api.planChangeApprove(c.exception_id, person), put)}>Approve</Button>
       </Line>}
@@ -143,6 +146,36 @@ function Assign({ c, lines, edit, person, put }:
   </>;
 }
 
+/** An outage's windows (P5.22c): three proposed, each with what it costs the customers it hits and its reasons, the
+ * cheapest recommended. The planner picks another while it is open, saying why. */
+function Windows({ c, windows, edit, person, put }:
+  { c: PlanChange; windows: OutageWindow[]; edit: boolean; person: string; put: (c: PlanChange) => void }) {
+  const a = useAction();
+  const p = c.proposal!;
+  const pick = async (w: OutageWindow) => {
+    const why = w.n === p.recommended ? null
+      : await promptDialog(`Why window ${w.n + 1} rather than the recommended window ${(p.recommended ?? 0) + 1}?`, { confirm: "Pick" });
+    if (w.n === p.recommended || why) a.run("pick", () => api.planWindowPick(c.exception_id, person, w.n, why), put);
+  };
+  return <>
+    {!windows.length && <Text as="p">{p.recommend}</Text>}
+    <List plain aria-label="Windows">{windows.map((w) => <li key={w.n} className="replan-window">
+      <Line wrap>
+        <strong>Window {w.n + 1}: {when(w.start)} to {when(w.end)}</strong>
+        {w.n === p.recommended && <Badge tone="ok">recommended</Badge>}
+        {w.n === p.picked && <Badge tone="info">picked</Badge>}
+        <Text small>{money(w.usd)} · {count(w.volume_bbl)} bbl</Text>
+        {edit && w.n !== p.picked && <Button size="sm" variant="secondary" disabled={!!a.busy || !person} onClick={() => pick(w)}>Pick</Button>}
+      </Line>
+      <List small>{w.reasons.map((r) => <li key={r}>{r}</li>)}</List>
+    </li>)}</List>
+    {windows.length > 0 && <Text as="p" small>{p.recommend}.</Text>}
+    {!!p.past?.length && <Text as="p" small>Similar past work: {p.past.map((x) =>
+      `${x.key}, ${x.hours} h from ${whenDay(x.start)}${x.comment ? ` (${x.comment})` : ""}`).join("; ")}.</Text>}
+    <ErrorText>{a.error}</ErrorText>
+  </>;
+}
+
 /** Each thing done to the plan change, oldest first: Fuzer working it out, what a person typed or picked, the
  * approval, a notice sent, the revert. */
 function History({ history }: { history: PlanChange["history"] }) {
@@ -164,7 +197,9 @@ function Changed({ changed }: { changed: PlanChanged[] }) {
     ? Object.entries(x.fields).map(([f, [b, a]]) => [x.code ?? x.title, FIELD[f] ?? f, shown(f, b), shown(f, a), x.case])
     : x.what === "booking"
       ? [[x.title ?? String(x.id), `Booked on ${x.name}`, x.before == null ? "none" : String(x.before), x.after == null ? "none" : String(x.after), null]]
-      : [[x.title ?? x.resource, `${x.name ?? x.resource} from ${when(x.start)} to ${when(x.end)}`, "none", String(x.after), null]]);
+      : x.what === "schedule"
+        ? [[x.title, "Schedule starts", when(x.before), when(x.after), null]]
+        : [[x.title ?? x.resource, `${x.name ?? x.resource} from ${when(x.start)} to ${when(x.end)}`, "none", String(x.after), null]]);
   return (
     <Table density="compact" aria-label="What it changed">
       <thead><tr><th>Job</th><th>What</th><th>Before</th><th>After</th></tr></thead>
@@ -185,7 +220,8 @@ function Approved({ c, person, readOnly, put }: { c: PlanChange; person: string;
   </>;
 }
 
-const AUDIENCE: Record<PlanNotice["audience"], string> = { crew: "Crew", field: "Field operator", downstream: "Downstream" };
+const AUDIENCE: Record<PlanNotice["audience"], string> = { crew: "Crew", field: "Field operator", downstream: "Downstream",
+  customer: "Customer" };
 
 function Notice({ id, x, person, readOnly, put }:
   { id: number; x: PlanNotice; person: string; readOnly: boolean; put: (c: PlanChange) => void }) {

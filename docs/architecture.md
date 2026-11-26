@@ -84,6 +84,7 @@ flowchart LR
   src_business_plan[/"business_plan"/]
   src_cfihos[/"cfihos"/]
   src_cms[/"cms"/]
+  src_contracts[/"contracts"/]
   src_dcs[/"dcs"/]
   src_drilling[/"drilling"/]
   src_ec[/"ec"/]
@@ -109,6 +110,7 @@ flowchart LR
   kind_bypass(["bypass"])
   kind_change(["change"])
   kind_completion_component(["completion_component"])
+  kind_contract(["contract"])
   kind_control_loop(["control_loop"])
   kind_conversation(["conversation"])
   kind_demand(["demand"])
@@ -149,6 +151,7 @@ flowchart LR
   src_cfihos --> kind_equipment
   src_cfihos --> kind_tag
   src_cms --> kind_vibration_spectrum
+  src_contracts --> kind_contract
   src_dcs --> kind_control_loop
   src_dcs --> kind_step_test
   src_drilling --> kind_completion_component

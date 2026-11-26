@@ -340,6 +340,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 /* a job breaking one of the planner's rules (P5.23a): a red mark around its bar, whatever its kind */
 .plan-bar.breaks { box-shadow: 0 0 0 2px var(--danger); }
 .plan-rule + .plan-rule { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
+.plan-outage + .plan-outage { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
 .plan-today { position: absolute; top: -0.15rem; bottom: -0.15rem; width: 2px; background: var(--text, #222); opacity: 0.5; }
 /* A job's panel fits its card: its readiness lines and a long name in Who wrap, never run off a phone (tour E, E3). */
 .plan-detail { grid-column: 1 / -1; min-width: 0; padding: 0.25rem 0 0.5rem; overflow-wrap: anywhere; }
@@ -496,5 +497,6 @@ dl.perf-hours dd { margin: 0; font-variant-numeric: tabular-nums; }
 .plan-load-day.over { background: var(--danger, #b91c1c); }
 
 /* A plan change's notice (P5.21c): who it is for, the text to edit, and Send. */
+.replan-window + .replan-window { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
 .replan-notice { padding: 0.5rem 0; border-top: 1px solid var(--line); }
 .replan-notice textarea { display: block; width: 100%; box-sizing: border-box; margin: 0.25rem 0; }

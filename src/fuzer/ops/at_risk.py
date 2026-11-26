@@ -60,6 +60,22 @@ def _upstream(units: list[str], feeds: dict[str, list[str]]) -> set[str]:
     return seen
 
 
+def _starved(down: set[str], feeds: dict[str, list[str]]) -> set[str]:
+    """What is downstream of `down` with every feed down: nothing else feeds it."""
+    feeds_of = defaultdict(list)
+    for dst, srcs in feeds.items():
+        for s in srcs:
+            feeds_of[s].append(dst)
+    starved, grew = set(), True
+    while grew:
+        grew = False
+        for n in {d for s in down | starved for d in feeds_of.get(s, ())} - down - starved:
+            if all(f in down or f in starved for f in feeds.get(n, ())):
+                starved.add(n)
+                grew = True
+    return starved
+
+
 def _rates(conn, wells: list[str]) -> dict[str, dict[str, dict]]:
     """Each well's latest test, per rate: {well: {quantity: {value, unit, at}}}."""
     out: dict[str, dict[str, dict]] = defaultdict(dict)
@@ -161,17 +177,7 @@ def trip(conn, item: str, hours: float = TRIP_HOURS) -> dict:
     feeds, nodes = _flow(conn)
     units = _units(conn, [item], nodes)
     behind = _upstream(units, feeds)
-    feeds_of = defaultdict(list)
-    for dst, srcs in feeds.items():
-        for s in srcs:
-            feeds_of[s].append(dst)
-    starved, grew = set(), True  # downstream, every feed down
-    while grew:
-        grew = False
-        for n in {d for s in behind | starved for d in feeds_of.get(s, ())} - behind - starved:
-            if all(f in behind or f in starved for f in feeds.get(n, ())):
-                starved.add(n)
-                grew = True
+    starved = _starved(behind, feeds)
     every = behind | starved
     kinds = {r["fuzer_id"]: r["kind"] for r in conn.execute(
         "select fuzer_id, kind from entity where fuzer_id = any(%s)", (list(every),))} if every else {}

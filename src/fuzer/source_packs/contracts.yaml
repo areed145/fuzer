@@ -1,0 +1,8 @@
+# The customer and contract register (P5.22a, #1253): each contract a customer (a shipper, a utility) holds, the
+# delivery point it receives or delivers at, the daily volume it carries and the rate it pays, read against the
+# outages on the plan (ops/outages.py). A built-in source pack (P1.5): the datasets name built-in mapping files.
+# Optional: a site with no customers on contract exports none.
+fuzer_source_pack: 1
+system: {name: contracts}
+datasets: [customer_contracts]
+optional: [customer_contracts]

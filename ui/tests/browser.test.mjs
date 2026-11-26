@@ -12702,3 +12702,139 @@ for (const [size, viewport] of PHONE_DESK) {
     assert.deepEqual(errors, []);
   });
 }
+
+// ---- P5.22b (#1425): outages by asset, person and customer on Plan, a customer hit twice flagged ---------------------
+const outagesFixture = () => {
+  const day = (d, h = 6) => new Date(Date.UTC(2026, 11, d, h)).toISOString();
+  const pig = { key: "HR-PIG-2027", title: "Harrier mainline outage (pig run, midline pump A overhaul, receipt meter proving)",
+    project: "HR-PIG-2027", item_ids: [13, 14], start: day(10, 12), end: day(14, 18), hours: 102,
+    units: [{ id: "fz-tag-1", label: "A1-FT-1010" }], areas: [{ id: "fz-area-c1", label: "HRPT-C1" }],
+    crews: [{ code: "ILI", name: "Inline inspection contractor" }], people: [],
+    over_capacity: [{ key: "ILI@x", resource: "ILI", name: "Inline inspection contractor", peak: 3, capacity: 2, from: day(12), to: day(13) }],
+    breaks: [], hits: [{ contract: "HR-TSA-102", customer: "Prairie Basin Producers", service: "transportation", point: "A1-FT-1010",
+      start: day(10, 12), end: day(14, 18), hours: 102, volume_bbl: 93500, usd: 215050 }], volume_bbl: 93500, usd: 215050 };
+  const valve = { ...pig, key: "item:8", title: "Relief valve bench test", project: null, item_ids: [8], start: day(26), end: day(27),
+    hours: 24, areas: [{ id: "fz-area-a1", label: "HRPT-A1" }], crews: [], over_capacity: [],
+    hits: [{ ...pig.hits[0], start: day(26), end: day(27), hours: 24, volume_bbl: 22000, usd: 50600 }], volume_bbl: 22000, usd: 50600 };
+  return { start: day(1), end: day(28), days: 90, contracts: 3, basis: "", outages: [pig, valve],
+    by_asset: [{ id: "fz-area-c1", label: "HRPT-C1", kind: "area", outages: [pig.key] },
+      { id: "fz-tag-1", label: "A1-FT-1010", kind: "tag", outages: [pig.key, valve.key] }],
+    by_person: [{ who: "ILI", name: "Inline inspection contractor", crew: true, outages: [pig.key], over_capacity: pig.over_capacity }],
+    by_customer: [{ customer: "Prairie Basin Producers", customer_type: "shipper", contracts: ["HR-TSA-102"], outages: [pig.key, valve.key],
+      times: 2, flagged: true, volume_bbl: 115500, usd: 265650 }] };
+};
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.22b Plan shows the outages by customer, asset and person, and flags a customer hit twice (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "pat"));
+    await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+    await page.route("**/plan/outages?*", (route) => route.fulfill({ json: outagesFixture() }));
+    await page.goto(`${url}/#/plan`);
+    const card = page.locator(".plan-outages");
+    const customers = card.getByRole("list", { name: "By customer" });
+    await customers.getByText("Prairie Basin Producers", { exact: true }).waitFor();
+    await customers.locator(".ui-badge", { hasText: "hit 2 times" }).waitFor();
+    await customers.getByText("$265,650 · 115,500 bbl").waitFor();
+    assert.equal(await customers.getByText("Relief valve bench test").count(), 1);
+    await card.getByRole("button", { name: "By asset" }).click();
+    const assets = card.getByRole("list", { name: "By asset" });
+    await assets.getByText("A1-FT-1010", { exact: true }).waitFor();
+    assert.equal(await assets.locator("li.plan-outage").count(), 2);
+    await card.getByRole("button", { name: "By person" }).click();
+    const people = card.getByRole("list", { name: "By person" });
+    await people.getByText("Inline inspection contractor").waitFor();
+    await people.locator(".ui-badge", { hasText: "over capacity" }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}
+
+// ---- P5.22c (#1426): an outage gets three proposed windows; approving one drafts the crews' and customers' notices ---
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.22c an outage gets three windows with reasons and $ impact, and approving one drafts the notices (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "pat"));
+    const at = (d, h = 12) => new Date(Date.UTC(2026, 11, d, h)).toISOString();
+    const win = (n, d, usd, reasons, extra = {}) => ({ n, start: at(d), end: at(d + 4, 18), hours: 102, usd, volume_bbl: 255000, reasons,
+      alongside: [], hits: [], customers: [], ...extra });
+    const windows = [
+      win(0, 23, 512850, ["13 days later than planned", "shares its hours with Relief valve bench test: a contract both hit loses those hours once",
+        "Northgate Crude Marketing still hit 2 times", "crews within capacity, no rule broken", "done Sun 27 Dec 12:00"],
+      { alongside: ["Relief valve bench test"] }),
+      win(1, 10, 562275, ["as planned", "HR-TML-201 not running then", "Prairie Basin Producers still hit 2 times",
+        "crews within capacity, no rule broken", "done Mon 14 Dec 12:00"]),
+      win(2, 5, 562275, ["5 days earlier than planned", "crews within capacity, no rule broken", "done Wed 09 Dec 12:00"]),
+    ];
+    const move = { item_id: 13, title: "Draw down the breakout tank and stop the mainline", code: "A010", project: "HR-PIG-2027",
+      kind: "campaign", crew: null, case: null, released: false, order: null, before: { start: at(10), end: at(10, 20) },
+      after: { start: at(23), end: at(23, 20) }, hours: 312, because: "Window 1: starts Wed 23 Dec 06:00" };
+    const kpi = { finish: at(27, 18), deferred_oil: 0, deferred_unit: "bbl", overloads: 0 };
+    const proposal = (picked) => ({ moves: [move], schedules: ["HR-PIG-2027"], pull_forward: [], basis: "its jobs moved as one",
+      kpis: { before: { ...kpi, finish: at(14, 18) }, after: kpi, start: at(9), days: 20 }, windows, recommended: 0, picked,
+      recommend: "Costs the customers least ($512,850): it shares its hours with Relief valve bench test",
+      past: [{ key: "HRDT-0001", start: "2026-06-29T12:00:00Z", end: "2026-06-30T12:00:00Z", hours: 36, comment: "Planned line shutdown" }] });
+    const change = (extra = {}) => ({ exception_id: 31, key: "outage_window:HR-PIG-2027",
+      say: "Harrier mainline outage (pig run, midline pump A overhaul, receipt meter proving)",
+      constraint: "a window to choose, planned Thu 10 Dec 06:00 to Mon 14 Dec 12:00", start: at(10), until: at(14, 18), cause_case: null,
+      case: 60, picks: {}, history: [{ at: at(1), by: "pat", did: "Asked for windows" }, { at: at(1), by: "agent:planner", did: "Proposed 3 windows" }],
+      changed: [], reverted_by: null, reverted_at: null, open: true, forms: [], constraints: [], state: "open", approved_by: null,
+      approved_at: null, writebacks: [], notices: [], proposal: proposal(0), ...extra });
+    let current = change();
+    const calls = [];
+    await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+    await page.route("**/plan/outages?*", (route) => route.fulfill({ json: outagesFixture() }));
+    await page.route("**/plan/outages/HR-PIG-2027/windows", (route) => { calls.push(["ask", route.request().postDataJSON()]); return route.fulfill({ json: current }); });
+    const item = { ...demoTask.item, id: 60, title: "Harrier mainline outage: 3 windows to choose", type: "plan_change", state: "open",
+      closed_at: null, processes: [], events: [], sources: [{ ...planSource(31), key: "plan_change:outage_window:HR-PIG-2027" }] };
+    await page.route("**/work/items/60", (route) => route.fulfill({ json: item }));
+    await page.route("**/plan/changes/31", (route) => route.fulfill({ json: current }));
+    await page.route("**/plan/changes/31/window", (route) => {
+      const body = route.request().postDataJSON();
+      calls.push(["pick", body]);
+      current = change({ proposal: proposal(body.n) });
+      return route.fulfill({ json: current });
+    });
+    await page.route("**/plan/changes/31/approve", (route) => {
+      calls.push(["approve", route.request().postDataJSON()]);
+      current = change({ open: false, state: "approved", approved_by: "pat", approved_at: at(2), proposal: proposal(0), notices: [
+        { n: 0, audience: "crew", to: "ILI", name: "Inline inspection contractor", jobs: [13], sent_by: null, sent_at: null,
+          text: "Harrier mainline outage. The plan moves your work." },
+        { n: 1, audience: "customer", to: "Prairie Basin Producers", name: "Prairie Basin Producers", jobs: [13], sent_by: null, sent_at: null,
+          text: "Harrier mainline outage: planned from Wed 23 Dec 06:00 to Sun 27 Dec 12:00. Your contracts it affects: HR-TSA-102." }] });
+      return route.fulfill({ json: current });
+    });
+    await page.goto(`${url}/#/plan`);
+    const outages = page.locator(".plan-outages");
+    await outages.getByRole("list", { name: "By customer" }).getByRole("button", { name: "Propose windows" }).first().click();
+    await page.waitForURL(/#\/cases\/60$/);
+    assert.deepEqual(calls[0], ["ask", { by: "pat" }]);
+    const card = page.locator(".replan");
+    const list = card.getByRole("list", { name: "Windows" });
+    await list.locator("li.replan-window").nth(2).waitFor();
+    assert.equal(await list.locator("li.replan-window").count(), 3);
+    const first = list.locator("li.replan-window").first();
+    await first.getByText("$512,850 · 255,000 bbl").waitFor();
+    await first.locator(".ui-badge", { hasText: "recommended" }).waitFor();
+    await first.getByText("shares its hours with Relief valve bench test", { exact: false }).waitFor();
+    await card.getByText("Similar past work: HRDT-0001, 36 h", { exact: false }).waitFor();
+    // another window is picked only with a reason
+    await list.locator("li.replan-window").nth(1).getByRole("button", { name: "Pick" }).click();
+    await page.getByRole("dialog").getByRole("textbox").fill("the ILI contractor is booked that week");
+    await page.getByRole("dialog").getByRole("button", { name: "Pick" }).click();
+    await list.locator("li.replan-window").nth(1).locator(".ui-badge", { hasText: "picked" }).waitFor();
+    assert.deepEqual(calls.at(-1), ["pick", { by: "pat", n: 1, reason: "the ILI contractor is booked that week" }]);
+    await first.getByRole("button", { name: "Pick" }).click();  // back to the recommendation: no reason asked
+    await first.locator(".ui-badge", { hasText: "picked" }).waitFor();
+    assert.deepEqual(calls.at(-1), ["pick", { by: "pat", n: 0, reason: null }]);
+    await card.getByRole("button", { name: "Approve" }).click();
+    await page.getByRole("dialog").getByText("Move the outage to window 1", { exact: false }).waitFor();
+    await page.getByRole("dialog").getByRole("button", { name: "Approve", exact: true }).click();
+    await card.getByText("Approved by", { exact: false }).waitFor();
+    assert.deepEqual(calls.at(-1), ["approve", { by: "pat" }]);
+    await card.getByText("Customer: Prairie Basin Producers").waitFor();
+    assert.equal(await card.getByLabel("Notice to Prairie Basin Producers").isDisabled(), false, "a draft, for a person to send");
+    assert.equal(await list.getByRole("button", { name: "Pick" }).count(), 0, "once approved no window is picked");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}

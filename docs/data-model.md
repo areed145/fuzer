@@ -88,6 +88,15 @@ under its program and plan containers, matched to the cases whose jobs are on th
 (`ops/business_plan.py: sync`), and Plan against actual reads it. Without any line, plan against actual is unknown
 ("no business plan loaded"), never 0.
 
+## Customers and contracts
+
+A customer and contract register lands as `contract` entities, each `delivers_at` the delivery point (a meter or a
+tank's tag) it receives or delivers at, with its customer (a shipper, a utility), what it buys, its daily volume
+(bbl/d), its rate ($/bbl) and the dates it runs. The built-in `contracts` source reads `customer_contracts.csv` this
+way (`mappings/customer_contract.yaml`; Harrier's data carries one). An outage on the plan hits a contract whose
+delivery point it takes down, or leaves with no feed on the flow network, while the contract runs
+(`ops/outages.py`). A site that exports none has outages that hit no customer.
+
 ## Incidents
 Logged events (`involves`), downtime (`caused_by`) and notifications (`concerns`)
 are signals on a tag; instrument tags roll up to the equipment tag they're

@@ -173,6 +173,39 @@ says why and is left with none. Pick another crew (or **No crew**) on any line a
 around it; a pick that breaks a rule or a crew's capacity says so, and the plan change can't be approved until it is
 changed. **Approve** books each job on its crew; nothing is booked before.
 
+## Outages and the customers they hit
+
+Where a customer and contract register is loaded (the contracts source), Plan shows an **Outages** card over the next
+90 days. A schedule whose activities need the plant down is one outage, first start to last finish; any other job
+that needs a shutdown is one on its own. An outage hits each contract whose delivery point it takes down, or leaves
+with no feed on the flow network, while the contract runs: its daily volume for those hours, at its rate.
+
+The card reads one set of outages three ways:
+
+- **By customer**: each customer an outage hits, what it loses over the 90 days in dollars and barrels (a contract's
+  hours counted once where two outages overlap), and the outages. A customer hit at two or more separate times is
+  flagged "hit 2 times": the shipper who would otherwise find out by complaining.
+- **By asset**: the areas the outages' jobs are in (a station, the mainline) and the units they take down (a meter, a
+  tank).
+- **By person**: each crew and person booked on an outage, flagged over capacity where the constraint check finds
+  them over it. The rules typed on Plan mark the jobs breaking them as before, each time a job moves.
+
+### Windows for an outage
+
+**Propose windows** on an outage asks Fuzer for three windows, as a plan change on your case. Fuzer moves the outage's
+jobs as one, a day at a time, to every start from a week to eight weeks ahead, and ranks them by what the customers it
+hits lose (an hour it shares with another outage on the same contract is lost once). The cheapest are levelled for
+real against every crew and your rules; the first three that do not overlap, keep every crew within capacity and break
+no rule are proposed, the cheapest recommended. Each says why: how far from the plan it is, the outage it shares hours
+with, a contract not running then, a customer still hit more than once, the crews, when it is done. The case also
+lists similar past work: planned downtime on the same plant and how long it took.
+
+Pick another window and say why; a typed constraint works the windows out again. **Approve** moves the outage there
+(the schedule starts then and is levelled from there), queues SAP's schedule changes for you, drafts a notice to each
+crew and person on it and to each customer it hits, and keeps your pick against Fuzer's recommendation with the other
+choices between options. Fuzer's proposal and each person's pick are on the case's history. Revert puts the schedule
+back where it was planned.
+
 ## When something breaks
 
 A trip, a late part or a lapsed permit that lands on planned work arrives as routed work, **Plan change to review**,

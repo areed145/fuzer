@@ -252,6 +252,9 @@ def test_a_bulletin_is_never_sent_to_the_field_and_a_message_goes_out_in_its_own
 
     monkeypatch.setattr(sample_crew, "LEFT", 0.0)
     monkeypatch.setattr(sample_crew, "PLANNED", 0.0)
+    # every field case the lead triages goes out (else whether a message is sent hangs on its case number's hash)
+    monkeypatch.setattr(sample_crew, "FIELD_SHARE", {True: 1.0, False: 0.0})
+    monkeypatch.setattr(sample_crew, "QUEUED", 100)
     said = {}
     for i in range(6):
         bulletin = i % 2 == 0

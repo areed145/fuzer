@@ -60,6 +60,11 @@ asked, or a duplicate.
 
 **Capability.** A tool an agent can call, declared once with the agents that use it. See [capabilities](capabilities.md).
 
+**Contract.** A customer's contract on the customer and contract register (a source): what it buys, the delivery
+point it receives or delivers at, the daily volume it carries (bbl/d), the rate it pays ($/bbl) and the dates it runs.
+Its **customer** is a shipper or a utility. An outage that takes its delivery point down, or leaves it with no feed,
+**hits** it. See [the data model](data-model.md).
+
 **Container.** A group of cases with a shared window, budget or goal, and a parent: a business plan, program,
 project, turnaround or package. Shown by its kind, never as "container". Its own case runs its gates.
 
@@ -171,6 +176,15 @@ the risk of waiting, and whether it is ready; one is **recommended** with its re
 takes an optional reason; the choice is kept on the case and counted as the recommendation
 **taken** or not, per work type, on Work performance, and per skill on Ops IQ, Skills (with a brief followed in full).
 Not "proposal" (that is an agent's suggested change).
+
+**Outage.** Planned work that takes plant down, as Plan's Outages card reads it: a schedule whose activities need the
+plant down is one outage, any other shutdown job is one on its own. It **hits** the contracts whose delivery point it
+takes down or leaves with no feed, each losing its daily volume for the hours it is hit, at its rate. The card reads
+one set of outages **by customer** (a customer hit at more than one time is flagged), **by asset** (the areas its jobs
+are in and the units it takes down) and **by person** (each crew and person booked, over capacity flagged). See
+[the planner's guide](guides/planner.md). **Propose windows** on an outage asks Fuzer for three **windows** for
+it, each with its reasons and what it costs the customers it hits, as a plan change; the planner picks one (another
+than the recommended one with a reason) and approves it.
 
 **Overload.** A run of hours when the plan needs more of a resource than it has, found by the constraint check across
 every resource: the need against the capacity, the jobs causing it (a crew's trip names the job it flies for) and the
