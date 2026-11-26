@@ -38,11 +38,11 @@ from psycopg.types.json import Jsonb
 from ..core import nel, settings, wording
 from ..core.exceptions import exception_type, match, raise_exception
 from ..core.findings import EXTERNAL, Finding, at, fact
+from ..graph.data_work import MESSAGES as SOURCE
 
 MESSAGE_REPORT = exception_type(
     "message_report", "Reported in a message", audience=("ioc", "field"), joins=False,
     description="A message to the IOC (mail, radio, Teams or a field note) about an entity in the register.").name
-SOURCE = "messages"
 REVIEW_KIND = "message"
 CHANNELS = {"mailbox": "IOC mailbox", "radio": "Radio call", "teams": "Teams post", "phone": "Field note"}
 PLACES = ("area", "facility")  # a place is not an entity to work on: a message naming only one goes to the steward

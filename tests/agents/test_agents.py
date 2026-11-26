@@ -280,6 +280,27 @@ def test_a_specialist_with_no_source_says_so_and_escalates(conn, okan_pack):
     assert wrong["mentions"] == 0 and wrong["operating_instructions"]  # the key catches an answer that gives orders
 
 
+def test_where_nothing_on_record_answers_the_eval_tells_saying_so_from_guessing(conn, okan_pack):
+    """P6.6: on the logistics question nothing on record answers, an answer that says so is not a guess; one that
+    reports crews and transport ready is, and the eval's `guessed` share counts it."""
+    agents = pytest.importorskip("fuzer.agents")
+    from fuzer.evals import evaluate
+
+    case = next(c for c in okan.ASSISTANT_QUESTIONS if c["domain"] == "missing data: logistics")
+    said = "The turnaround is OK-TAR-2026. Fuzer has no data on crews, vendors or transport, so their readiness is unknown."
+    fake = DomainClaude({"work-management-supply-chain": ([("load_skill", {"skill_name": "turnarounds"}),
+                                                           ("turnaround_scope", {})], lambda done: said)})
+    out = asyncio.run(agents.ask(case["question"], agents.team(agents.client(anthropic_client=fake))))
+    honest = evaluate.score_answer(case, out)
+    assert honest["guessed"] is False and honest["mentions"] == 1 and honest["routed"]
+    guess = evaluate.score_answer(case, {**out, "answer": "Crews, vendors and transport are ready for OK-TAR-2026."})
+    assert guess["guessed"] is True and guess["mentions"] == 0.5 and guess["missing"] == [case["unknown"]]
+    other = evaluate.score_answer(next(c for c in okan.ASSISTANT_QUESTIONS if c["domain"] == "regulatory"), out)
+    assert other["guessed"] is None  # only a question nothing on record answers can be guessed
+    assert evaluate.summarise([honest, other])["guessed"] == 0 and evaluate.summarise([honest, guess])["guessed"] == 0.5
+    assert evaluate.summarise([other])["guessed"] is None
+
+
 class ThinkingClaude(FakeClaude):
     """FakeClaude that thinks before each reply, as Claude does on these models."""
 

@@ -9866,16 +9866,21 @@ test("P7.4 Work performance shows by detector and by skill which earn their keep
   await page.getByText("Agent spend per specialist", { exact: true }).waitFor();
   // What Fuzer couldn't determine, beside the shortfalls (P6.6): by what would answer it, linking its cases.
   await page.route("**/work/undetermined", (route) => route.fulfill({ json: [
-    { needs: { kind: "source", name: "stock levels" }, count: 2, value_usd: 48000, reasons: { no_data: 2 },
+    { needs: { kind: "source", name: "stock levels" }, count: 2, value_usd: 48000, reasons: { no_data: 2 }, why: "no data 2",
       asked: ["Are the parts for this job in stock?"], sources: ["readiness"], answers: 0, last_at: "2026-11-20T10:00:00Z",
       cases: [{ id: 41, title: "20-K-2300B trip", type: "machine_trip", value_usd: 48000, detail: null },
-        { id: 42, title: "P-101 seal", type: "machine_health", value_usd: null, detail: null }] }] }));
+        { id: 42, title: "P-101 seal", type: "machine_health", value_usd: null, detail: null }],
+      draft: { title: "Add the stock levels source", body: "Fuzer couldn't determine 2 times for want of the stock levels source.\n\nCases:\n- case 41: 20-K-2300B trip ($48,000)" } }] }));
   await page.goto(`${url}/#/performance?by=detector`);
   await page.goto(`${url}/#/performance?by=skill`);
   const unknown = page.getByRole("region", { name: "What Fuzer couldn't determine" });
   await unknown.getByText("stock levels", { exact: true }).waitFor();
   assert.equal(await unknown.getByRole("link", { name: "20-K-2300B trip" }).getAttribute("href"), "#/cases/41");
   await unknown.getByText("no data 2", { exact: true }).waitFor();
+  // the item drafts an issue, with its cases, for a person to file
+  await unknown.getByRole("button", { name: "Draft an issue" }).click();
+  const issue = await unknown.getByRole("textbox", { name: "Issue: Add the stock levels source" }).inputValue();
+  assert.ok(issue.startsWith("Add the stock levels source\n\nFuzer couldn't determine 2 times") && issue.includes("- case 41: 20-K-2300B trip"));
 });
 
 test("App search at the top left finds pages, tabs and entities, and sends a question to Ops IQ", async () => {
@@ -11541,6 +11546,33 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     assert.deepEqual(errors, []);
   });
 }
+
+// P2.8 (#1254): each message on All work shows the message as its source (channel and sender) and where it stands:
+// its case to dispatch, its question with the steward, an answered one closed.
+test("P2.8 each message on All work shows its source and state", async () => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const said = (id, channel_label, sender) => ({ message: { id, channel: "radio", channel_label, sender, subject: null,
+    text: "", received_at: "2026-11-23T11:05" } });
+  const row = (id, type, title, stage, state, evidence) => ({ id, uid: `e${id}`, exception_id: id, type, kind: type,
+    kind_label: type, key: `k${id}`, source: "messages", state, exception_state: state === "open" ? "open" : "cleared",
+    priority: null, value_usd: null, subjects: [], unmatched: [], role: null, raised_count: 1, item_id: 100 + id,
+    assignee: null, holder: "none", queue: "ops_lead", title, stage, evidence, due_at: null, overdue: false,
+    first_seen: "2026-11-23T11:05:00Z", last_seen: "2026-11-23T11:05:00Z", opened: "2026-11-23T11:05:00Z",
+    updated: "2026-11-23T11:05:00Z", facility: "none", area: "none", asset: "none", take: null });
+  const rows = [row(1, "message_report", "10-P-1001B noisy on the outboard bearing", "dispatch", "open",
+    said("MSG-0002", "Radio call", "PP CRO")),
+  row(2, "message_to_match", "V-2002 level glass hard to read", "desk", "open", said("MSG-0020", "IOC mailbox", "Field Service")),
+  row(3, "message_to_match", "PT-2001 reading erratic", "closed", "closed", said("MSG-0007", "Radio call", "ST1 CRO"))];
+  await page.route("**/cases?*", (route) => route.fulfill({ json: { total: 3, labels: {}, facets: {}, rows } }));
+  await page.goto(`${url}/#/list?state=all`);
+  for (const [title, source, stage] of [["noisy on the outboard bearing", "Radio call from PP CRO", "To dispatch"],
+    ["level glass hard to read", "IOC mailbox from Field Service", "With a desk"],
+    ["reading erratic", "Radio call from ST1 CRO", "Closed"]]) {
+    const r = page.locator("tr.work-row", { hasText: title });
+    await r.getByText(source).waitFor();
+    assert.equal((await r.locator(".work-row-stage").innerText()).trim(), stage, title);
+  }
+});
 
 test("P5.26a the steward's answer to a message links the case it opened, with no links to loads", async () => {
   await page.setViewportSize({ width: 1440, height: 900 });

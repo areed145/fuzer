@@ -1524,11 +1524,13 @@ export interface SkillEarning {
 }
 
 /** What Fuzer couldn't determine (P6.6), grouped by the source, tool or skill that would have answered it: the most
- * cases and answers first (`count`), then the value at stake on those cases. */
+ * cases and answers first (`count`), then the value at stake on those cases; `why` is the reasons in words and
+ * `draft` the issue for a person to file. */
 export interface Undetermined {
   needs: { kind: "source" | "tool" | "skill"; name: string }; count: number; value_usd: number | null;
-  reasons: Record<string, number>; asked: string[]; sources: string[]; answers: number; last_at: string;
+  reasons: Record<string, number>; why: string; asked: string[]; sources: string[]; answers: number; last_at: string;
   cases: { id: number; title: string | null; type: string | null; value_usd: number | null; detail: string | null }[];
+  draft: { title: string; body: string };
 }
 
 export interface SkillPerformance {

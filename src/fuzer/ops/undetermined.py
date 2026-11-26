@@ -12,7 +12,8 @@ specialist), why it couldn't be said (one of REASONS), the reason in words (`det
                                     kept twice
     at_stake(conn, item_id)         the largest value of the events a case works ($)
     gather(conn, since=None)        what would answer them, ranked by how many cases and answers it would settle,
-                                    then the value at stake on them, with the cases
+                                    then the value at stake on them, with the cases and an issue drafted from them
+    draft(group)                    an issue for a person to file: what to add, why, and the cases that motivated it
 
 Raised where the code already knows a value is missing, never guessed by a model: readiness's parts with no stock
 source, an option's deferred production with no tested well behind it, a brief's methods with no measurement on the
@@ -22,7 +23,8 @@ register, a case no skill briefs, a measure the assistant read that came back un
 from psycopg.types.json import Jsonb
 
 KIND = "undetermined"
-REASONS = ("no_data", "no_tool", "no_skill", "conflicting_evidence", "out_of_scope", "low_confidence")
+REASONS = {"no_data": "no data", "no_tool": "no tool", "no_skill": "no skill", "conflicting_evidence": "conflicting evidence",
+           "out_of_scope": "out of scope", "low_confidence": "low confidence"}  # each reason, and its words
 NEEDS = ("source", "tool", "skill")
 
 
@@ -72,7 +74,8 @@ _ROWS = """
 def gather(conn, since: str | None = None) -> list[dict]:
     """What would answer the notes since `since` (all time when None): per source, tool or skill, how many cases and
     answers it would settle (`count`), the value at stake on those cases (each case once, its largest), the reasons
-    and questions, and the cases; the most first, then the most at stake."""
+    and questions (`why` in words), the cases, and the issue drafted from them; the most first, then the most at
+    stake."""
     groups: dict[tuple, dict] = {}
     for r in conn.execute(_ROWS, {"kind": KIND, "since": since}):
         d = r["data"]
@@ -96,6 +99,29 @@ def gather(conn, since: str | None = None) -> list[dict]:
     for g in groups.values():
         cases = list(g["cases"].values())
         valued = [c["value_usd"] for c in cases if c["value_usd"] is not None]
-        out.append({**g, "cases": cases, "answers": len(g["answers"]), "count": len(cases) + len(g["answers"]),
-                    "value_usd": round(sum(valued), 2) if valued else None})
+        g = {**g, "cases": cases, "answers": len(g["answers"]), "count": len(cases) + len(g["answers"]),
+             "value_usd": round(sum(valued), 2) if valued else None,
+             "why": ", ".join(f"{REASONS.get(k, k)} {n}" for k, n in g["reasons"].items())}
+        out.append({**g, "draft": draft(g)})
     return sorted(out, key=lambda g: (-g["count"], -(g["value_usd"] or 0), g["needs"]["name"] or ""))
+
+
+def _usd(v: float | None) -> str:
+    return f"${v:,.0f}" if v is not None else "not valued"
+
+
+def draft(g: dict) -> dict:
+    """An issue for a person to file from one group of `gather`: a title naming what to add, and a body with how often
+    and why it couldn't be settled, what was asked, the value at stake and each case that motivated it."""
+    needs = g["needs"]
+    lines = [f"Fuzer couldn't determine {g['count']} time{'s' if g['count'] != 1 else ''} for want of the "
+             f"{needs['name']} {needs['kind']}.", "",
+             f"- Why: {g['why']}",
+             f"- Value at stake: {_usd(g['value_usd'])}",
+             f"- Raised by: {', '.join(g['sources'])}", "", "Asked:", *(f"- {a}" for a in g["asked"])]
+    if g["cases"]:
+        lines += ["", "Cases:", *(f"- case {c['id']}: {c['title'] or c['type']} ({_usd(c['value_usd'])})"
+                                  + (f": {c['detail']}" if c.get("detail") else "") for c in g["cases"])]
+    if g["answers"]:
+        lines += ["", f"Assistant answers: {g['answers']}"]
+    return {"title": f"Add the {needs['name']} {needs['kind']}", "body": "\n".join(lines)}

@@ -5,14 +5,14 @@ Record a run with `fuzer eval --agents --record`, `fuzer eval --packs --record`,
 
 ## Operations assistant
 
-Mechanical checks against `answer_keys/assistant.json`: the facts a good answer names, sources cited, no plant-operating instructions, the expected specialists asked.
+Mechanical checks against `answer_keys/assistant.json`: the facts a good answer names, sources cited, no plant-operating instructions, the expected specialists asked, and the share of questions nothing on record answers where the answer guessed instead of saying so (lower is better).
 
-| Run | Model | Questions | Facts named | Cited 3+ | Safe | Routed | Chart drawn | Cost / answer | Time / answer |
-|---|---|---|---|---|---|---|---|---|---|
-| 2026-11-09 | claude-opus-5-5 | 19 | 94% | 90% | 100% | 95% | 75% | $0.45 | 82.5 s |
-| 2026-11-03 | claude-opus-5-5 | 14 | 94% | 86% | 100% | 100% | 75% | $0.84 | 86 s |
-| 2026-11-02 | claude-opus-5-5 | 14 | 98% | 86% | 100% | 100% | 75% | $0.67 | 102 s |
-| 2026-10-29 | claude-opus-5-5 | 9 | 100% | 100% | 100% | 100% |  | $0.55 | 71 s |
+| Run | Model | Questions | Facts named | Cited 3+ | Safe | Routed | Chart drawn | Guessed | Cost / answer | Time / answer |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-09 | claude-opus-5-5 | 19 | 94% | 90% | 100% | 95% | 75% |  | $0.45 | 82.5 s |
+| 2026-11-03 | claude-opus-5-5 | 14 | 94% | 86% | 100% | 100% | 75% |  | $0.84 | 86 s |
+| 2026-11-02 | claude-opus-5-5 | 14 | 98% | 86% | 100% | 100% | 75% |  | $0.67 | 102 s |
+| 2026-10-29 | claude-opus-5-5 | 9 | 100% | 100% | 100% | 100% |  |  | $0.55 | 71 s |
 
 ### Latest run by question (2026-11-09)
 
