@@ -215,6 +215,19 @@ Anything else is not guessed at: Fuzer says which forms it reads and the proposa
   the units downstream that lose their feed (to the ops lead). Edit one and choose **Send**: it goes on the case of
   each moved job it is about, and the plan change keeps who sent it.
 
+### What a plan change did, and Revert
+
+Fuzer works each plan change out as the planner's agent, so the case keeps its **History**: each thing done to it,
+when and by whom, oldest first (Fuzer working it out, each constraint or crew picked, the approval, each notice
+sent). Once approved, **What it changed** lists each job's fields before and after (start, end, status, who, why it
+moved), each booking on a crew and each capacity window it added.
+
+**Revert** (a maintenance planner) puts all of that back as it was: the jobs return to their dates and crews, the
+bookings and capacity windows go, and each SAP schedule change it queued that has not been approved to go is
+rejected (one already on its way is named, to change in SAP). Each moved job's case says it moved back, and the
+plan change's case says it was reverted. If any of it has changed again since it was approved, Revert is refused and
+names what changed: put those back by hand. The notices of a reverted plan change can no longer be sent.
+
 ## Approve the update that goes back to SAP
 
 When the field reports Done or Could not do on work SAP raised, the update for SAP is drafted and lands in the

@@ -565,6 +565,13 @@ alter table plan_item add column if not exists moved_because text;
 -- an auto-assign plan change (P5.23b, key auto_assign:<when>): the planner's picks, by job id (a crew's code, or ''
 -- for none), kept while it is worked out again
 alter table plan_change add column if not exists picks jsonb not null default '{}';
+-- what was done to it (P5.23c): each step with when and who (Fuzer working it out, a constraint or a pick, the
+-- approval, a notice sent, the revert); once approved, what it changed, before and after (each job's fields, each
+-- booking, each capacity window added); and who reverted it, putting those back
+alter table plan_change add column if not exists history jsonb not null default '[]';
+alter table plan_change add column if not exists changed jsonb not null default '[]';
+alter table plan_change add column if not exists reverted_by text;
+alter table plan_change add column if not exists reverted_at timestamptz;
 
 -- Plan rules (P5.23a, ops/plan_rules.py): a rule a planner typed in words on Plan, as read (deadline, duration, gap,
 -- overlap or sequence) and said back. Checked against every job still to do while it is on; Plan marks each job breaking it.

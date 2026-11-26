@@ -234,6 +234,25 @@ def _approve(c, trip, job, case):
     assert e["state"] != "open"
     replan.watch(c)
     assert c.execute("select state from exception_record where id = %s", (pid,)).fetchone()["state"] != "open"
+    # P5.23c: Fuzer's change lists what was done to it, when and by whom, and what approving changed; Revert puts the
+    # job back where it was, drops SAP's change not yet sent, and the job's case says so
+    p = replan.change(c, pid)
+    did = [(h["by"], h["did"]) for h in p["history"]]
+    assert did[0][0] == "agent:planner" and did[0][1].startswith("Worked out: ")
+    assert did[-2] == ("pat", "Approved: 1 job moved, 1 SAP change queued, 2 notices drafted")
+    assert did[-1] == ("pat", "Sent the notice to sam")
+    [moved] = [x for x in p["changed"] if x["what"] == "job" and x["id"] == job["id"]]
+    assert _when(moved["fields"]["start_at"][0]) == _when(job["start_at"])
+    assert moved["fields"]["moved_because"] == [None, "20-K-2200B tripped"]
+    r = replan.revert(c, pid, "pat")
+    c.commit()
+    assert r["state"] == "reverted" and r["history"][-1]["did"].startswith("Reverted: ")
+    row = c.execute("select * from plan_item where id = %s", (job["id"],)).fetchone()
+    assert _when(row["start_at"]) == _when(job["start_at"]) and row["moved_because"] is None
+    assert c.execute("select state from writeback where id = %s", (wb["id"],)).fetchone()["state"] == "rejected"
+    said = c.execute("select data from work_event where item_id = %s and kind = 'commented' order by id desc limit 1",
+                     (case["id"],)).fetchone()
+    assert "Moved back to " in str(said["data"])
 
 
 def test_auto_assign_proposes_crews_for_unassigned_jobs_with_no_rule_broken_and_the_planner_edits_it(c):
@@ -289,6 +308,8 @@ def test_auto_assign_proposes_crews_for_unassigned_jobs_with_no_rule_broken_and_
         assert got[left["item_id"]] == "MECH" and got[ndt["item_id"]] == "NDT"
         assert not [r for r in plan_rules.rules(c) if r["breaks"]], "approved, still no rule broken"
         assert c.execute("select state from exception_record where id = %s", (p["exception_id"],)).fetchone()["state"] != "open"
+        _the_agent_change_lists_its_steps_and_what_it_changed_and_revert_puts_it_back(c, p, was)
+        booked = []
     finally:
         c.rollback()
         c.execute("delete from plan_demand where item_id = any(%s)", (booked,))
@@ -296,3 +317,40 @@ def test_auto_assign_proposes_crews_for_unassigned_jobs_with_no_rule_broken_and_
             c.execute("update plan_item set status = %s where id = %s", (status, i))
         c.execute("delete from plan_rule")
         c.commit()
+
+
+def _the_agent_change_lists_its_steps_and_what_it_changed_and_revert_puts_it_back(c, p, was):
+    """P5.23c: the auto-assign plan change lists each thing done to it, when and by whom (Fuzer proposing, the
+    planner's picks, the approval), and what approving changed: each booking and each job's status. Revert puts those
+    back, the plan change says who reverted it, and its case says so."""
+    from fuzer.core import work
+
+    did = [(h["by"], h["did"]) for h in p["history"]]
+    assert did[0] == ("pat", "Asked for crews on field jobs, Wed 01 Oct to Mon 20 Oct")
+    assert did[1][0] == "agent:planner" and did[1][1].startswith("Proposed crews for 4 of 5 field jobs")
+    assert [x for x in did if x[1].startswith("Picked Inspection and NDT technicians for Statutory internal inspection")]
+    assert [x for x in did if x[1].startswith("Picked Mechanical fitters for Statutory internal inspection")]
+    assert did[-1] == ("pat", "Approved: 5 jobs booked") and all(h["at"] for h in p["history"])
+    bookings = {(x["id"], x["resource"]): (x["before"], x["after"]) for x in p["changed"] if x["what"] == "booking"}
+    assert set(bookings) == {(a["item_id"], a["crew"]) for a in p["proposal"]["assign"]}
+    assert all(v == (None, 1) for v in bookings.values())
+    jobs = {x["id"]: x["fields"] for x in p["changed"] if x["what"] == "job"}
+    assert {i for i, f in jobs.items() if f.get("status") == ["proposed", "scheduled"]} == {
+        i for i, s in was.items() if s == "proposed"}
+    with pytest.raises(PlanError, match="isn't a maintenance planner"):
+        work.add_person(c, "sam", ["operator"], "test")
+        replan.revert(c, p["exception_id"], "sam")
+    c.rollback()
+    r = replan.revert(c, p["exception_id"], "pat")
+    c.commit()
+    assert r["state"] == "reverted" and r["reverted_by"] == "pat" and r["reverted_at"]
+    assert r["history"][-1]["did"] == f"Reverted: {len(p['changed'])} changes put back"
+    assert not c.execute("select 1 from plan_demand where item_id = any(%s)", (list(was),)).fetchone()
+    assert {r["id"]: r["status"] for r in c.execute("select id, status from plan_item where id = any(%s)",
+                                                    (list(was),))} == was
+    said = c.execute("select data from work_event where item_id = %s and kind = 'commented' order by id desc limit 1",
+                     (r["case"],)).fetchone()
+    assert "changes put back" in str(said["data"])
+    with pytest.raises(PlanError, match="only an approved one is reverted"):
+        replan.revert(c, p["exception_id"], "pat")
+    c.rollback()

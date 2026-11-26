@@ -12370,7 +12370,8 @@ const planMove = (start, end, because) => ({ item_id: 301, title: "Compressor va
   before: { start: "2026-11-20T08:00:00Z", end: "2026-11-20T16:00:00Z" }, after: { start, end }, hours: 24, because });
 const planChangeOf = (constraints, move) => ({ exception_id: 12, key: "plan_change:machine_trip:7", say: "20-K-2200B tripped",
   constraint: "no work that needs it running until 21 Nov 08:00", start: "2026-11-20T08:00:00Z", until: "2026-11-21T08:00:00Z",
-  cause_case: 7, open: true, forms: ["keep A0200 on 12 Apr", "no crane work before 10 Apr", "crew MECH max 4"], constraints,
+  cause_case: 7, case: 40, picks: {}, history: [], changed: [], reverted_by: null, reverted_at: null, open: true,
+  forms: ["keep A0200 on 12 Apr", "no crane work before 10 Apr", "crew MECH max 4"], constraints,
   proposal: { moves: [move], schedules: [], basis: "Fuzer's levelling and constraint check on the plan as it stands",
     pull_forward: [{ item_id: 302, title: "Seal oil filter change", start: "2026-11-24T08:00:00Z", end: "2026-11-24T12:00:00Z",
       order: "50000310", because: "needs 20-K-2200B stopped, and it is stopped until 21 Nov 08:00" }],
@@ -12586,7 +12587,7 @@ for (const [size, viewport] of PHONE_DESK) {
       "does SAP work center MECH's orders", { order: "50000276" });
     const change = (assign, extra = {}) => ({ exception_id: 14, key: "auto_assign:20251001", say: "Field jobs with no crew",
       constraint: "a crew proposed for each, Wed 01 Oct to Mon 20 Oct", start: "2025-10-01T00:00:00Z", until: "2025-10-20T00:00:00Z",
-      cause_case: null, case: 42, picks: {}, open: true, forms: [], constraints: [], state: "open", approved_by: null, approved_at: null,
+      cause_case: null, case: 42, picks: {}, history: [], changed: [], reverted_by: null, reverted_at: null, open: true, forms: [], constraints: [], state: "open", approved_by: null, approved_at: null,
       writebacks: [], notices: [], proposal: { assign, moves: [], schedules: [], pull_forward: [], basis: "the crew of each job's SAP work center" },
       ...extra });
     let current = change([sap, ndt, left]);
@@ -12641,6 +12642,62 @@ for (const [size, viewport] of PHONE_DESK) {
     await card.getByText("Approved by", { exact: false }).waitFor();
     assert.deepEqual(calls.at(-1), ["approve", { by: "pat" }]);
     assert.equal(await table.getByRole("combobox").count(), 0, "once approved the crews are no longer picked");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}
+
+// ---- P5.23c (#1422): an agent's plan change lists what was done to it and what it changed, and Revert puts it back --
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.23c a plan change lists its history and what it changed, and Revert puts the plan back (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "pat"));
+    const item = { ...demoTask.item, id: 40, title: "Plan change to review", type: "plan_change", state: "done", closed_at: null,
+      processes: [], events: [], sources: [planSource(12)] };
+    await page.route("**/work/items/40", (route) => route.fulfill({ json: item }));
+    const history = [
+      { at: "2026-11-20T08:05:00Z", by: "agent:planner", did: "Worked out: 1 planned job to move" },
+      { at: "2026-11-20T09:00:00Z", by: "pat", did: "Approved: 1 job moved, 1 SAP change queued, 1 notice drafted" }];
+    const changed = [{ what: "job", id: 301, title: "Compressor valve inspection", code: null, case: 41,
+      fields: { start_at: ["2026-11-20T08:00:00Z", "2026-11-21T08:00:00Z"], end_at: ["2026-11-20T16:00:00Z", "2026-11-21T16:00:00Z"],
+        moved_because: [null, "20-K-2200B tripped"] } },
+      { what: "capacity", id: 9, resource: "MECH", name: "Mechanical fitters", title: "Plan change: crew MECH max 1",
+        start: "2026-11-20T08:00:00Z", end: "2027-02-18T08:00:00Z", before: null, after: 1 }];
+    const notice = { n: 0, audience: "field", to: "sam", name: "sam", jobs: [301], sent_by: null, sent_at: null,
+      text: "20-K-2200B tripped. Your job moved." };
+    const approved = { ...planChangeOf([], planMove("2026-11-21T08:00:00Z", "2026-11-21T16:00:00Z", "20-K-2200B tripped")),
+      open: false, state: "approved", approved_by: "pat", approved_at: "2026-11-20T09:00:00Z", history, changed, notices: [notice],
+      writebacks: [{ id: 21, record: "50000303", state: "awaiting_approval", item_id: 55, approver_role: "maintenance_planner" }] };
+    let current = approved;
+    const calls = [];
+    await page.route("**/plan/changes/12", (route) => route.fulfill({ json: current }));
+    await page.route("**/plan/changes/12/revert", (route) => {
+      calls.push(route.request().postDataJSON());
+      current = { ...approved, state: "reverted", reverted_by: "pat", reverted_at: "2026-11-20T10:00:00Z",
+        writebacks: [{ ...approved.writebacks[0], state: "rejected" }],
+        history: [...history, { at: "2026-11-20T10:00:00Z", by: "pat", did: "Reverted: 4 changes put back" }] };
+      return route.fulfill({ json: current });
+    });
+    await page.goto(`${url}/#/cases/40`);
+    const card = page.locator(".replan");
+    const steps = card.getByRole("list", { name: "History" });
+    await steps.getByText(/Worked out: 1 planned job to move/).waitFor();
+    await steps.getByText(/Approved: 1 job moved/).waitFor();
+    const table = card.getByRole("table", { name: "What it changed" });
+    assert.equal(await table.getByRole("link", { name: "Compressor valve inspection" }).first().getAttribute("href"), "#/cases/41");
+    await table.getByText("Moved because", { exact: true }).waitFor();
+    await table.getByText("20-K-2200B tripped", { exact: true }).waitFor();
+    await table.getByText(/^Mechanical fitters from /).waitFor();
+    assert.equal(await table.getByText("Start", { exact: true }).count(), 1);
+    await card.getByRole("button", { name: "Revert" }).click();
+    await page.getByRole("dialog").getByText("Put back the 2 changes it made? SAP changes not yet sent are dropped.").waitFor();
+    await page.getByRole("dialog").getByRole("button", { name: "Revert", exact: true }).click();
+    await card.getByText("Reverted by", { exact: false }).waitFor();
+    assert.deepEqual(calls, [{ by: "pat" }]);
+    await steps.getByText(/Reverted: 4 changes put back/).waitFor();
+    await card.getByRole("list", { name: "SAP changes" }).getByText("rejected", { exact: false }).waitFor();
+    assert.equal(await card.getByRole("button", { name: "Revert" }).count(), 0);
+    assert.equal(await card.getByLabel("Notice to sam").isDisabled(), true, "nothing moved, so nothing to tell");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.deepEqual(errors, []);
   });

@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import { Badge, Button, Card as UICard, ErrorText, Input, Line, List, Select, Table, Text, Textarea, confirmDialog } from "../ui";
 import { quantity, when } from "../format";
-import { api, type PlanAssign, type PlanChange, type PlanKpis, type PlanMove, type PlanNotice } from "../api";
+import { api, type PlanAssign, type PlanChange, type PlanChanged, type PlanKpis, type PlanMove, type PlanNotice } from "../api";
 import { Status, useAction, useAsync } from "../lib";
 import { Actor } from "../work";
 import { caseHref } from "./workflows/shared";
@@ -30,6 +30,7 @@ function PlanChangeCard({ c, person, readOnly, put }:
   const edit = !readOnly && c.open;
   const assign = p?.assign;
   const booked = assign?.filter((x) => x.crew).length ?? 0;
+  const done = c.state === "approved" || c.state === "reverted";
   return (
     <UICard title="Plan change" className="replan">
       <Text as="p">{c.say}: {c.constraint}.</Text>
@@ -54,7 +55,15 @@ function PlanChangeCard({ c, person, readOnly, put }:
           : `Move ${p.moves.length === 1 ? "this job" : `these ${p.moves.length} jobs`} on the plan, queue SAP's schedule change for you to approve and draft the notices?`,
           { confirm: "Approve" })) && a.run("approve", () => api.planChangeApprove(c.exception_id, person), put)}>Approve</Button>
       </Line>}
-      {c.state === "approved" && <Approved c={c} person={person} readOnly={readOnly} put={put} />}
+      {done && <Approved c={c} person={person} readOnly={readOnly || c.state === "reverted"} put={put} />}
+      {done && c.changed.length > 0 && <Changed changed={c.changed} />}
+      {c.state === "reverted" && <Text as="p">Reverted by <Actor who={c.reverted_by ?? ""} /> {when(c.reverted_at)}.</Text>}
+      {c.state === "approved" && !readOnly && c.changed.length > 0 && <Line wrap>
+        <Button variant="secondary" disabled={!!a.busy || !person} onClick={async () => (await confirmDialog(
+          `Put back the ${c.changed.length === 1 ? "change" : `${c.changed.length} changes`} it made? SAP changes not yet sent are dropped.`,
+          { confirm: "Revert", danger: true })) && a.run("revert", () => api.planChangeRevert(c.exception_id, person), put)}>Revert</Button>
+      </Line>}
+      {c.history.length > 0 && <History history={c.history} />}
       {edit && !assign && <form onSubmit={(e) => { e.preventDefault(); a.run("constraint", () => api.planConstraint(c.exception_id, person, text),
         (x) => { put(x); setText(""); }); }}>
         <Line wrap>
@@ -132,6 +141,37 @@ function Assign({ c, lines, edit, person, put }:
     </Table>
     <ErrorText>{a.error}</ErrorText>
   </>;
+}
+
+/** Each thing done to the plan change, oldest first: Fuzer working it out, what a person typed or picked, the
+ * approval, a notice sent, the revert. */
+function History({ history }: { history: PlanChange["history"] }) {
+  return <List small aria-label="History">{history.map((h, n) => <li key={n}>
+    {when(h.at)} <Actor who={h.by} />: {h.did}</li>)}</List>;
+}
+
+const FIELD: Record<string, string> = { start_at: "Start", end_at: "End", not_before: "Starts no earlier than", status: "Status",
+  crew: "Who", moved_by: "Moved by", moved_because: "Moved because", released_at: "Released", released_by: "Released by",
+  release_reason: "Why it was released" };
+const TIMES = new Set(["start_at", "end_at", "not_before", "released_at"]);
+const shown = (field: string, v: unknown) => (v == null || v === "" ? "none"
+  : TIMES.has(field) ? when(String(v)) : String(v).replace(/_/g, " "));
+
+/** What approving changed, before and after: each job's fields, each booking on a crew, each capacity window added.
+ * Revert puts these back. */
+function Changed({ changed }: { changed: PlanChanged[] }) {
+  const rows = changed.flatMap((x): [string, string, string, string, number | null][] => x.what === "job"
+    ? Object.entries(x.fields).map(([f, [b, a]]) => [x.code ?? x.title, FIELD[f] ?? f, shown(f, b), shown(f, a), x.case])
+    : x.what === "booking"
+      ? [[x.title ?? String(x.id), `Booked on ${x.name}`, x.before == null ? "none" : String(x.before), x.after == null ? "none" : String(x.after), null]]
+      : [[x.title ?? x.resource, `${x.name ?? x.resource} from ${when(x.start)} to ${when(x.end)}`, "none", String(x.after), null]]);
+  return (
+    <Table density="compact" aria-label="What it changed">
+      <thead><tr><th>Job</th><th>What</th><th>Before</th><th>After</th></tr></thead>
+      <tbody>{rows.map(([job, what, b, a, item], n) => <tr key={n}>
+        <td>{item ? <a href={caseHref(item)}>{job}</a> : job}</td><td>{what}</td><td>{b}</td><td>{a}</td></tr>)}</tbody>
+    </Table>
+  );
 }
 
 /** Once approved: who approved it, each SAP schedule change waiting in the write-back queue, and the notices to send. */

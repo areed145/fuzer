@@ -2054,6 +2054,14 @@ def plan_change_approve(exception_id: int, a: PlanChangeApprove, conn=Depends(ge
     return _plan_call(conn, replan.approve, exception_id, a.by)
 
 
+@router.post("/plan/changes/{exception_id}/revert")
+def plan_change_revert(exception_id: int, a: PlanChangeApprove, conn=Depends(get_conn)):
+    """A maintenance planner reverts an approved plan change (P5.23c): each job, booking and capacity window it changed
+    is put back as it was and the SAP changes not yet sent are dropped. Refused when any of it changed again since."""
+    from ..ops import replan
+    return _plan_call(conn, replan.revert, exception_id, a.by)
+
+
 class PlanNotice(BaseModel):
     by: str
     text: str | None = None

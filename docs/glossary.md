@@ -184,7 +184,9 @@ schedules, and work the IOC planned for a day. A bar on it is a **plan item**.
 maintenance planner (**Plan change to review**): the jobs it holds and until when, the plan levelled again around them,
 each move with the constraint behind it, the work worth pulling forward while a machine is down anyway, and the finish,
 deferred oil and overloads before and after. **Auto-assign** on Plan raises one too: a crew proposed for each field
-job with none, within each crew's capacity and the plan rules, for the planner to change and approve.
+job with none, within each crew's capacity and the plan rules, for the planner to change and approve. Its
+**history** lists each thing done to it, when and by whom; once approved it keeps **what it changed**, before and
+after, and **Revert** puts those jobs, bookings and capacity windows back as they were.
 
 **Plan rule.** A rule a planner types in words on Plan, read without a model into one of five forms (deadline,
 duration, gap, overlap, sequence) and said back as read. While it is on, each job breaking it is marked **breaks a

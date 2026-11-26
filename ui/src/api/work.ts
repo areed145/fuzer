@@ -994,7 +994,11 @@ export interface PlanChange {
   exception_id: number; key: string; say: string; constraint: string; start: string; until: string;
   cause_case: number | null; open: boolean; forms: string[]; constraints: { text: string; form: string }[];
   /** Once a maintenance planner approves it (P5.21c): who and when, the SAP schedule changes queued, the notices. */
-  state: "open" | "approved"; approved_by: string | null; approved_at: string | null;
+  state: "open" | "approved" | "reverted"; approved_by: string | null; approved_at: string | null;
+  /** What was done to it (P5.23c): when, by whom (Fuzer or a person), what; once approved, what it changed, before
+   * and after; and who reverted it. */
+  history: { at: string; by: string; did: string }[]; changed: PlanChanged[];
+  reverted_by: string | null; reverted_at: string | null;
   writebacks: { id: number; record: string | null; state: string; item_id: number | null; approver_role: string }[];
   notices: PlanNotice[];
   /** The plan change's own case; and on an auto-assign one (P5.23b), the planner's picks by job id. */
@@ -1008,6 +1012,11 @@ export interface PlanChange {
     assign?: PlanAssign[];
   } | null;
 }
+export type PlanChanged =
+  | { what: "job"; id: number; title: string; code: string | null; case: number | null; fields: Record<string, [unknown, unknown]> }
+  | { what: "booking"; id: number; resource: string; name: string; title: string | null; before: number | null; after: number | null }
+  | { what: "capacity"; id: number; resource: string; name: string | null; title: string | null; start: string; end: string;
+      before: null; after: number };
 export interface PlanAssign {
   item_id: number; title: string; kind: string; start: string; end: string; case: number | null; order: string | null;
   crew: string | null; name: string | null; people: number; because: string; breaks: string[]; picked: boolean;
@@ -1310,6 +1319,7 @@ export const workApi = {
   planAssignPick: (id: number, by: string, item: number, crew: string | null) =>
     request<PlanChange>("PUT", `/plan/changes/${id}/assign/${item}`, undefined, { by, crew }),
   planChangeApprove: (id: number, by: string) => request<PlanChange>("POST", `/plan/changes/${id}/approve`, undefined, { by }),
+  planChangeRevert: (id: number, by: string) => request<PlanChange>("POST", `/plan/changes/${id}/revert`, undefined, { by }),
   planNoticeSend: (id: number, n: number, by: string, text: string) =>
     request<PlanChange>("POST", `/plan/changes/${id}/notices/${n}/send`, undefined, { by, text }),
   resourceLoad: (f: { resource?: string; start?: string; days?: number } = {}) =>
