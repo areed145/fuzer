@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { when } from "../format";
 import { api, type RoundPoint, type RoundRun, type FieldHandover, type FieldJob, type FieldPermit, type FieldReading, type PlanItem } from "../api";
-import { kindWord, person as personName, say as words } from "../wording";
+import { detectorName, kindWord, person as personName, say as words } from "../wording";
 import { ActionStatus, Badge, Button, ButtonLink, Card, ConfirmAction, Disclosure, Input, Notice, Select, Textarea, ErrorText, Line, Text, Checkbox, List, Heading } from "../ui";
 import { FieldPhoto, readingText, shrink, useDictation } from "../FieldPhoto";
 import { OUTBOX_CHANGED, asNote, describe, discard, dismissCleared, flush, moveReport, sendHandoverAccept, sendPlanChange, sendReport,
@@ -442,7 +442,7 @@ export function FieldJobCard({ job, person, onChange, onReported, onTaken }: {
         {job.sources?.length > 1 && <div>
           <Heading level={3} small>{reportedBy(job.sources)}</Heading>
           <List plain small>{job.sources.map((x) => <li key={x.id}>
-            <strong>{x.label}</strong>: {x.title} <Text muted>· {x.source ?? ""}</Text></li>)}</List>
+            <strong>{x.label}</strong>: {x.title}{x.source && <Text muted> · {detectorName(x.source)}</Text>}</li>)}</List>
         </div>}
         {job.permit && !desk && !gating && <PermitPanel permit={job.permit} inHand={inHand} onInHand={setInHand} />}
         {(job.checklist?.length ?? 0) > 0 && <div>
@@ -472,7 +472,7 @@ export function FieldJobCard({ job, person, onChange, onReported, onTaken }: {
         <Button variant="primary" disabled={!!busy || !signal.live} onClick={take}>Take it</Button>
         {!signal.live && <Text small muted>{NEEDS_SIGNAL}</Text>}
       </div> : <>
-      <label className="small" htmlFor={`note-${job.id}`}>Note for the IOC</label>
+      <label className="small" htmlFor={`note-${job.id}`}>Note on this job</label>
       <Textarea id={`note-${job.id}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
       {(adding || photos.length > 0) && <fieldset className="field-evidence">
         <legend className="small">A reading</legend>

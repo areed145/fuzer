@@ -281,6 +281,8 @@ export interface SavedWorkView {
 
 export interface CloseoutVocabulary {
   dispositions: Record<string, string>; outcomes: Record<string, string>; failure_modes: Record<string, string>;
+  /** Set by a steward's answer (Matched, No work needed), never picked on the form. */
+  answered?: string[];
   mechanisms: Record<string, string>; causes: Record<string, string>; activities: Record<string, string>;
 }
 
@@ -333,6 +335,8 @@ export interface CaseOption {
   /** Readiness that can't be said, with why ("Parts readiness unknown: no stock source."): never read as ready. */
   unknown?: string[];
   plan_item?: number; start?: string; crew?: string | null; until?: string; to?: string;
+  /** A ride along: who takes it on the visit (the operator queue when null). */
+  operator?: string | null;
 }
 
 export interface OptionDecision { id: number; chosen: CaseOption["key"]; recommended: CaseOption["key"]; accepted: boolean;
@@ -575,7 +579,7 @@ export interface WorkFigures {
   overdue: number;
   stages: Record<Exclude<EventStage, "closed">, number>;
   /** `my_work`: what waits on you less what waits for dispatch, the count Home's My work and the My work page show. */
-  waiting_on_you: { total: number; overdue: number; to_dispatch: number; my_work: number } | null;
+  waiting_on_you: { total: number; overdue: number; to_dispatch: number; my_work: number; assigned: number; unclaimed: number } | null;
 }
 
 export interface WorkInbox {

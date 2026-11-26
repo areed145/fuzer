@@ -24,6 +24,8 @@ def test_the_counts_agree_across_every_endpoint_that_shows_them(okan_db):
         c = client.get("/work/counts", params={"person": "ivy"}).json()
         mine = c["waiting_on_you"]
         assert c["overdue"] >= 7 and mine["total"] and mine["my_work"] == mine["total"] - mine["to_dispatch"]
+        # My work's chips (P5.28d): Assigned to you and Unclaimed in your roles add up to its All
+        assert mine["assigned"] + mine["unclaimed"] == mine["my_work"]
 
         def total(**f):
             return client.get("/cases", params={"limit": 5000, **f}).json()
@@ -79,3 +81,74 @@ def test_the_counts_follow_a_change_at_once(okan_db):
         assert after["open"] == before["open"] - 1 == listed["total"]
         assert after["waiting_on_you"]["total"] == before["waiting_on_you"]["total"] - 1
         assert item not in {r.get("item_id") for r in listed["rows"]}
+
+
+def test_a_write_is_committed_before_its_answer_is_sent(okan_db, monkeypatch):
+    """P5.28d, #1392: the request's connection committed after the answer had gone, so the reads the page made at once
+    (and on the 1-CPU server those made seconds later) still showed the case with its old owner until a reload. A
+    route's connection now commits before the answer starts."""
+    import asyncio
+    import sys
+
+    from fuzer import api
+    from fuzer.api import deps
+
+    said: list[str] = []
+    real = deps.db.connect
+
+    class Recorded:  # the route's connection, saying when what it wrote is committed
+        def __init__(self, conn):
+            self.conn = conn
+
+        def __enter__(self):
+            self.inner = self.conn.__enter__()
+            real_commit = self.inner.commit
+            self.inner.commit = lambda: (said.append("committed"), real_commit())[1]
+            return self.inner
+
+        def __exit__(self, *exc):
+            return self.conn.__exit__(*exc)
+
+    def connect(*a, **k):
+        conn = real(*a, **k)
+        return Recorded(conn) if sys._getframe(1).f_code.co_name == "get_conn" else conn
+
+    monkeypatch.setattr(deps.db, "connect", connect)
+    with TestClient(api.app):  # the app's startup; then one request by hand, to see the order of what happens
+        scope = {"type": "http", "method": "GET", "path": "/work/people", "raw_path": b"/work/people",
+                 "query_string": b"", "headers": [(b"host", b"testserver")], "scheme": "http",
+                 "server": ("testserver", 80), "client": ("127.0.0.1", 1), "root_path": "", "http_version": "1.1",
+                 "app": api.app}
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message):
+            if message["type"] == "http.response.start":
+                said.append(f"answered {message['status']}")
+
+        asyncio.run(api.app(scope, receive, send))
+    # the connection's set-up commits once; the route's own work is committed next, before the answer, not after it
+    assert said[:3] == ["committed", "committed", "answered 200"], said
+
+
+def test_take_it_moves_a_case_from_unclaimed_to_assigned(okan_db):
+    """P5.28d, #1392 (B-N15): after Take it, My work's Assigned to you stayed 0. The chips are the server's counts now,
+    read with the badge's, so taking one moves it from Unclaimed to Assigned and All stays the same."""
+    from fuzer import api
+    from fuzer.ops import worklist
+    from fuzer.workflow import engine
+
+    conn = okan_db.conn
+    engine.set_person(conn, "ivy", [r["name"] for r in conn.execute("select name from work_role where kind = 'person'")])
+    conn.commit()
+    with TestClient(api.app) as client:
+        before = client.get("/work/counts", params={"person": "ivy"}).json()["waiting_on_you"]
+        rows, _ = worklist._shared(conn, "open")
+        row = next(r for r in rows if r.get("item_id") and r["stage"] != "dispatch" and len(r["waiting"] or []) == 1
+                   and not r["waiting"][0].get("assignee"))
+        engine.take_item(conn, row["item_id"], "ivy")
+        conn.commit()
+        after = client.get("/work/counts", params={"person": "ivy"}).json()["waiting_on_you"]
+    assert after["assigned"] == before["assigned"] + 1 and after["unclaimed"] == before["unclaimed"] - 1
+    assert after["my_work"] == before["my_work"] == after["assigned"] + after["unclaimed"]

@@ -9,7 +9,7 @@ import { cap, person as personName, say, workKind } from "../../wording";
 import { Suspense, lazy, useMemo, useState, type ReactNode } from "react";
 import { api, type CaseSource, type MessageSaid, type ReviewKind, type WorkItem, type WorkProcess } from "../../api";
 import { CaseQuestion } from "../Review";
-import { Status, href, notifyChanged, useAsync, useAction } from "../../lib";
+import { Status, afterMap, href, notifyChanged, useAsync, useAction } from "../../lib";
 import { Actor, DataView, Due, ENGINE_FIELDS, EntityLinks, describe, holder, usePerson } from "../../work";
 import { AgentIdle, AssignPicker, GENERIC_STEP, PriorityBadge, SendToField, StepBadges, caseHref, priorityLevel, processHref } from "./shared";
 import { CaseChecklist } from "./Checklist";
@@ -71,22 +71,24 @@ export function NewWorkItem({ onCreated }: { onCreated: () => void }) {
 export function CasePage({ id, demo = false, closing = false }: { id: number; demo?: boolean; closing?: boolean }) {
   const item = useAsync(() => api.workItem(id), [id]);
   const options = useAsync(() => api.caseOptions(id), [id]);
-  // Read beside the case, not after it, and shown with the rest of the evidence once they answer: arriving one by one,
-  // each pushed down what was already on screen (#1069).
-  const around = useAsync(() => api.workItemAround(id), [id]);
-  const safeguards = useAsync(() => api.workItemSafeguards(id), [id]);
-  const evidenceReady = (around.data !== undefined || !!around.error) && (safeguards.data !== undefined || !!safeguards.error);
-  const [person] = usePerson();
   const people = useAsync(() => api.workPeople(), []);
+  // The options decide where Waiting on sits and the roster whether the evidence folds (a field operator): the page
+  // waits for both, failures included, so case 1136 no longer moved under the reader as they answered (P5.26h).
+  const settled = (a: { data?: unknown; error?: unknown }) => a.data !== undefined || !!a.error;
+  const drawn = settled(item) && settled(options) && settled(people);
+  // The evidence is read once the page has drawn, and shown together once it answers: arriving one by one, each pushed
+  // down what was already on screen (#1069). Asked beside the case, the trend's slow read took one of the browser's
+  // four places and the server's one CPU, and the case sat on Loading for seconds (P5.28d).
+  const around = useAsync(() => afterMap(drawn, () => api.workItemAround(id)), [id, drawn], [id]);
+  const safeguards = useAsync(() => afterMap(drawn, () => api.workItemSafeguards(id)), [id, drawn], [id]);
+  const evidenceReady = settled(around) && settled(safeguards);
+  const [person] = usePerson();
   const canAsk = usePermission("ai");  // the assistant runs a paid model: no link for an account that can't ask
   // A question answered here closes its case: its confirmation, with the case and entities it links, stays through
   // the reload that follows (#1382).
   const [answered, setAnswered] = useState<ReactNode>(null);
   const it = item.data;
-  // The options decide where Waiting on sits and the roster whether the evidence folds (a field operator): the page
-  // waits for both, failures included, so case 1136 no longer moved under the reader as they answered (P5.26h).
-  const settled = (a: { data?: unknown; error?: unknown }) => a.data !== undefined || !!a.error;
-  if (!it || item.error || !settled(options) || !settled(people)) return <section><PageHeader>Case</PageHeader>
+  if (!it || item.error || !drawn) return <section><PageHeader>Case</PageHeader>
     {demo && <DemoContext step="workflow" />}
     {it && !item.error ? <Status loading /> : <Status of={item} />}
     <a href={href("/list")}>Return to All work</a></section>;
@@ -128,7 +130,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
     {!evidenceReady ? <Status loading /> : <>
       <CaseSafeguards id={it.id} data={safeguards.data} />
       {/* the message card above is what was found when the case is only messages */}
-      {!asks && !(message && it.sources?.every((x) => x.type === "message_report")) && <CaseFindings sources={it.sources} />}
+      {!asks && !(message && it.sources?.every((x) => x.type === "message_report")) && <CaseFindings sources={it.sources} openedBy={it.created_by} />}
       {/* a question about the records has no event to trend, answered or not */}
       {!question && <CaseAround id={it.id} data={around.data} focus={it.title} />}
       <Related about={{ case: it.id }} />

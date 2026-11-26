@@ -130,10 +130,14 @@ report figure (a measure with the `production_day` cut-off that adds up or avera
 and not 0, on each of the last 14 daily reports up to the window's end has stopped being read: the measure is
 unknown with "every daily report since ... gives the same ...: the reading looks frozen", and the daily report says
 the frozen figures are not reported (`ops/measures.frozen`, #1386). Production efficiency carries the volumes it is
-the ratio of (`parts`: allocated oil and the binding capacity), and the daily report states them beside it, so 100%
-never sits unexplained beside a smaller share of the reported potential. Plan against actual's planned hours and cost
-count each line's estimate for the part of its period inside the window, so the quarter to date and the window before
-it are compared like for like; its backlog table starts with the open orders the sentence above it starts from. The
+the ratio of (`parts`: the oil allocated `of` the binding capacity, with their unit), and the daily report and its
+stat tile state them beside it ("46,997 bbl of the 46,999 bbl the facility could deliver"), so 100% never sits
+unexplained beside a smaller share of the reported potential (#1396). Plan against actual's planned hours and cost
+count each line's estimate for the part of its period inside the window, and its actual hours each job's hours for the
+part of its dates inside the same window, so planned and actual, and the quarter to date and the window before it, are
+compared like for like; the Plan lines table reads each line the same way, so its lines add up to the figures above
+it (#1396). Its backlog table starts with the open orders the sentence above it starts from. A cases panel gives the
+AI note the first rows of a longer list with `shown` ("6 of 41 shown"), so the note never calls six rows all of them. The
 daily report shows no line-by-line diff of its versions; earlier versions are a tap away.
 
 `trend_spec.from_measures` draws measures over a window as a trend spec (`analysis/trend_spec.py`), one series per

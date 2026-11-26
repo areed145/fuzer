@@ -454,6 +454,33 @@ test("a report page wraps its rows four, two and one across, keeps scope and win
   await page.setViewportSize({ width: 1440, height: 900 });
 });
 
+// P5.28h (#1396, tour D A8): the efficiency tile read a bare 100% beside oil figures it did not seem to match; it names
+// the volumes it is the ratio of.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.28h the efficiency tile names the volumes it is the ratio of (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    const win = { key: "1d", at: "2026-11-25", start: "2026-11-25", end: "2026-11-25", days: 1, label: "25 Nov 2026",
+      previous: { start: "2026-11-24", end: "2026-11-24" } };
+    const scope = { id: "fz-f1", label: "OKAN", kind: "facility" };
+    const view = { scope, window: win, repeats: {}, scopes: [scope], unknown: [],
+      definition: { schema: 1, key: "operations", title: "Daily operations", version: 1, for: [], scope: { kinds: ["facility"] },
+        window: { default: "1d", options: ["1d"] }, source: "platform",
+        rows: [{ id: "headline", panels: [{ id: "efficiency", type: "stat", size: 1, measure: "production.efficiency" }] }] } };
+    await page.route("**/reports/operations?*", (route) => route.fulfill({ json: view }));
+    await page.route("**/reports/operations", (route) => route.fulfill({ json: view }));
+    await page.route("**/reports/operations/panels/**", (route) => route.fulfill({ json: { id: "efficiency", type: "stat",
+      title: "Production efficiency", measure: "production.efficiency", value: 100, unknown: false, unit: "%", target: 95,
+      better: "higher", previous: 100, history: [], as_of: "2026-11-25", source: "production days", note: null, scoped: true,
+      refs: [], href: "/metrics/production.efficiency", scope, window: win,
+      parts: { value: 46997, of: 46999, unit: "bbl", of_what: "the facility could deliver" } } }));
+    await page.goto(`${url}/#/reports/operations`);
+    const tile = page.locator(".report-type-stat", { hasText: "Production efficiency" });
+    await tile.getByText("46,997 bbl of the 46,999 bbl the facility could deliver").waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}
+
 test("a report's AI note cites what it rests on by name and keeps a note that fails its checks from readers; a note shows its live values and adds for the period", async () => {
   const win = { key: "7d", at: "2026-11-24", start: "2026-11-18", end: "2026-11-24", days: 7, label: "7 days to 24 Nov 2026",
     previous: { start: "2026-11-11", end: "2026-11-17" } };
@@ -863,10 +890,47 @@ test("another option than the recommended one takes an optional why, which goes 
   assert.equal(await go.getAttribute("title"), null, "no reason hidden in a hover tooltip");
   await card.getByLabel("Why (optional, kept on the case)").fill("crew already on OKJ-01 that day");
   await go.click();
-  await page.getByRole("status").filter({ hasText: "Added to the visit. The choice and why are on the case." }).waitFor();
+  await page.getByRole("status").filter({ hasText: "Added to the visit for the operator queue. The choice and why are on the case." }).waitFor();
   assert.deepEqual(chosen, [{ by: "riley", option: "window", reason: "crew already on OKJ-01 that day" }]);
   await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
 });
+
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.28b a ride along says whose field step it is, and no risk word shows without a basis (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    const chosen = [];
+    const base = caseOptions();
+    // no criticality on record: no risk on any option; the ride along goes to the visit's operator, sam
+    const options = caseOptions({
+      criticality: null, recommended: "window", reason: "The visit on Wed 25 Nov does it with nothing deferred while it waits.",
+      options: base.options.map(({ risk, ...o }) => (o.key === "window" ? { ...o, operator: "sam" } : o)),
+    });
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "20-K-2300B tripped", type: "machine_trip",
+      state: "open", subjects: [], created_by: "agent:sre", created_at: "2026-11-22T12:00:00Z", events: [], processes: [],
+      payload: { exception_id: 7 } } }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: options }));
+    await page.route("**/exceptions/7/options/choose", (route) => {
+      chosen.push(route.request().postDataJSON());
+      return route.fulfill({ json: { choice: { id: 4, chosen: "window", recommended: "window", accepted: true },
+        event: { id: 7, item_id: 21, stage: "field", state: "open" } } });
+    });
+    await page.goto(`${url}/#/cases/21`);
+    await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    await page.reload();
+    const card = page.getByLabel("Options");
+    await card.getByText("Recommended", { exact: true }).waitFor();
+    assert.equal(await card.getByText(/^Risk/).count(), 0, "no risk word without a basis");
+    await card.getByRole("button", { name: "Add to the visit", exact: true }).click();
+    await page.getByRole("status")
+      .filter({ hasText: "Added to the visit for sam, as recommended. The choice and why are on the case." }).waitFor();
+    assert.deepEqual(chosen, [{ by: "riley", option: "window" }]);
+    if (size === "phone") {
+      const width = await page.evaluate(() => document.documentElement.scrollWidth);
+      assert.ok(width <= 390, `no sideways scroll (${width})`);
+    }
+    await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+  });
+}
 
 for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
   test(`P5.26h after Escalate the case reads again once its workflow has moved on, and waits for its options to draw (${size})`, async () => {
@@ -4120,7 +4184,7 @@ test("a field operator sees a dispatched job on a phone and reports back; the IO
   assert.equal(await page.evaluate(() => document.activeElement?.id), "note-7");
   assert.equal(reports.length, 0);
   await mine.getByRole("button", { name: "On site" }).click();
-  await mine.getByLabel(/Note for the IOC/).fill("valve seized");
+  await mine.getByLabel(/Note on this job/).fill("valve seized");
   await mine.getByRole("button", { name: "Could not do" }).click();
   await expectReports(reports, 2);
   assert.deepEqual(reports.map((r) => r.status), ["on_site", "could_not_do"]);
@@ -4452,7 +4516,7 @@ for (const [name, width, height] of [["phone", 390, 844], ["desktop", 1440, 900]
       return file.left >= box.left && file.right <= box.right;
     });
     assert.equal(fits, true, "the photo input stays inside its card");
-    await card.getByLabel("Note for the IOC").fill("Bolts replaced");
+    await card.getByLabel("Note on this job").fill("Bolts replaced");
     // scrolled down to the card's buttons, as a phone is by then: the short confirmation replacing a tall card must
     // not end up under the top bar (tour B, finding 15 of tour A)
     // a long My work below the jobs, as on the live site, so the page keeps its scroll when the card shrinks
@@ -4640,7 +4704,7 @@ test("a field operator's tap on Could not do asks for why and then sends it (P5.
   await card.getByRole("button", { name: "Done", exact: true }).tap();
   await card.getByText("Say you are on site, or add a note, reading or photo, then select Done.").waitFor();
   assert.equal(reports.length, 0);
-  await card.getByLabel("Note for the IOC").fill("Gas detector in alarm, area barriered; needs a gas test and permit");
+  await card.getByLabel("Note on this job").fill("Gas detector in alarm, area barriered; needs a gas test and permit");
   await couldNot.tap();
   await expectReports(reports, 1);
   assert.deepEqual([reports[0].status, reports[0].note], ["could_not_do", "Gas detector in alarm, area barriered; needs a gas test and permit"]);
@@ -4854,6 +4918,8 @@ test("the integrated plan shows clashes and bundling by area and reschedules an 
   const changes = [];
   await page.route("**/plan?*", (route) => route.fulfill({ json: items }));
   await page.route("**/plan/1", (route) => { changes.push(route.request().postDataJSON()); return route.fulfill({ json: items[0] }); });
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
+  await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "operator", kind: "person" }] }));
   await page.goto(`${url}/#/plan`);
   await page.getByRole("heading", { name: "North", exact: true }).waitFor();
   await page.getByText("1 with a clash").waitFor();
@@ -4863,7 +4929,7 @@ test("the integrated plan shows clashes and bundling by area and reschedules an 
   await page.getByText(/Bundle: could be done during/).waitFor();
   await page.getByText("1 waiting on parts").waitFor();
   await page.getByText(/no stock on record.*10001 seal kit \(Mechanical seal\)/).waitFor();
-  await page.getByLabel("Crew").fill("fred");
+  await page.getByRole("combobox", { name: "Who" }).selectOption("fred");
   await page.getByRole("button", { name: "Reschedule" }).click();
   await expectReports(changes, 1);
   assert.equal(changes[0].crew, "fred");
@@ -4892,7 +4958,8 @@ test("#25 Plan shows each crew's load day by day on the plan's own dates, overlo
     res("MECH", "Mechanical fitters", "crew", 6, (n) => (n === 9 ? 8 : n === 10 ? 4 : 0)),
     res("SCAF", "Scaffolders", "crew", 4, () => 0)] } }));
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto(`${url}/#/plan`);
+  await page.goto(`${url}/#/plan?from=${from}`);
+  await page.getByRole("combobox", { name: "Showing" }).selectOption("56");
   const card = page.locator(".plan-load");
   await card.getByText("1 of 1 over capacity on some days.", { exact: false }).waitFor();
   const row = card.getByRole("link", { name: /Mechanical fitters/ });
@@ -4900,13 +4967,77 @@ test("#25 Plan shows each crew's load day by day on the plan's own dates, overlo
   await row.getByText("over on 1 day").waitFor();
   assert.equal(await card.locator(".plan-load-day").count(), 2);
   assert.equal(await card.locator(".plan-load-day.over").count(), 1);
-  await card.getByText("Not used in these weeks: Scaffolders.").waitFor();
+  await card.getByText("Not used on these dates: Scaffolders.").waitFor();
   // The day's column sits on the same dates as the rows: day 9 of a window that starts at From.
   const [track, over] = await Promise.all([card.locator(".plan-load-track").boundingBox(), card.locator(".plan-load-day.over").boundingBox()]);
   const expected = track.x + (9 / 56) * track.width;
   assert.ok(Math.abs(over.x - expected) < 2, `overloaded day at ${over.x}, expected ${expected}`);
   await page.setViewportSize({ width: 390, height: 900 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+// P5.28g (#1395): the planner's day. Plan opens on today with a day view, the longer ranges kept as choices; a machine's
+// field exceptions are one row; a job has one crew field and lists a part once; the axis labels never run together.
+test("P5.28g Plan opens on the planner's day, one row per machine's exceptions, one crew field, labels apart", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const hour = (h) => new Date(Date.now() + h * 3_600_000).toISOString();
+  const today = new Date().toISOString().slice(0, 10);
+  const base = { source: "exceptions", area_id: "fz-area-0123456789ab", area_label: "North", crew: null, crew_hours: null,
+    deferment_usd: null, notes: null, status: "scheduled", needs_shutdown: false, clashes: [], parts_short: [] };
+  const machine = { subjects: ["fz-equipment-k101"], assets: [{ fuzer_id: "fz-equipment-k101", label: "K-101" }] };
+  const items = [
+    ...[1, 2, 3, 4].map((n) => ({ ...base, ...machine, id: n, kind: "exception", exception_id: 10 + n, source_key: String(10 + n),
+      title: `K-101 needs action: flag ${n}`, start_at: hour(-2 + n * 0.1), end_at: hour(2 + n) })),
+    { ...base, id: 5, kind: "maintenance", exception_id: null, source: "sap", source_key: "4000005", title: "Replace P-101 seal",
+      subjects: ["fz-equipment-p101"], assets: [{ fuzer_id: "fz-equipment-p101", label: "P-101" }], start_at: hour(1), end_at: hour(5),
+      parts_short: [{ id: "fz-material-1", label: "MAT-1", description: "Bearing set", mpn: null, bin: null, for: "fz-equipment-p101" }] },
+  ];
+  const asked = [];
+  await page.route("**/plan?*", (route) => { asked.push(Object.fromEntries(new URL(route.request().url()).searchParams)); return route.fulfill({ json: items }); });
+  await page.route("**/plan/resources/load*", (route) => route.fulfill({ json: { start: today, end: today, days: 1, resources: [] } }));
+  await page.route("**/plan/resources", (route) => route.fulfill({ json: [{ code: "MECH", name: "Mechanical fitters", kind: "crew", capacity: 6 }] }));
+  await page.route("**/plan/*/prerequisites", (route) => route.fulfill({ json: { item_id: 5, ready: true, released_at: null, released_by: null, prerequisites: [] } }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
+  await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "operator", kind: "person" }] }));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/#/plan`);
+  await page.getByRole("heading", { name: "North", exact: true }).waitFor();
+  // today, one day, the longer ranges still there
+  assert.equal(await page.getByLabel("From").inputValue(), today);
+  const showing = page.getByRole("combobox", { name: "Showing" });
+  assert.equal(await showing.locator("option:checked").textContent(), "1 day");
+  assert.deepEqual(await showing.locator("option").allTextContents(), ["1 day", "1 week", "2 weeks", "4 weeks", "8 weeks", "12 weeks", "26 weeks"]);
+  assert.equal(asked.at(-1).start, today);
+  assert.equal(asked.at(-1).end, new Date(new Date(today).getTime() + 86_400_000).toISOString().slice(0, 10));
+  await page.locator(".plan-axis-today", { hasText: "Now" }).first().waitFor();
+  // four exceptions on K-101 are one row that opens to each of them
+  const group = page.getByRole("button", { name: /K-101.*4 exceptions/ });
+  await group.waitFor();
+  assert.equal(await page.getByRole("button", { name: /K-101 needs action/ }).count(), 0);
+  await group.click();
+  assert.equal(await page.getByRole("button", { name: /K-101 needs action/ }).count(), 4);
+  // a job: one crew field, who goes from the roster, a part once
+  await page.getByRole("button", { name: /Replace P-101 seal/ }).click();
+  await page.getByRole("combobox", { name: "Crew" }).waitFor();
+  await page.getByRole("combobox", { name: "Who" }).waitFor();
+  assert.equal(await page.getByLabel("Book on").count(), 0);
+  assert.equal(await page.getByPlaceholder(/person or role/).count(), 0);
+  assert.equal(await page.getByText(/MAT-1 \(Bearing set\)/).count(), 1);
+  // the axis labels never touch each other or the Today mark, on iPad portrait, a phone and a desktop
+  await showing.selectOption("56");
+  await page.getByLabel("From").fill(new Date(Date.now() - 4 * 86_400_000).toISOString().slice(0, 10));
+  for (const width of [834, 390, 1280]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.locator(".plan-axis-today", { hasText: "Today" }).first().waitFor();
+    await page.waitForTimeout(100);
+    const boxes = await page.locator(".plan-area").last().evaluate((card) => [...card.querySelectorAll(".plan-axis-week, .plan-axis-today")]
+      .filter((el) => el.textContent.trim()).map((el) => { const r = el.getBoundingClientRect(); return { text: el.textContent, left: r.left, right: r.right }; })
+      .sort((a, b) => a.left - b.left));
+    assert.ok(boxes.length >= 3, `at ${width}px: ${JSON.stringify(boxes)}`);
+    for (let n = 1; n < boxes.length; n++)
+      assert.ok(boxes[n].left >= boxes[n - 1].right, `at ${width}px "${boxes[n - 1].text}" runs into "${boxes[n].text}"`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  }
 });
 
 test("a cold open shows the last answers at once, says how old they are, then swaps in the fresh ones", async () => {
@@ -5801,7 +5932,7 @@ test("an overarching person's Inbox lists their work in other fields and opens a
     { project: "kestrel", roles: ["engineer"], mine: [], queue: [row] },
   ] }));
   await page.goto(`${url}/#/inbox?steps=1`);
-  await page.getByText("In your other fields", { exact: false }).waitFor();
+  await page.getByText("At your other sites", { exact: false }).waitFor();
   await page.getByText("Sales gas compressor vibration", { exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Work in okan" }).count(), 0);  // the field this tab is in
   await page.getByRole("button", { name: "Work in kestrel" }).click();
@@ -6168,7 +6299,7 @@ test("a report made without signal waits on the phone and is sent once with its 
   await card.getByRole("button", { name: "Details" }).click();
   await card.getByText("P-101 export pump").waitFor();
   const before = Date.now();
-  await card.getByLabel(/Note for the IOC/).fill("Gland weeping, 12 drips a minute");
+  await card.getByLabel(/Note on this job/).fill("Gland weeping, 12 drips a minute");
   await card.getByRole("button", { name: "Add note", exact: true }).click();
   await card.getByText("No signal: kept on this phone", { exact: false }).waitFor();
   await page.getByRole("heading", { name: "1 report waiting to send" }).waitFor();
@@ -6239,7 +6370,7 @@ test("P5.17a Ten reports with four photos each wait on the phone and are sent on
     await card.getByRole("button", { name: "Reading or photo" }).click();
     await card.locator('input[type="file"]').setInputFiles(files);
     await card.getByText("Photos (4)").waitFor();
-    await card.getByLabel(/Note for the IOC/).fill(`Report ${n}`);
+    await card.getByLabel(/Note on this job/).fill(`Report ${n}`);
     await card.getByRole("button", { name: "Add note", exact: true }).click();
     await page.getByRole("heading", { name: `${n + 1} reports waiting to send` }).waitFor();
   }
@@ -6313,7 +6444,7 @@ test("P5.17b The top bar shows no signal and what waits to send on every page, a
   assert.equal(await take.getByRole("button", { name: "Take it" }).isDisabled(), true);
   await take.getByText("Needs signal", { exact: false }).waitFor();
 
-  await card.getByLabel(/Note for the IOC/).fill("Gland weeping");
+  await card.getByLabel(/Note on this job/).fill("Gland weeping");
   await card.getByRole("button", { name: "Add note", exact: true }).click();
   await card.getByText("Note waiting to send").waitFor();
   await status.filter({ hasText: "· 1 waiting" }).waitFor();
@@ -6600,7 +6731,7 @@ test("P5.17f A refused report stays on the phone and goes as a note; a lapsed se
 
   // Without signal: On site with a note. Back in signal, the server refuses it.
   reachable = false;
-  await card.getByLabel(/Note for the IOC/).fill("Gland weeping, 12 drips a minute");
+  await card.getByLabel(/Note on this job/).fill("Gland weeping, 12 drips a minute");
   await card.getByRole("button", { name: "On site", exact: true }).click();
   await page.getByRole("heading", { name: "1 report waiting to send" }).waitFor();
   answer = "refuse";
@@ -6623,7 +6754,7 @@ test("P5.17f A refused report stays on the phone and goes as a note; a lapsed se
 
   // A report made offline meets a lapsed session: nothing is dropped, and it goes once signed in again.
   reachable = false;
-  await card.getByLabel(/Note for the IOC/).fill("Gland still weeping");
+  await card.getByLabel(/Note on this job/).fill("Gland still weeping");
   await card.getByRole("button", { name: "Add note", exact: true }).click();
   await page.getByRole("heading", { name: "1 report waiting to send" }).waitFor();
   answer = "expired";
@@ -6777,7 +6908,7 @@ test("P5.17h On throttled 3G, a report whose answer was cut off is sent again an
   await card.getByRole("button", { name: "Reading or photo" }).click();
   await card.locator('input[type="file"]').setInputFiles([{ name: "gland.jpg", mimeType: "image/jpeg", buffer: photo }]);
   await card.getByText("Photos (1)").waitFor();
-  await card.getByLabel(/Note for the IOC/).fill("Gland weeping");
+  await card.getByLabel(/Note on this job/).fill("Gland weeping");
   await card.getByRole("button", { name: "Add note", exact: true }).click();
   // The answer was cut off: the report stays on the phone, then goes again when the app next sends.
   await card.getByText("Note waiting to send").waitFor({ timeout: 15_000 });
@@ -6816,7 +6947,7 @@ test("P5.17h On lie-fi, with the phone online but nothing answering, the report 
 
   liefi = true;
   assert.equal(await page.evaluate(() => navigator.onLine), true);
-  await card.getByLabel(/Note for the IOC/).fill("Gland weeping");
+  await card.getByLabel(/Note on this job/).fill("Gland weeping");
   await card.getByRole("button", { name: "Add note", exact: true }).click();
   await page.waitForTimeout(200);
   await page.clock.fastForward(61_000);
@@ -6857,7 +6988,7 @@ test("P5.17h When the phone has cleared the app's store, the operator is told, w
   await card.getByText("Look at the gland").waitFor();
   reachable = false;
   for (const [n, note] of ["Gland weeping", "Gland still weeping"].entries()) {
-    await card.getByLabel(/Note for the IOC/).fill(note);
+    await card.getByLabel(/Note on this job/).fill(note);
     await card.getByRole("button", { name: "Add note", exact: true }).click();
     await page.getByRole("heading", { name: n ? "2 reports waiting to send" : "1 report waiting to send" }).waitFor();
   }
@@ -7330,11 +7461,51 @@ test("the dispatch card shows what blocks a job and sends a blocked one only wit
   await page.getByText("not ready", { exact: true }).waitFor();
   await page.getByLabel("What to do").fill("check the discharge valves");
   const send = page.getByRole("button", { name: "Send", exact: true });
-  assert.equal(await send.isDisabled(), true);  // blocked: a reason first
+  // blocked: a reason first, asked for when Send is pressed rather than by a greyed button (P5.28f)
+  await send.click();
+  await page.getByText("Not ready: say why it should go anyway.").waitFor();
+  assert.equal(sent.length, 0);
   await page.getByLabel("Why send it anyway").fill("valves can be changed on the 15th, inspect now");
   await send.click();
   await expectReports(sent, 1);
   assert.deepEqual([sent[0].to, sent[0].override], ["fred", "valves can be changed on the 15th, inspect now"]);
+});
+
+// P5.28c (#1391): a send to the planner is never held on parts or crew: planning them is the planner's work. The tour
+// sent a PM to pat (maintenance planner) and had to type why it should go anyway.
+test("a send to the planner goes without a reason, whatever readiness says (P5.28c, #1391)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ines"));
+  const job = { id: 7, type: "routine_due", key: "pm-st2", title: "365-day preventive maintenance, ST2 test separator",
+    state: "open", source: "sap", priority: 2, value_usd: null, subjects: ["fz-v2001"], unmatched: [], evidence: {},
+    item_id: null, assignee: null, role: null, raised_count: 1, last_seen: "2026-11-12T05:00:00Z",
+    first_seen: "2026-11-12T05:00:00Z", joined: [], planned: null };
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [job] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] },
+    { name: "pat", roles: ["maintenance_planner"] }] }));
+  await page.route("**/exceptions/7/readiness", (route) => route.fulfill({ json: { ready: false,
+    blockers: ["Crew: Mechanical maintenance crew (MECH): 9 of 6 booked today"],
+    checks: [{ check: "crew", label: "Crew", ready: false, checked: true, note: null, blockers: [] }] } }));
+  const sent = [];
+  await page.route("**/exceptions/7/dispatch", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
+  for (const width of [390, 1280]) {
+    sent.length = 0;
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${url}/#/list`);
+    await page.getByRole("button", { name: "Send to", exact: true }).click();
+    await page.getByLabel("Dispatch to").selectOption("fred");
+    await page.getByText("9 of 6 booked today", { exact: false }).waitFor();  // the field still sees what holds it
+    await page.getByLabel("Dispatch to").selectOption("pat");
+    await page.getByLabel("What to do").fill("Plan and schedule the 365-day PM");
+    assert.equal(await page.getByText("not ready", { exact: true }).count(), 0);
+    assert.equal(await page.getByLabel("Why send it anyway").count(), 0);
+    const send = page.getByRole("button", { name: "Send", exact: true });
+    assert.equal(await send.isDisabled(), false);
+    await send.click();
+    await expectReports(sent, 1);
+    assert.deepEqual([sent[0].to, sent[0].override ?? null], ["pat", null]);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  }
+  await page.setViewportSize({ width: 1280, height: 800 });
 });
 
 // P5.5b, P5.5c (#682, #683): the dispatch card says how busy the job's crew is and which permit covers it, and a full
@@ -11066,3 +11237,266 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     assert.deepEqual(errors, []);
   });
 }
+
+// P5.28e (#1393, tour D8, D17): what #1387's formatters still missed. The case head printed its subject's id until the
+// names came, a brief's text kept its "(fz-tag-...)" citations, a field report kept before it named its reporter read
+// "Another system found this", and Plan showed the crew as "role:operator" and "user:demo".
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.28e plain words on a case and on Plan, never ids or actors (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const tag = "fz-tag-89c2b263acef";
+    await page.route("**/entities/names*", async (route) => {
+      await new Promise((r) => setTimeout(r, 700));  // the names come after the case
+      return route.fulfill({ json: { [tag]: { label: "40-V-2002", description: "LP Production Separator" } } });
+    });
+    const source = { id: 12, type: "field_report", key: "2026-11-14T06:00#1", title: "Small drip from a drain valve on 40-V-2002",
+      source: "sample crew", state: "open", first_seen: "2026-11-14T14:35:00Z", last_seen: "2026-11-14T14:35:00Z",
+      joined_to: null, subjects: [tag], label: "Field report",
+      finding: finding("external", "Noticed on the way round", [text("What was seen", "Small drip from a drain valve")]) };
+    await page.route("**/work/items/51", (route) => route.fulfill({ json: { id: 51, type: "field_report", state: "open",
+      title: source.title, subjects: [tag], priority: null, created_by: "sam", created_at: "2026-11-14T14:35:00Z",
+      payload: { exception_id: 12 }, sources: [source], processes: [], events: [],
+      brief: { expected: true, due: "2026-11-15T06:00:00Z", verdict: null, entry: { pack: "maintenance-integrity/static",
+        ledger: { cost_usd: 0.1 }, budget_usd: 0.5, over_budget: false, late: false,
+        brief: { what_happened: `The drain valve on 40-V-2002 (${tag}) weeps at the bonnet.` } } } } }));
+    await page.route("**/work/items/51/options", (route) => route.fulfill({ json: caseOptions({ item_id: 51, exception_id: 12 }) }));
+    await page.goto(`${url}/#/cases/51`);
+    const head = page.locator(".case-head");
+    await head.getByText("Field report", { exact: true }).first().waitFor();
+    assert.ok(!(await head.innerText()).includes(tag), "no id while the names load");
+    await head.getByRole("link", { name: /^40-V-2002/ }).waitFor();
+    await page.getByText(/^sam reported this/).waitFor();
+    await page.locator(".case-brief").getByRole("link", { name: "40-V-2002" }).waitFor();
+    const main = await page.locator("main").innerText();
+    for (const raw of [tag, "Another system", "sample crew"]) assert.ok(!main.includes(raw), `no "${raw}" on the case`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+
+    const at = (d) => new Date(Date.now() + d * 86_400_000).toISOString();
+    const bar = { source: "sap", subjects: [tag], area_id: "fz-area-0123456789ab", area_label: "North", crew_hours: null,
+      deferment_usd: null, exception_id: null, notes: null, needs_shutdown: false, status: "scheduled", clashes: [],
+      assets: [{ fuzer_id: tag, label: "40-V-2002" }] };
+    await page.route("**/plan?*", (route) => route.fulfill({ json: [
+      { ...bar, id: 1, kind: "maintenance", title: "Unusual noise from 10-P-1001A", source_key: "1", start_at: at(0), end_at: at(1),
+        crew: "role:operator" },
+      { ...bar, id: 2, kind: "maintenance", title: "Unusual noise from 10-V-2002", source_key: "2", start_at: at(0), end_at: at(1),
+        crew: "user:demo" }] }));
+    await page.goto(`${url}/#/plan`);
+    await page.getByText(/operator queue/).first().waitFor();
+    await page.getByText(/Demo account/).first().waitFor();
+    const plan = await page.locator("main").innerText();
+    for (const raw of ["role:operator", "user:demo"]) assert.ok(!plan.includes(raw), `no "${raw}" on Plan`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
+
+// ---- P5.28d (#1392): pages follow actions ---------------------------------------------------------------------------
+
+const PHONE_DESK = [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]];
+/** A case worked by the queue_item workflow, its one step with `role`. */
+const queueCase = (role, extra = {}) => ({ id: 21, title: "V-2002 level glass cracked, isolated it", type: "machine_trip", state: "open",
+  subjects: [], created_by: "agent:sre", created_at: "2026-11-22T12:00:00Z", events: [], payload: { exception_id: 7 },
+  processes: [{ id: 1, process_key: "queue_item", state: "running", definition_id: 3, open: [{ id: 50, kind: "user", name: "Work the case",
+    element: "work", role, assignee: null, process_id: 1, due_at: null, created_at: "2026-11-22T12:00:00Z" }] }], ...extra });
+
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.28d after Dispatch the case shows its new owner at once, on a page opened with kept answers too (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    let chosen = 0, visits = 0;
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: queueCase(chosen ? "operator" : "ops_lead") }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: chosen
+      ? caseOptions({ applies: false, why_not: "the field has it", stage: "field", options: [] }) : caseOptions() }));
+    // the second visit's trend never answers: the kept answers it opened with hold the page's fresh answers together
+    await page.route("**/work/items/21/around", (route) => (++visits > 1 ? undefined : route.fallback()));
+    await page.route("**/exceptions/7/options/choose", (route) => {
+      chosen++;
+      return route.fulfill({ json: { choice: { id: 1, chosen: "dispatch", recommended: "dispatch", accepted: true },
+        event: { id: 7, item_id: 21, stage: "field", state: "open" } } });
+    });
+    await page.goto(`${url}/#/cases/21`);
+    const waiting = page.getByLabel("Next step");
+    await waiting.getByText(/With .*ops lead/i).waitFor();
+    await page.waitForTimeout(800);  // the answers are kept
+    await page.evaluate(() => { location.hash = "#/inbox"; });
+    await page.getByRole("navigation", { name: "Show in my work" }).waitFor();
+    await page.evaluate(() => { location.hash = "#/cases/21"; });
+    await page.getByLabel("Options").getByRole("button", { name: "Dispatch now", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "Dispatched to the operator queue" }).waitFor();
+    // the new owner, without a reload, well before the held trend would have let the page change (ten seconds)
+    await waiting.getByText(/With .*operator/i).waitFor({ timeout: 3000 });
+    assert.equal(chosen, 1, "the dispatch went once: only reads repeat");
+    assert.deepEqual(errors, []);
+  });
+
+  test(`P5.28d a case draws without waiting for its evidence, and an entity's name never shows as its id (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => {
+      window.__sawId = false;
+      new MutationObserver(() => { if (document.body?.textContent?.includes("fz-tag-c8bb45ec62bf")) window.__sawId = true; })
+        .observe(document, { subtree: true, childList: true, characterData: true });
+    });
+    let answered = false, askedEarly = false, aroundDone = false;
+    await page.route("**/work/items/21", (route) => { answered = true;
+      return route.fulfill({ json: queueCase("ops_lead", { subjects: ["fz-tag-c8bb45ec62bf"] }) }); });
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: caseOptions({ applies: false, why_not: "desk work", options: [] }) }));
+    await page.route("**/work/items/21/around", (route) => {
+      if (!answered) askedEarly = true;
+      setTimeout(() => { aroundDone = true; route.fulfill({ json: [] }).catch(() => {}); }, 3000);
+    });
+    await page.route("**/entities/names**", (route) => setTimeout(() => route.fulfill({ json: {
+      "fz-tag-c8bb45ec62bf": { label: "40-V-2002", description: "Test separator" } } }).catch(() => {}), 800));
+    await page.goto(`${url}/#/cases/21`);
+    await page.getByRole("heading", { name: "V-2002 level glass cracked, isolated it" }).waitFor();
+    await page.getByLabel("Next step").waitFor();
+    assert.equal(aroundDone, false, "the case drew before its trend answered");
+    assert.equal(askedEarly, false, "the trend is asked once the case has drawn, not ahead of it");
+    await page.locator("main").getByRole("link", { name: "40-V-2002" }).first().waitFor();
+    assert.equal(await page.evaluate(() => window.__sawId), false, "the raw id never showed before its name");
+    assert.deepEqual(errors, []);
+  });
+
+  test(`P5.28d My work's chips are the server's counts, and To dispatch opens those cases (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+    const inbox = { person: "ann", roles: ["ops_lead"], mine: [], queue: [{ ...homeRow(2), bulk: [] }, { ...homeRow(3), bulk: [] }],
+      counts: { mine: { total: 0, overdue: 0 }, queue: { total: 2, overdue: 0 } } };
+    await page.route("**/work/inbox?*", (route) => route.fulfill({ json: inbox }));
+    await page.route("**/work/counts?*", (route) => route.fulfill({ json: workCounts({ dispatch: 4, desk: 5 },
+      { total: 9, overdue: 0, to_dispatch: 4, my_work: 5, assigned: 2, unclaimed: 3 }) }));
+    await page.goto(`${url}/#/inbox`);
+    const chips = page.getByRole("navigation", { name: "Show in my work" });
+    await chips.getByRole("button", { name: "All 5" }).waitFor();
+    // Assigned and Unclaimed add up to All; with To dispatch they make the Work badge (9)
+    await chips.getByRole("button", { name: "Assigned to you 2" }).waitFor();
+    await chips.getByRole("button", { name: "Unclaimed in your roles 3" }).waitFor();
+    const toDispatch = chips.getByRole("link", { name: "To dispatch 4" });
+    assert.equal(await toDispatch.getAttribute("href"), "#/list?stage=dispatch");
+    await toDispatch.click();
+    await page.waitForURL(/#\/list\?stage=dispatch$/);
+    assert.deepEqual(errors, []);
+  });
+}
+
+// ---- P5.28f (#1394): phone and iPad snags ---------------------------------------------------------------------------
+
+const PHONE_IPAD = [["phone", { width: 390, height: 844 }], ["iPad portrait", { width: 834, height: 1194 }]];
+for (const [size, viewport] of PHONE_IPAD) {
+  test(`P5.28f the Close link lands on the close-out form, clear of the top bar (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    // a long message above Waiting on: the form starts below the first screen
+    const said = Array.from({ length: 30 }, (_, i) => `Line ${i + 1}: the transmitter was checked and read zero against the local gauge.`).join(" ");
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: queueCase("ops_lead", { payload: { exception_id: 7,
+      message: { id: "MSG-1", channel: "email", channel_label: "IOC mailbox", sender: "Tunde", subject: null, text: said,
+        received_at: "2026-11-25T06:00" } } }) }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: caseOptions({ applies: false, stage: "back",
+      why_not: "the field reported it done: close it out", options: [] }) }));
+    await page.route("**/work/items/21/closeout", (route) => route.fulfill({ json: { item_id: 21, record: null, repeats: [],
+      vocabulary: { dispositions: { real: "A real problem", false_alarm: "False alarm" }, outcomes: { fixed: "Fixed" },
+        failure_modes: {}, mechanisms: {}, causes: {}, activities: {} }, suggestion: { from: "words" } } }));
+    await page.goto(`${url}/#/cases/21?close=1`);
+    const form = page.locator(".closeout-form");
+    await form.getByLabel("What it was").waitFor();
+    await page.waitForTimeout(300);
+    const bar = await page.locator(".topbar").boundingBox();
+    const box = await form.boundingBox();
+    const field = await form.getByLabel("What it was").boundingBox();
+    assert.ok(box && field && box.y >= (bar ? bar.y + bar.height : 0) - 1 && field.y + field.height <= viewport.height,
+      `the form is in view under the top bar (${box?.y}, bar ends ${bar ? bar.y + bar.height : 0}, field ${field?.y})`);
+    assert.deepEqual(errors, []);
+  });
+
+  test(`P5.28f a row's Send says what it needs instead of greying out, and every Send names roles the same way (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const exc = { id: 6, type: "sap_notification", key: "k6", source: "sap", state: "open", priority: 0.6, value_usd: null,
+      subjects: [], unmatched: [], case_state: null, role: null, raised_count: 1, first_seen: "2026-11-25T06:00:00Z",
+      last_seen: "2026-11-25T07:00:00Z", item_id: null, assignee: null, title: "365-day preventive maintenance, ST2 test separator", evidence: {} };
+    const sent = [];
+    await page.route("**/cases?*", (route) => route.fulfill({ json: { total: 1, labels: {}, facets: {},
+      rows: [{ ...exc, uid: "e6", exception_id: 6, kind: "sap_notification", kind_label: "SAP notification", stage: "dispatch",
+        holder: null, queue: null, due_at: null, overdue: false, opened: exc.first_seen, updated: exc.last_seen,
+        facility: "none", area: "none", asset: "none" }] } }));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "riley", roles: ["ops_lead"] },
+      { name: "pat", roles: ["maintenance_planner"], holding: 2 }] }));
+    await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "operator", kind: "person", members: [] }] }));
+    await page.route("**/exceptions/6/readiness", (route) => route.fulfill({ json: { ready: true, blockers: [], checks: [], warnings: [] } }));
+    await page.route("**/exceptions/6/dispatch", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: exc }); });
+    await page.goto(`${url}/#/list?stage=dispatch`);
+    await page.getByRole("button", { name: "Send to", exact: true }).click();
+    const picker = page.getByLabel("Dispatch to");
+    await picker.getByRole("option", { name: "pat (maintenance planner) · holds 2" }).waitFor({ state: "attached" });
+    await picker.selectOption("pat");
+    const send = page.locator(".dispatch-controls").getByRole("button", { name: "Send", exact: true });
+    assert.equal(await send.isDisabled(), false, "no greyed Send with a reason only a hover shows");
+    assert.equal(await send.getAttribute("title"), null);
+    await send.click();
+    await page.getByText("Say what to check or do first: they see it on their job.").waitFor();
+    assert.equal(sent.length, 0, "nothing goes without what to do");
+    await page.getByLabel("What to do").fill("Book the 365-day PM");
+    await send.click();
+    await expectReports(sent, 1);
+    assert.equal(sent[0].to, "pat");
+    assert.deepEqual(errors, []);
+  });
+}
+
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.28f a case opened from My work lights My work, from the List the List (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+    await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "ann", roles: ["ops_lead"], mine: [], queue: [],
+      counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: queueCase("ops_lead") }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: caseOptions({ applies: false, why_not: "desk work", options: [] }) }));
+    const tabs = page.getByRole("navigation", { name: "Work pages" });
+    const lit = () => tabs.locator("[aria-current=page]").innerText();
+    await page.goto(`${url}/#/inbox`);
+    await page.getByRole("navigation", { name: "Show in my work" }).waitFor();
+    await page.evaluate(() => { location.hash = "#/cases/21"; });
+    await page.getByLabel("Next step").waitFor();
+    assert.equal(await lit(), "My work");
+    await page.evaluate(() => { location.hash = "#/list"; });
+    await page.getByRole("heading", { name: "All work" }).waitFor();
+    await page.evaluate(() => { location.hash = "#/cases/21"; });
+    await page.getByLabel("Next step").waitFor();
+    assert.equal(await lit(), "List");
+  });
+}
+
+test("P5.28f the field's box on a job reads Note on this job, apart from the Note to the IOC at the top (390)", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "sam"));
+  const job = { id: 7, type: "leak", key: "k", title: "Leak at P-101", source: "walk", state: "open", first_seen: "2026-11-12T05:00:00Z",
+    last_seen: "2026-11-12T05:00:00Z", joined_to: null, subjects: [], label: "Leak", finding: FINDINGS.scada_alarm, priority: null,
+    unmatched: [], item_id: 7, case_state: "open", assignee: "sam", role: null, raised_count: 1, due: null, task_id: null,
+    task_name: null, assets: [], checklist: [], sources: [], history: [], field: [], queued: false,
+    sent: { reason: "Look at the gland", by: "ines", at: "2026-11-12T05:10:00Z" } };
+  await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "sam", roles: ["operator"], mine: [], queue: [],
+    counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+  await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "sam", jobs: [job], coming_up: [] } }));
+  await page.goto(`${url}/#/inbox`);
+  await page.getByLabel("Note on this job").waitFor();
+  await page.getByRole("textbox", { name: "Note to the IOC" }).waitFor();
+  assert.equal(await page.getByText("Note for the IOC").count(), 0);
+});
+
+test("P5.28f on a phone the List card's attention stripe has room before its title (390)", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ivy"));
+  const exc = { id: 6, type: "machine_health", key: "k6", source: "screen", state: "open", priority: 0.6, value_usd: null,
+    subjects: [], unmatched: [], case_state: "open", role: "ops_lead", raised_count: 1, first_seen: "2026-11-25T06:00:00Z",
+    last_seen: "2026-11-25T07:00:00Z", item_id: 16, assignee: null, title: "The flare meter has read zero since 05:00",
+    evidence: { field: [{ status: "could_not_do", by: "alex", at: "2026-11-25T22:16:00Z", note: "No access, scaffold down" }] } };
+  await page.route("**/cases?*", (route) => route.fulfill({ json: { total: 1, labels: {}, facets: {},
+    rows: [{ ...exc, uid: "e6", exception_id: 6, kind: "machine_health", kind_label: "Machine health", stage: "back",
+      holder: "role:ops_lead", queue: "ops_lead", due_at: null, overdue: false, opened: exc.first_seen, updated: exc.last_seen,
+      facility: "none", area: "none", asset: "none" }] } }));
+  await page.goto(`${url}/#/list?stage=back`);
+  const row = page.locator("tr.work-row.attention");
+  const title = row.locator(".work-card-title a");
+  await title.waitFor();
+  const [r, t] = [await row.boundingBox(), await title.boundingBox()];
+  assert.ok(r && t && t.x - r.x >= 8, `the title starts ${t && r ? t.x - r.x : "?"} px from the stripe`);
+});

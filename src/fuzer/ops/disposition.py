@@ -7,6 +7,8 @@ what was done, in the ISO 14224 terms of `standards/iso14224.yaml`, so the close
     data_problem  the data was wrong, not the equipment
     done          done as asked: only for work someone asked for (no exception opened it), such as a task
     log_only      log only, no action: only for a message to the IOC that turned out to say what was done (#1363)
+    matched       a steward's question answered by confirming a match or choosing the entity (set by the answer)
+    no_work       a message the steward said needed no work (set by the answer)
 
 The form is pre-filled from an agent's suggestion on the case (`payload.closeout_suggestion`), else from the case's
 own words: the failure-mode keywords of the taxonomy and pack, and the action words below. The person confirms it.
@@ -27,7 +29,10 @@ from ..core.taxonomy import failure_modes_in, load_standard
 from . import routing
 
 DISPOSITIONS = {"real": "A real problem", "false_alarm": "False alarm", "duplicate": "Duplicate",
-                "data_problem": "Data problem", "done": "Done as asked", "log_only": "Log only, no action"}
+                "data_problem": "Data problem", "done": "Done as asked", "log_only": "Log only, no action",
+                "matched": "Matched", "no_work": "No work needed"}
+# what a steward's answer closes a data question as (graph.data_work.closeout), never picked on the close-out form
+ANSWERED = ("matched", "no_work")
 OUTCOMES = {"fixed": "Fixed", "contained": "Contained, follow-up planned", "not_fixed": "Not fixed",
             "monitoring": "Being monitored"}
 # words that name the maintenance activity (ISO 14224 Table B.5), first match wins
@@ -45,7 +50,8 @@ DATA_WORDS = (r"\bbad (data|value|reading)\b|\bstale\b|\bwrong unit|\bsensor (fa
 def vocabulary(pack: Pack) -> dict:
     """The controlled lists the form picks from: dispositions, outcomes and the taxonomy's failure terms."""
     std = load_standard(pack.classification.get("taxonomy", "iso14224"))
-    return {"dispositions": DISPOSITIONS, "outcomes": OUTCOMES, "failure_modes": std.get("failure_modes", {}),
+    return {"dispositions": DISPOSITIONS, "answered": list(ANSWERED), "outcomes": OUTCOMES,
+            "failure_modes": std.get("failure_modes", {}),
             "mechanisms": std.get("failure_mechanisms", {}), "causes": std.get("failure_causes", {}),
             "activities": std.get("maintenance_activities", {})}
 
@@ -75,11 +81,24 @@ def suggest(conn, pack: Pack, item_id: int) -> dict:
     modes = [m for m in failure_modes_in(text, pack) if m not in ("OTH", "UNK")]
     if modes and "disposition" not in out:
         out |= {"disposition": "real", "failure_mode": modes[0]}
+    if out.get("disposition") == "real" and _field_done(conn, item_id):
+        out["outcome"] = "fixed"  # the field said Done: what they did fixed it, unless the person says otherwise (#1390)
     for code, pat in ACTION_WORDS:
         if re.search(pat, text, re.IGNORECASE):
             out["activity"] = code
             break
     return out
+
+
+def _field_done(conn, item_id: int) -> bool:
+    """Whether the field's last report on the case (a note after it changes nothing) was Done."""
+    row = conn.execute(
+        """
+        select (select f.r->>'status' from jsonb_array_elements(x.evidence->'field') with ordinality f(r, n)
+                where f.r->>'status' <> 'note' order by f.n desc limit 1) as last
+        from exception_record x where x.item_id = %s and jsonb_typeof(x.evidence->'field') = 'array'
+        """, (item_id,)).fetchall()
+    return any(r["last"] == "done" for r in row)
 
 
 FIELDS = ("disposition", "failure_mode", "mechanism", "cause", "activity", "outcome", "note", "duplicate_of")
@@ -162,8 +181,8 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
     if follow_up_to and outcome != "contained":
         raise ValueError("a follow-up is sent when the outcome is contained, follow-up planned")
     v = vocabulary(pack)
-    if disposition not in DISPOSITIONS:
-        raise ValueError(f"say what it was: {', '.join(DISPOSITIONS)}")
+    if disposition not in DISPOSITIONS or disposition in ANSWERED:
+        raise ValueError(f"say what it was: {', '.join(d for d in DISPOSITIONS if d not in ANSWERED)}")
     if disposition == "done" and not asked_case(conn, item_id):
         raise ValueError("a case an exception opened says what it was: a real problem, a false alarm, a duplicate "
                          "or a data problem")
@@ -214,22 +233,23 @@ def record(conn, pack: Pack, item_id: int, by: str, disposition: str, *, failure
     else:
         work.comment(conn, item_id, by, f"Close-out: {said}")
     offer_feedback(conn, item_id, row, by)
-    return {**row, "follow_up": _send_follow_up(conn, item, by, follow_up_to) if follow_up_to else follow_up(conn, item_id)}
+    return {**row, "follow_up": (_send_follow_up(conn, item, by, follow_up_to, row["note"]) if follow_up_to
+                                 else follow_up(conn, item_id))}
 
 
 FOLLOW_UP = "follow_up_of"  # what a follow-up case carries: the case it follows up
 
 
-def _send_follow_up(conn, item: dict, by: str, to: str) -> int:
+def _send_follow_up(conn, item: dict, by: str, to: str, note: str | None = None) -> int:
     """The follow-up a contained close-out planned, as a case for `to`: one per case, linked both ways on the
-    history."""
+    history. The close-out's note is what it asks (#1390): it says what is left to do."""
     if have := follow_up(conn, item["id"]):
         return have
     queue = to.startswith("role:")
     subjects = conn.execute("select subjects from work_item where id = %s", (item["id"],)).fetchone()["subjects"]
     case = routing.open_task(conn, "task", f"Follow-up: {item['title']}", by, key=f"follow-up:{item['id']}",
                              role=to if queue else None, assignee=None if queue else to,
-                             data={FOLLOW_UP: item["id"]}, subjects=list(subjects or []), source=f"case:{item['id']}")
+                             data={FOLLOW_UP: item["id"], **({"summary": note} if note else {})}, subjects=list(subjects or []), source=f"case:{item['id']}")
     work.comment(conn, item["id"], by, f"Follow-up sent to {to.removeprefix('role:').replace('_', ' ')}"
                  f"{' queue' if queue else ''}: case {case['id']}")
     work.comment(conn, case["id"], by, f"Follows up case {item['id']}, contained when it closed")

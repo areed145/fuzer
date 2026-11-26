@@ -4,7 +4,7 @@ import type { CaseSource, Finding, FindingItem } from "./api";
 import { entityHref } from "./lib";
 import { Card, Disclosure, Facts, Text, List, Heading } from "./ui";
 import { reportedBy } from "./work";
-import { say, unit as wordUnit } from "./wording";
+import { detectorName, person, say, unit as wordUnit } from "./wording";
 
 const ORIGIN: Record<Finding["origin"], string> = { deterministic: "Rule", agentic: "Agent", external: "Another system" };
 
@@ -24,40 +24,48 @@ function Value({ item }: { item: FindingItem }) {
 
 const WHO: Record<Finding["origin"], string> = { deterministic: "A rule", agentic: "An agent", external: "Another system" };
 
-/** Who reported an outside finding, where it names them (a field operator's report): "sam", not "Another system". */
-const reporter = (finding: Finding): string | null => {
-  const r = finding.origin === "external" ? finding.items.find((i) => i.label === "Reported by") : undefined;
-  return r ? String(r.value) : null;
+/** Who reported an outside finding: the person its items name ("Reported by" on a field report, "From" on a message),
+ * else the person who opened the case from it (`openedBy`, when that is a person and not the system that raised it): a
+ * field report kept before it named its reporter read "Another system found this" (tour D17). */
+const reporter = (finding: Finding, openedBy?: string | null, source?: string | null): string | null => {
+  if (finding.origin !== "external") return null;
+  const r = finding.items.find((i) => i.label === "Reported by" || i.label === "From");
+  if (r) return person(String(r.value));
+  const human = openedBy && openedBy !== source && openedBy !== "system" && !/^(agent|detector):/.test(openedBy);
+  return human ? person(openedBy) : null;
 };
 
 /** What was found, as one sentence a person reads first (#1082): who found it, when, what, and what is at stake.
  * "A rule found this on Dec 30, 2025, 9:20 PM: Low alarm on OK-J08-03 (peak 156 psig) ..., still going. $4,026 at
  * stake." The labelled fields stay one tap away. */
-export function findingSentence(finding: Finding, title: string): string {
+export function findingSentence(finding: Finding, title: string, openedBy?: string | null, source?: string | null): string {
   const going = finding.items.find((i) => i.kind === "flag" && /still going/i.test(i.label));
   const at = finding.start ? ` on ${when(finding.start)}${finding.end ? ` to ${when(finding.end)}` : ""}` : "";
   const what = say(title).replace(/[.?\s]+$/, "");
   const stake = finding.value_usd != null && finding.value_usd > 0 ? ` ${money(finding.value_usd)} at stake.` : "";
   const sure = finding.confidence != null ? ` ${percent(finding.confidence)} confident.` : "";
-  const who = reporter(finding);
+  const who = reporter(finding, openedBy, source);
   return `${who ? `${who} reported` : `${WHO[finding.origin]} found`} this${at}: ${what}${going ? (going.value ? ", still going" : ", now over") : ""}.${stake}${sure}`;
 }
 
 /** The one evidence component (P1.1): a finding reads the same on the case, the task and the phone. How it was
  * found comes first (rule, agent or another system, with the method and its standard), then when, then what was
  * found as labelled values with their units, times in local time and assets by name. */
-export function FindingEvidence({ finding, checks = true }: { finding: Finding; checks?: boolean }) {
+export function FindingEvidence({ finding, checks = true, openedBy, source }: {
+  finding: Finding; checks?: boolean; openedBy?: string | null; source?: string | null;
+}) {
+  const who = reporter(finding, openedBy, source);
   return (
     <div className="finding">
       <Facts items={[
-        ["Found by", reporter(finding) ?? ORIGIN[finding.origin]],
+        ["Found by", who ?? ORIGIN[finding.origin]],
         finding.method && ["Method", finding.method],
         finding.standard && ["Standard", finding.standard],
         finding.start && ["Window", <><time dateTime={finding.start}>{when(finding.start)}</time>
           {finding.end ? <> to <time dateTime={finding.end}>{when(finding.end)}</time></> : null}</>],
         finding.confidence != null && ["Confidence", percent(finding.confidence)],
         finding.value_usd != null && ["Value at stake", money(finding.value_usd)],
-        ...finding.items.filter((item) => !(item.label === "Reported by" && reporter(finding))).map((item) => [item.label, <Value item={item} />] as const),
+        ...finding.items.filter((item) => !(item.label === "Reported by" && who)).map((item) => [item.label, <Value item={item} />] as const),
       ]} />
       {checks && finding.checks.length > 0 && <>
         <Heading level={4} small>Checks before the work</Heading>
@@ -69,20 +77,20 @@ export function FindingEvidence({ finding, checks = true }: { finding: Finding; 
 
 /** What was found, from every system that reported the event this case works, so the decision weighs them together
  * (#464, P1.1). One source reads as its finding; several are listed, each with its own. */
-export function CaseFindings({ sources }: { sources?: CaseSource[] }) {
+export function CaseFindings({ sources, openedBy }: { sources?: CaseSource[]; openedBy?: string | null }) {
   const all = sources ?? [];
   if (!all.length) return null;
   if (all.length === 1) return (
     <Card className="case-findings" title="What was found">
-      <p className="finding-sentence">{findingSentence(all[0].finding, all[0].title)}</p>
+      <p className="finding-sentence">{findingSentence(all[0].finding, all[0].title, openedBy, all[0].source)}</p>
       <Disclosure className="evidence-item" label="How it was found and the values">
-        <FindingEvidence finding={all[0].finding} />
+        <FindingEvidence finding={all[0].finding} openedBy={openedBy} source={all[0].source} />
       </Disclosure>
     </Card>
   );
   return (
     <Card className="case-findings" title={reportedBy(all)}>
-      {all.map((x) => <Disclosure key={x.id} open className="evidence-item" label={<><strong>{x.label}</strong> from {x.source ?? "unknown"}: {x.title}{" "}
+      {all.map((x) => <Disclosure key={x.id} open className="evidence-item" label={<><strong>{x.label}</strong> from {detectorName(x.source ?? "unknown")}: {x.title}{" "}
           <Text small muted>· {when(x.first_seen)}{x.state !== "open" ? ` · ${x.state}` : ""}</Text></>}>
         <FindingEvidence finding={x.finding} />
       </Disclosure>)}

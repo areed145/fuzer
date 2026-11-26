@@ -180,6 +180,11 @@ def test_a_steward_question_carries_the_message_and_its_answer_makes_the_case(re
     assert conn.execute("select state from exception_record where type = 'message_to_match' and key = "
                         "'message:MSG-0007'").fetchone()["state"] == "cleared"  # the steward's case closed
     assert conn.execute("select outcome from message where id = 'MSG-0017'").fetchone()["outcome"] == "handled"
+    # each steward case closes as what the answer was (tour D11): a choice "Matched", no work "No work needed"
+    closed = {r["key"]: r["disposition"] for r in conn.execute(
+        "select x.key, d.disposition from exception_record x join case_disposition d on d.item_id = x.item_id "
+        "where x.type = 'message_to_match' and x.key in ('message:MSG-0007', 'message:MSG-0017')")}
+    assert closed == {"message:MSG-0007": "matched", "message:MSG-0017": "no_work"}, closed
 
 
 def test_a_message_is_matched_only_to_what_work_can_be_about(read):
@@ -301,3 +306,48 @@ def test_the_picker_search_counts_what_it_does_not_show_and_takes_a_trailing_hyp
     bare = queries.search(conn, pack, "20-P", "tag,equipment", 12, total=True)
     assert typed == bare and len(bare["hits"]) == 12 and bare["total"] > 12
     assert queries.search(conn, pack, "-", None, 5)  # nothing but a separator is still a search
+
+
+def test_a_steward_choice_kept_before_it_was_a_fact_reads_as_one(read):
+    """Tour D8: cases a steward placed before #1383 kept "Matched by: chosen by user:demo", printed on the page as
+    "Matched by chosen by user:demo". The schema rewrites them to the "Chosen by" fact every new case carries."""
+    from psycopg.types.json import Jsonb
+
+    from fuzer.resources import PACKAGE
+
+    conn, _ = read
+    evidence = {"finding": {"v": 1, "origin": "external", "detector": "messages.reader", "items": [
+        {"kind": "text", "label": "Message", "value": "Anyone know why train C tripped last night?"},
+        {"kind": "text", "label": "Matched by", "value": "chosen by user:demo"}]}}
+    ex = conn.execute("insert into exception_record (type, key, title, source, evidence) values "
+                      "('message_report', 'MSG-legacy', 'Train C', 'messages', %s) returning id", (Jsonb(evidence),)
+                      ).fetchone()["id"]
+    sql = (PACKAGE / "ops" / "schema.sql").read_text()
+    start = sql.index("update exception_record e set evidence")
+    conn.execute(sql[start:sql.index(";", start) + 1])
+    items = conn.execute("select evidence from exception_record where id = %s", (ex,)).fetchone()["evidence"]
+    assert items["finding"]["items"][1] == {"kind": "text", "label": "Chosen by", "value": "user:demo"}
+    assert items["finding"]["items"][0]["label"] == "Message"
+    conn.rollback()
+
+
+def test_what_a_message_case_is_about_reads_equipment_by_its_tag(read):
+    """Tour D8: changing a case to three machines wrote "S/N 76031, S/N 80853, S/N 85143" on its history."""
+    conn, _ = read
+    from fuzer import api
+
+    machines = [r["src"] for r in conn.execute(
+        "select x.src from edge x join entity e on e.fuzer_id = x.src join entity_label t on t.fuzer_id = x.dst "
+        "where x.rel = 'installed_at' and x.valid_to is null and e.kind = 'equipment' and t.label like '20-GT-2000%%' "
+        "order by t.label limit 3")]
+    assert machines
+    with TestClient(api.app) as client:
+        note = client.post("/messages", json={"by": "femi", "text": "20-K-2100C seal oil pot level low"}).json()
+        r = client.post(f"/exceptions/{note['exception_id']}/message/entities", json={"by": "ana", "fuzer_ids": machines})
+        assert r.status_code == 200, r.text
+    about = [a["label"] for a in r.json()["about"]]
+    assert all(a.startswith("20-GT-2000") and "S/N" not in a for a in about), about
+    said = [x["t"] for x in conn.execute("select data->>'text' as t from work_event where item_id = %s and kind = "
+                                         "'commented'", (note["item_id"],))]
+    assert any("20-GT-2000" in t for t in said) and not any("S/N" in t for t in said), said
+    conn.rollback()

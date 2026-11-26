@@ -75,6 +75,9 @@ def test_sap_work_orders_become_plan_items_and_clashes_and_bundles_show(conn):
     rows = {r["id"]: r for r in plan.items(conn, "2026-11-01", "2026-12-31")}
     kinds = {c["kind"] for c in rows[clash["id"]]["clashes"]}
     assert {"same_asset", "crew"} <= kinds
+    # one sentence after its "clash" badge, the person first by name (tour D16: "clash sam is also on … then")
+    said = [c["say"] for c in rows[clash["id"]]["clashes"] if c["kind"] == "crew"]
+    assert said == ["Fred is also booked on “Replace P-101 seal” then"], said
     update(conn, clash["id"], "ann", status="cancelled")
     rows = {r["id"]: r for r in plan.items(conn, "2026-11-01", "2026-12-31")}
     assert not [c for c in rows[seal["id"]]["clashes"] if c["kind"] != "bundle"]
@@ -191,6 +194,16 @@ def test_work_starting_soon_shows_spare_parts_with_no_stock(conn):
     assert [p["id"] for p in rows[soon["id"]]["parts_short"]] == ["fz-mat-seal"]
     assert rows[soon["id"]]["parts_short"][0]["label"] == "10001 seal kit"
     assert rows[later["id"]]["parts_short"] == []  # too far out to chase yet
+    # A job on a tag and the equipment installed at it (an SAP order names both) lists each part once, not once a
+    # subject (P5.28g: MAT-100011 twice on one job).
+    conn.execute("insert into entity (fuzer_id, kind) values ('fz-tag-p101', 'tag') on conflict do nothing")
+    conn.execute("insert into edge (src, rel, dst, sources, confidence) values ('fz-pump-1', 'installed_at', 'fz-tag-p101', "
+                 "'{t}', 1)")
+    both = propose(conn, "maintenance", "Reseal P-101 by its order", "ann", now + timedelta(days=5),
+                   now + timedelta(days=6), refs=["fz-pump-1", "fz-tag-p101"])
+    rows = {r["id"]: r for r in plan.items(conn, now, now + timedelta(days=60))}
+    assert set(both["subjects"]) == {"fz-pump-1", "fz-tag-p101"}
+    assert [p["id"] for p in rows[both["id"]]["parts_short"]] == ["fz-mat-seal"]
     conn.rollback()
 
 

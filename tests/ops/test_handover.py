@@ -8,7 +8,7 @@ import pytest
 
 from fuzer.core import work
 from fuzer.core.exceptions import clear_exception, raise_exception
-from fuzer.ops import handover
+from fuzer.ops import exceptions, handover
 from fuzer.sources import alerts
 
 pytestmark = pytest.mark.integration
@@ -60,6 +60,9 @@ def test_the_handover_lists_what_changed_this_shift_not_every_open_line(okan_db)
         new = " ".join(x["text"] for x in s["New exceptions"])
         assert "handover_test_b" in new, "a source still failing is news"
         assert "handover_test_a" not in new, "a source that failed and loaded again is not"
+        # the kind by its label and the source in words, as the case says them (tour D15: "from sample crew")
+        label = exceptions.types(conn)[alerts.TYPE].label
+        assert f"({label} from Sources, open)" in new, new
         closed = s["Closed"]
         assert any(f"case:{done['id']}" in x["cites"] and x["text"] == "Swap the strainer on P-101: done {at}" and x["at"]
                    for x in closed)

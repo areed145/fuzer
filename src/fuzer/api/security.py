@@ -146,6 +146,19 @@ def _arguments(kwargs):
         kwargs["by"] = person.actor
 
 
+def _committed(values, result):
+    """Commit the route's connections before its answer is sent, then hand the answer back (P5.28d, #1392). The
+    connection's own close (`get_conn`) runs only after the answer has gone, so the browser had a write's answer while
+    its transaction was still open: the reads it made at once, and on the 1-CPU server those made seconds later, still
+    saw the case with its old owner and the old counts until the page was loaded again. A failed route commits nothing:
+    its exception skips this and the close rolls back."""
+    for value in values.values():
+        if isinstance(value, psycopg.Connection) and not value.closed \
+                and value.info.transaction_status != psycopg.pq.TransactionStatus.IDLE:
+            value.commit()
+    return result
+
+
 def _read_again(values) -> bool:
     """Whether a read the database chose as a deadlock's victim may run once more: True after rolling back the
     connections it was given. On a zero-downtime deploy the new instance's schema update locks tables while the old
@@ -170,21 +183,21 @@ class AuthenticatedRoute(APIRoute):
                 async def endpoint(**values):
                     _arguments(values)
                     try:
-                        return await original(**values)
+                        return _committed(values, await original(**values))
                     except psycopg.errors.DeadlockDetected:
                         if not _read_again(values):
                             raise
-                    return await original(**values)
+                    return _committed(values, await original(**values))
             else:
                 @functools.wraps(original)
                 def endpoint(**values):
                     _arguments(values)
                     try:
-                        return original(**values)
+                        return _committed(values, original(**values))
                     except psycopg.errors.DeadlockDetected:
                         if not _read_again(values):
                             raise
-                    return original(**values)
+                    return _committed(values, original(**values))
             endpoint._trusted_actor = True
         super().__init__(path, endpoint, **kwargs)
 

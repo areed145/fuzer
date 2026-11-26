@@ -830,9 +830,9 @@ def watch(conn, until: str | None = None, by: str = "agent:rotating_screen", wat
         from ..graph.operations import data_through
 
         s["at"] = data_through(conn)
-    # open ones, and closed ones whose close-out still holds (a signal on them), which clear when the screen stops
-    held = {r["key"] for r in conn.execute("select key from exception_record where type = %s and (state = 'open' or "
-                                           "(state = 'closed' and signal is not null))", (HEALTH_TYPE,))}
+    # each machine's latest, open or closed with its close-out holding, which clears when the screen stops flagging it
+    held = {r["key"] for r in conn.execute("select distinct on (key) key, state from exception_record where type = %s "
+                                           "order by key, id desc", (HEALTH_TYPE,)) if r["state"] in ("open", "closed")}
     raised, cleared, errors, keep, standing = [], [], [], set(), []
     for m in s["machines"]:
         flags = sorted((f for f in dict.fromkeys(m["flags"]) if f not in HISTORY),

@@ -238,6 +238,8 @@ def stat(conn, pack, d, panel, scope, w) -> dict:
         previous = past[-2]["value"]
     return {"title": m["label"], "measure": m["key"], "value": m["value"], "unknown": m["unknown"], "unit": m["unit"],
             "target": m["target"], "better": m["better"], "previous": previous,
+            # the volumes a ratio is of, where the measure says them: the tile states them under a bare 100% (#1396)
+            "parts": m.get("parts"),
             "previous_unknown": before_unknown or None, "history": past, "as_of": m.get("as_of"),
             "source": source(m["records"]), "note": _note(scope, m), "scoped": _scoped(scope, m), "refs": m["refs"],
             "href": f"/metrics/{m['key']}"}
@@ -366,7 +368,9 @@ def narrative(conn, pack, d, panel, scope, w) -> dict:
     listed = next((r for r in daily_report.days(conn, 400) if str(r["day"]) == day), None)
     if listed is None:
         return {"title": "Daily report", "day": day, "status": None, "scoped": True,
-                "note": f"No daily report for {day}: `fuzer report` closes a day.", "as_of": day}
+                # what a reader can act on, not the developer command that closes a day (tour D6)
+                "note": f"Not closed yet: the daily close drafts {day}'s report for the ops lead to review.",
+                "as_of": day}
     return {"title": "Daily report", "day": day, "status": listed["status"], "version": listed["version"],
             "ok": listed["ok"], "as_of": day, "scoped": True,
             "href": f"/cases/{listed['item_id']}" if listed.get("item_id") else None}

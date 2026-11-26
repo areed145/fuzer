@@ -1,9 +1,12 @@
 """Ready to dispatch (P5.5, #680): one check before a job is sent. It reads the records the job's equipment has, never
 its equipment type:
 
-    spares   the BOM's parts (SAP `uses_part`) against stock, with open purchase orders and their delivery dates
-             (P5.5a): a part short is a blocker; one on order names the date it is due. A part with no stock level
-             is unknown, never 0 in stock: the check says why (no stock source) and what would answer it (P6.6)
+    spares   the parts reserved on the job's own work order (SAP `reserves`: the order among its subjects, or the
+             order of the plan item that works it) against stock, with open purchase orders and their delivery dates
+             (P5.5a, #1391): a part short is a blocker; one on order names the date it is due. Never the
+             equipment's BOM: a cracked level glass does not wait on the vessel's seal kit. A job with no order has
+             no parts to check. A part with no stock level is unknown, never 0 in stock: the check says why (no
+             stock source) and what would answer it (P6.6)
     crew     the work center (SAP `arbpl`) that does the equipment's work orders, its crew size, and the jobs
              already sent to it and still open (P5.5b): a full crew is a blocker naming the jobs holding it. A work
              center with a crew resource on the plan is read from the plan's one capacity ledger instead: everyone
@@ -14,7 +17,8 @@ its equipment type:
              permit, an isolation, depressurising, a scaffold or parts holds it until a later report (#1365)
 
 A check with no records to read says so and does not block. A blocked job is sent only with a reason (enforced where
-people dispatch: the dispatch route and card), and the reason goes on the case's history.
+people dispatch: the dispatch route and card), and the reason goes on the case's history. A send to the maintenance
+planner is never held: planning the parts and the crew is the planner's work (#1391).
 """
 
 import re
@@ -32,14 +36,36 @@ def _units(conn, subjects: list[str]) -> list[str]:
         "and dst = any(%(s)s) and valid_to is null", {"s": subjects}).fetchall()]
 
 
-def spares(conn, subjects: list[str], today: date | None = None) -> dict:
-    """The BOM's parts for a job's equipment: needed, in stock, on order. Ready when every part is in stock."""
+def orders(conn, job: int | None = None, plan_item: int | None = None) -> list[str]:
+    """The work orders a job is done under: an order among its exception's subjects, and the SAP order of each plan
+    item that works it (the plan item itself, one planned for its exception, or one on the same case)."""
+    if job is None and plan_item is None:
+        return []
+    return [r["id"] for r in conn.execute(
+        """
+        with keys as (
+            select p.source_key as k from plan_item p
+            where p.source = 'sap' and p.source_key is not null
+              and (p.id = %(item)s or p.exception_id = %(job)s
+                   or p.item_id in (select item_id from exception_record where id = %(job)s)
+                   or p.item_id in (select item_id from plan_item where id = %(item)s))
+        )
+        select o.fuzer_id as id from entity o
+        where o.kind = 'work_order' and o.retired_at is null
+          and (o.fuzer_id in (select unnest(subjects) from exception_record where id = %(job)s)
+               or o.fuzer_id in (select k from keys)
+               or o.fuzer_id in (select fuzer_id from entity_key where kind = 'work_order' and key in (select k from keys)))
+        order by 1
+        """, {"job": job, "item": plan_item}).fetchall()]
+
+
+def spares(conn, work_orders: list[str], today: date | None = None) -> dict:
+    """The parts reserved on a job's work orders: needed, in stock, on order. Ready when every part is in stock."""
     today = today or clock.today()
-    units = _units(conn, subjects)
     rows = conn.execute(
         """
         select b.dst as material, l.label, gd.value #>> '{}' as description,
-               max(coalesce((b.props->>'quantity')::numeric, 1)) as needed,
+               sum(coalesce((b.props->>'quantity')::numeric, 1)) as needed,
                (gs.value #>> '{}')::numeric as stock,
                (select coalesce(jsonb_agg(jsonb_build_object(
                          'po', pl.label, 'quantity', (pq.value #>> '{}')::numeric, 'due', pd.value #>> '{}')
@@ -54,10 +80,11 @@ def spares(conn, subjects: list[str], today: date | None = None) -> dict:
         left join entity_label l on l.fuzer_id = b.dst
         left join golden gd on gd.fuzer_id = b.dst and gd.field = 'description'
         left join golden gs on gs.fuzer_id = b.dst and gs.field = 'stock'
-        where b.rel = 'uses_part' and b.src = any(%s) and b.valid_to is null
+        where b.rel = 'reserves' and b.src = any(%s) and b.valid_to is null
+          and coalesce(b.props->>'status', 'open') = 'open'
         group by b.dst, l.label, gd.value, gs.value
         order by l.label
-        """, (units,)).fetchall()
+        """, (list(work_orders),)).fetchall() if work_orders else []
     parts, blockers, unstocked = [], [], []
     for r in rows:
         name = r["description"] or r["label"] or r["material"]
@@ -74,7 +101,8 @@ def spares(conn, subjects: list[str], today: date | None = None) -> dict:
             blockers.append(f"{name}: {_n(stock)} in stock, {_n(needed)} needed; "
                             + (f"on order ({due['po']}), due {due['due']}" if due else "nothing on order"))
     out = {"check": "spares", "label": "Spares", "ready": not blockers, "blockers": blockers, "parts": parts,
-           "checked": bool(rows), "note": None if rows else "No BOM for this equipment, so no parts to check."}
+           "checked": bool(rows), "note": None if rows else "No parts reserved on its work order, so none to check."
+           if work_orders else "No work order on this job, so no parts to check."}
     if unstocked:
         return {**out, **_unstocked(conn, unstocked, len(rows))}
     return out
@@ -393,8 +421,8 @@ def _n(x: float) -> str:
     return str(int(x)) if float(x).is_integer() else str(x)
 
 
-def _spares(conn, subjects: list[str], job: int | None = None) -> dict:
-    return spares(conn, subjects)
+def _spares(conn, subjects: list[str], job: int | None = None, plan_item: int | None = None) -> dict:
+    return spares(conn, orders(conn, job, plan_item))
 
 
 def _simops(conn, subjects: list[str], job: int | None = None) -> dict:
@@ -496,16 +524,27 @@ def _list(words: list[str]) -> str:
 CHECKS = (field, _spares, crew, permits, _simops, mocs)
 
 
-def check(conn, subjects: list[str], job: int | None = None) -> dict:
+def check(conn, subjects: list[str], job: int | None = None, plan_item: int | None = None) -> dict:
     """Every readiness check for a job on these subjects (`job`, the exception being sent, is not counted against
     itself): ready, or each blocker by name. `unknown` says each check that can't be said and why (parts with no
     stock source), and `undetermined` what would answer it (P6.6)."""
-    results = [c(conn, subjects, job) for c in CHECKS]
+    results = [_spares(conn, subjects, job, plan_item) if c is _spares else c(conn, subjects, job) for c in CHECKS]
     blockers = [b if b.startswith("blocked:") else f"{r['label']}: {b}" for r in results for b in r["blockers"]]
     warnings = [w for r in results for w in r.get("warnings") or []]  # said to whoever sends it, never holding it
     return {"ready": not blockers, "blockers": blockers, "warnings": warnings, "checks": results,
             "unknown": [r["note"] for r in results if r.get("unknown")],
             "undetermined": [n for r in results for n in r.get("undetermined") or []]}
+
+
+PLANNER = "maintenance_planner"
+
+
+def holds(conn, to: str) -> bool:
+    """Whether readiness holds a send to `to`: never one to the maintenance planner, the queue or a person in it, who
+    plans the parts and the crew the check would wait on (#1391)."""
+    from ..core import work
+
+    return to != f"role:{PLANNER}" and (to.startswith("role:") or PLANNER not in work.roles_of(conn, to))
 
 
 def for_exception(conn, exception_id: int) -> dict:

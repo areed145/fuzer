@@ -90,3 +90,11 @@ def test_money_reads_one_way_and_matches_the_ui():
     assert [wording.money(v) for v in (12.5, 0.42, 0.004, -3)] == ["$12.50", "$0.42", "<$0.01", "-$3.00"]
     assert wording.money(5520150, "NOK") == "5,520,150 NOK"
     assert wording.money(40, "unknown") == "40.00 (currency unknown)"
+
+
+def test_a_source_reads_as_words_as_the_pages_say_it():
+    # the same cases as detectorName in ui/src/wording.ts (tour D15: "field report from sample crew")
+    assert [wording.source(s) for s in ("sample crew", "ptw", "alarm_performance", "sap", None)] == \
+        ["Demo crew", "Permit to work", "Alarm performance", "SAP", "an unknown source"]
+    assert wording.say("Weeping flange (field report from sample crew, open)") == \
+        "Weeping flange (field report from Demo crew, open)"

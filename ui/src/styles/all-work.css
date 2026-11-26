@@ -61,6 +61,9 @@
 @media (max-width: 600px) {
   :root #main-content table.work-table.work-table.work-table tr.work-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
     padding: 12px 0; }
+  /* The attention stripe runs down the card's edge with room before the words, not against the title (P5.28f). */
+  :root #main-content table.work-table.work-table.work-table tr.work-row.attention { box-shadow: inset 3px 0 0 var(--warn); padding-left: 12px; }
+  :root #main-content table.work-table.work-table.work-table tr.work-row.attention > td:first-child { box-shadow: none; }
   :root #main-content table.work-table.work-table.work-table tr.work-row > td { flex: 0 1 auto; min-width: 0; font-size: 13px; line-height: 18px; }
   :root #main-content table.work-table.work-table.work-table tr.work-row > td::before { content: none; display: none; }
   :root #main-content table.work-table.work-table.work-table tr.work-row > td:nth-child(1) { flex: 1 1 100%; order: 0; }

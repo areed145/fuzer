@@ -186,6 +186,9 @@ export interface StatResult extends PanelResultBase {
   unit: string;
   target: number | null;
   better: "higher" | "lower" | "none";
+  /** The volumes a ratio is of, where the measure says them (production efficiency: the oil allocated of the most the
+   * facility could deliver), so a bare 100% is never shown on its own (#1396). */
+  parts?: { value: number; of: number; unit: string; of_what: string } | null;
   /** The value for the window before, when the measure can say it. */
   previous: number | null;
   /** The window before has no value because what it is read from wasn't there yet (no case history): never 0. */

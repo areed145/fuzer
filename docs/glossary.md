@@ -51,7 +51,8 @@ child case); the item is done when that case is.
 not run side by side. Shown on Plan and checked again at dispatch; it is a flag, not a case.
 
 **Close-out.** Closing a case by saying what it was (a real problem, a false alarm, a duplicate, a data problem, or
-for a message that only said what was done, log only with no action) and, for a real problem, what failed, why and what was done. Where another system raised the work, the update for
+for a message that only said what was done, log only with no action; a steward's question closes as its answer,
+**Matched** or **No work needed**) and, for a real problem, what failed, why and what was done. Where another system raised the work, the update for
 that system is drafted for a planner to approve. Work someone asked for (a task) is **finished** instead: done as
 asked, or a duplicate.
 
@@ -160,11 +161,12 @@ are one way in), and so does every way to ask it ("Ask Ops IQ about this asset")
 else in the app does. Its page is `#/ask`. To ask is the verb ("Ask Ops IQ"); Ops IQ is the name, never "the assistant" or "Ask" as a page.
 
 **Options.** The choices for a piece of field work, side by side on a case in To dispatch, With a desk or Back from
-the field (and from its row on All work): **Dispatch now**, **Ride along with the next visit** (a scheduled plan
-item on the same area or assets), **Shelve** (until the area's turnaround, or for at most the longest shelving) and
-**Escalate** (to the engineer, or past the engineer to the ops lead). Each says when it would be done, the
-production deferred until then in bbl and $, the risk of waiting, and whether it is ready; one is **recommended**
-with its reason. Choosing another needs a reason; the choice is kept on the case and counted as the recommendation
+the field (and from its row on All work): **Dispatch now**, **Ride along with the next visit** (someone already at
+the asset, or a scheduled plan item on its equipment: a field job for the visit's operator, asking what was reported),
+**Shelve** (until the area's turnaround, or for at most the longest shelving) and **Escalate** (to the engineer, or
+past the engineer to the ops lead). Each says when it would be done, the production deferred until then in bbl and $,
+the risk of waiting, and whether it is ready; one is **recommended** with its reason, never Shelve. Choosing another
+takes an optional reason; the choice is kept on the case and counted as the recommendation
 **taken** or not, per work type, on Work performance, and per skill on Ops IQ, Skills (with a brief followed in full).
 Not "proposal" (that is an agent's suggested change).
 
@@ -228,8 +230,11 @@ removed, and the mapping versions used.
 **Schedule.** A turnaround, project or campaign whose activities have durations, links and resource needs, shown
 as a Gantt under Plan > Schedules. A planning system such as Primavera P6 can deliver one.
 
-**Shelve.** Take a standing condition that can wait off the list until a date, with a reason. It comes back by
-itself. Safety work cannot be shelved.
+**Shelve.** Take a standing condition that can wait off the list and every queue until a date, with a reason. It
+comes back by itself. Safety work cannot be shelved, and Options never recommend it.
+
+**Site.** A facility Fuzer runs for, as people name it on screen (a **project** in code and the API): work at a
+person's other sites is listed as **At your other sites**, never "other fields".
 
 **Skill.** A playbook (its SKILL.md) an agent follows for one kind of work, with the tools it may call and the eval
 questions it is held to. A skill's owner changes it on Ops IQ, Skills: a change is a **draft**, and a person

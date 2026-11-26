@@ -18,7 +18,7 @@ its assets' spare parts recorded with zero stock (`parts_short`), so stores can 
 
 from datetime import UTC, date, datetime, time, timedelta
 
-from ..core import clock, events
+from ..core import clock, events, wording
 from ..core.plan import KINDS, STATUSES, PlanError, PlanNotReady, PlanOverload
 
 ACTIVE = ("proposed", "scheduled", "in_progress")
@@ -139,6 +139,13 @@ def _off_the_plan(conn, row: dict, by: str) -> None:
         work.comment(conn, e["item_id"], by, f"Taken off the plan ({row['start_at']:%d %b}); the work is still open.")
 
 
+def _who(crew: str) -> str:
+    """A person booked on a job as a clash names them, first in its sentence: "Sam", the demo sign-in by its name, never
+    "clash sam is also on" or "user:demo" (tour D16)."""
+    said = wording.say(crew) or crew
+    return said[:1].upper() + said[1:]
+
+
 def _clashes(rows: list[dict]) -> dict[int, list[dict]]:
     """Clashes and bundling chances between the active items given, by item id."""
     out: dict[int, list[dict]] = {r["id"]: [] for r in rows}
@@ -155,7 +162,7 @@ def _clashes(rows: list[dict]) -> dict[int, list[dict]]:
             if overlap and person:
                 for x, y in ((a, b), (b, a)):
                     out[x["id"]].append({"kind": "crew", "with": y["id"], "title": y["title"],
-                                         "say": f"{x['crew']} is also on “{y['title']}” then"})
+                                         "say": f"{_who(x['crew'])} is also booked on “{y['title']}” then"})
             for s, o in ((a, b), (b, a)):  # o could ride along with shutdown s (a turnaround or shutdown itself)
                 if (s["kind"] in SHUTDOWNS and o["kind"] not in SHUTDOWNS and s["area_id"]
                         and s["area_id"] == o["area_id"] and not overlap
@@ -222,8 +229,9 @@ def job_stage(row: dict) -> str:
 
 def _parts_short(conn, rows: list[dict], now: datetime) -> dict[int, list[dict]]:
     """For active items starting within READY_DAYS (and not yet over): the spare parts of their assets whose
-    recorded stock is zero, by item id. A part with no stock record is not reported (unknown is not short), and
-    a stock count is not a reservation: this says what to check with stores, not what is booked."""
+    recorded stock is zero, by item id, each part once (a tag and the equipment installed at it share their parts).
+    A part with no stock record is not reported (unknown is not short), and a stock count is not a reservation: this
+    says what to check with stores, not what is booked."""
     from ..graph import queries
     by_asset: dict[str, list[dict]] = {}
     out: dict[int, list[dict]] = {}
@@ -235,7 +243,8 @@ def _parts_short(conn, rows: list[dict], now: datetime) -> dict[int, list[dict]]
                 by_asset[s] = [{"id": p["fuzer_id"], "label": p["label"], "description": p["description"],
                                 "mpn": p["mpn"], "bin": p["bin"], "for": s} for p in queries.spares(conn, s)
                                if p["stock"] is not None and p["stock"] <= 0]
-            out.setdefault(r["id"], []).extend(by_asset[s])
+            have = out.setdefault(r["id"], [])
+            have.extend(p for p in by_asset[s] if all(p["id"] != h["id"] for h in have))
     return out
 
 
@@ -589,7 +598,7 @@ def prerequisites(conn, item_id: int) -> dict:
         "select 1 from plan_demand where item_id = %s limit 1", (item_id,)).fetchone())
     out = [{"kind": "scheduled", "label": "Scheduled", "satisfied": booked,
             "detail": [] if booked else ["not booked on a crew yet"]}]
-    checks = readiness.check(conn, list(row["subjects"] or []), row["exception_id"])["checks"]
+    checks = readiness.check(conn, list(row["subjects"] or []), row["exception_id"], plan_item=item_id)["checks"]
     for c in checks:
         out.append({"kind": c.get("check") or c["label"].lower(), "label": c["label"],
                     "satisfied": not c["blockers"], "detail": list(c["blockers"])})

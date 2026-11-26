@@ -52,9 +52,9 @@ export function useRouteState(name: string): [string, (value: string) => void] {
 }
 
 export const entityHref = (id: string) => href(`/e/${encodeURIComponent(id)}`);
-/** A work item's bar on Plan: the timeline opens a week before it starts with the bar open. */
+/** A case's bar on Plan: the timeline opens on the day it starts with the bar open. */
 export const planItemHref = (p: { id: number; start_at: string }) =>
-  href("/plan", { item: String(p.id), from: new Date(new Date(p.start_at).getTime() - 7 * 86_400_000).toISOString().slice(0, 10) });
+  href("/plan", { item: String(p.id), from: new Date(p.start_at).toISOString().slice(0, 10) });
 
 /** Fires when data changes (e.g. after a review decision) so views can refresh. */
 export { CHANGED, notifyChanged, refreshAll } from "./snapshot";

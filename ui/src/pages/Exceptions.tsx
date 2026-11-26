@@ -8,7 +8,7 @@ import { Status, entityHref, href, planItemHref, useAsync, useAction } from "../
 import { holder, reportedBy } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { display, named, type EntityNames } from "../entityRefs";
-import { PriorityBadge } from "./workflows/shared";
+import { AssignPicker, PriorityBadge } from "./workflows/shared";
 import { usePermission } from "../Auth";
 import { MatchRef } from "./masterdata/MatchRef";
 import { readingText } from "../FieldPhoto";
@@ -195,8 +195,8 @@ export interface RowPlace { stage: string; area: string; due: string | null; ove
 
 /** One event as a row of the List's table (and, under it, the panel its actions open): what it is, where it stands,
  * what it is about and where, who has it, when it is due and how old it is (what raised it is under its title). */
-export function EventRow({ r, place, person, people, queues, onChange, take = null }: {
-  r: ExceptionRow; place: RowPlace; person: string | null; people: Person[]; queues: string[]; onChange: () => void;
+export function EventRow({ r, place, person, onChange, take = null }: {
+  r: ExceptionRow; place: RowPlace; person: string | null; onChange: () => void;
   /** A step of this row's case waiting unclaimed in one of the person's queues: the row offers Take it first. */
   take?: number | null;
 }) {
@@ -272,7 +272,7 @@ export function EventRow({ r, place, person, people, queues, onChange, take = nu
     </tr>
     {canAct && panel && <tr className="work-row-panel-row"><td colSpan={ROW_COLUMNS} className="work-row-panel" data-label="">
         {panel === "options" && <EventOptions exceptionId={r.id} person={person!} onDone={onChange} />}
-        {panel === "dispatch" && <DispatchControls r={r} person={person!} people={people} queues={queues} onDone={done} />}
+        {panel === "dispatch" && <DispatchControls r={r} person={person!} onDone={done} />}
         {panel === "more" && <Line wrap role="group" aria-label="More actions">
           {back && take != null && takeIt}
           {back && options}
@@ -311,37 +311,40 @@ export const STAGE_WORDS: Record<string, string> = {
 
 /** Who to send it to, what they should do, and whether it is ready to go (P5.5): the one dispatch control, used by
  * the All work lists and the board's cards. */
-export function DispatchControls({ r, person, people, queues, onDone }: {
-  r: ExceptionRow; person: string; people: Person[]; queues: string[]; onDone: () => void;
-}) {
+export function DispatchControls({ r, person, onDone }: { r: ExceptionRow; person: string; onDone: () => void }) {
   const { busy, error, run } = useAction();
   const [to, setTo] = useState("");
   const [ask, setAsk] = useState("");
   const [why, setWhy] = useState("");
   const [ready, setReady] = useState<Readiness | null>(null);
-  const blocked = !!ready && !ready.ready;
+  const [missing, setMissing] = useState<string | null>(null);
+  // the planner plans the parts and crew a job waits on: a send to the planner is never held on them (#1391)
+  const people = useAsync(() => api.workPeople(), []);
+  const planner = to === "role:maintenance_planner"
+    || (!to.startsWith("role:") && !!people.data?.find((p) => p.name === to)?.roles.includes("maintenance_planner"));
+  const blocked = !planner && !!ready && !ready.ready;
+  // Send stays enabled: a tablet has no hover to read a greyed button's reason by, so a tap without what it needs says
+  // what is missing beside the button (P5.28f).
+  const send = () => {
+    const need = notSent(r) && !ask.trim() ? "Say what to check or do first: they see it on their job."
+      : blocked && !why.trim() ? "Not ready: say why it should go anyway." : null;
+    setMissing(need);
+    if (need) return;
+    void run("Dispatching", () => api.dispatch(r.id, person, to.trim(), ask.trim() || undefined,
+      blocked ? why.trim() : undefined), () => { setTo(""); setAsk(""); setWhy(""); onDone(); });
+  };
   return <div className="dispatch-controls">
     <Line wrap>
-      <Field label="Dispatch to" width="md"><Select value={to} onChange={(e) => setTo(e.target.value)}>
-        <option value="">choose a person or queue</option>
-        {people.length > 0 && <optgroup label="People">{people.map((p) => <option key={p.name} value={p.name}>
-          {p.display_name || p.name}{p.roles.length ? ` (${p.roles.join(", ").replace(/_/g, " ")})` : ""}
-          {p.away_until && new Date(p.away_until) > new Date() ? " · away" : ` · holds ${p.holding ?? 0}`}</option>)}</optgroup>}
-        <optgroup label="Role queues">{queues.map((q) => <option key={q} value={`role:${q}`}>{queue(q)}</option>)}</optgroup>
-      </Select></Field>
+      <Field label="Dispatch to" width="md"><AssignPicker value={to} onChange={setTo} placeholder="choose a person or queue" /></Field>
       {to.trim() && <Field label="What to do" width="lg"><Input placeholder="what to check or do (they see this)"
-        value={ask} onChange={(e) => setAsk(e.target.value)} /></Field>}
+        value={ask} onChange={(e) => { setAsk(e.target.value); setMissing(null); }} /></Field>}
     </Line>
-    {to.trim() && <ReadyToDispatch id={r.id} onResult={setReady} />}
+    {to.trim() && !planner && <ReadyToDispatch id={r.id} onResult={setReady} />}
     {to.trim() && blocked && <Input width="full" aria-label="Why send it anyway"
-      placeholder="why it should go anyway (kept on its case)" value={why} onChange={(e) => setWhy(e.target.value)} />}
+      placeholder="why it should go anyway (kept on its case)" value={why} onChange={(e) => { setWhy(e.target.value); setMissing(null); }} />}
     <Line>
-      <Button size="sm" variant="primary" disabled={!to.trim() || !!busy || (notSent(r) && !ask.trim()) || (blocked && !why.trim())}
-        title={notSent(r) && to.trim() && !ask.trim() ? "Say what to check or do first: they see it on their job"
-          : blocked && !why.trim() ? "Not ready: say why it should go anyway" : undefined}
-        onClick={() => run("Dispatching", () => api.dispatch(r.id, person, to.trim(), ask.trim() || undefined,
-          blocked ? why.trim() : undefined), () => { setTo(""); setAsk(""); setWhy(""); onDone(); })}>
-        Send</Button>
+      <Button size="sm" variant="primary" disabled={!to.trim() || !!busy} onClick={send}>Send</Button>
+      <ErrorText inline>{missing}</ErrorText>
     </Line>
     <ErrorText>{error}</ErrorText>
   </div>;

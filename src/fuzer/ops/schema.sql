@@ -311,6 +311,17 @@ alter table exception_record add column if not exists need text not null default
 -- What the condition looked like at its last raise (a machine's status and flags), for a raiser that says (#1379): a
 -- closed exception holds while each raise carries the same signal, and a new signal reopens its case.
 alter table exception_record add column if not exists signal text;
+-- A message case a steward placed before #1383 kept who chose it inside the reader's words ("Matched by: chosen by
+-- user:demo"), which the page printed as "Matched by chosen by user:demo" (tour D8): it is a "Chosen by" fact, whose
+-- value is the actor a page names.
+update exception_record e set evidence = jsonb_set(e.evidence, '{finding,items}', (
+    select jsonb_agg(case when i->>'label' = 'Matched by' and i->>'value' like 'chosen by %'
+                          then i || jsonb_build_object('label', 'Chosen by', 'value', substr(i->>'value', 11))
+                          else i end order by n)
+    from jsonb_array_elements(e.evidence->'finding'->'items') with ordinality t (i, n)))
+where e.type = 'message_report' and jsonb_typeof(e.evidence->'finding'->'items') = 'array'
+  and exists (select 1 from jsonb_array_elements(e.evidence->'finding'->'items') i
+              where i->>'label' = 'Matched by' and i->>'value' like 'chosen by %');
 -- Photos the field attached to a report (P5.3b): resized on the phone, kept with the exception they were taken for.
 create table if not exists field_photo (
     id           bigserial primary key,

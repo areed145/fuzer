@@ -93,14 +93,20 @@ entries **around the event**, and where the case sits in its workflow.
 
 For field work (an SAP notification, an upset, a trip, a lapsed permit, a round finding), start with **Options** on
 the row. It sets four choices side by side: **Dispatch now**, **Ride along with the next visit** already booked on the
-same area, **Shelve** until the area's next turnaround, and **Escalate** to the engineer. Each says when the work would
-be done, the production deferred until then in barrels and dollars, the risk of waiting, and whether it is ready. One
-is recommended, with the reason. Taking it is one tap; taking another asks why, and the reason goes on the case.
+same equipment, **Shelve** until the area's next turnaround, and **Escalate** to the engineer. Each says when the work
+would be done, the production deferred until then in barrels and dollars, the risk of waiting (only when its
+criticality or a hazard is on record), and whether it is ready. One is recommended, with the reason; Shelve never is,
+though you may choose it. Taking it is one tap; taking another takes an optional why, kept on the case. **Add to the
+visit** gives the visit's operator (the operator queue when nobody is booked) a field job on the visit's day, asking
+what was reported. A message that only asks a question, passes on a bulletin or says something is already over gets no
+options: answer it and close it out.
 
 To send it yourself, choose **Send to** on the row. Pick a person (shown with their roles, how much they hold, and
 marked if they are away) or a role's queue, and say what to check or do: they see it on their job. Before you send,
-Fuzer checks the job is ready from the equipment's records, such as whether the work centre's crew is free and whether
-a valid permit covers it. If it is not ready you can still send it, with a reason that is kept on the case. A job sent
+Fuzer checks the job is ready from the equipment's records, such as whether the work centre's crew is free, whether
+a valid permit covers it, and whether the parts reserved on the job's own work order are in stock (a job with no order
+has no parts to wait on). If it is not ready you can still send it, with a reason that is kept on the case. A send to
+the maintenance planner is never held: planning the parts and the crew is their work. A job sent
 to a queue waits there until one of its holders chooses **Take it**.
 
 ![Dispatch: who, what to do, and whether it is ready](../assets/screens/guides/ioc-dispatch-desktop.png){ loading=lazy }
@@ -110,7 +116,7 @@ Not everything needs someone now. Under **More**:
 - **Plan for a day** puts it on the [integrated plan](planner.md), where it can ride along with other work on the
   same equipment or wait for a shutdown. On its day it comes back to To dispatch.
 - **Shelve until a date** takes a standing condition that can wait (a known seal weep until the next outage) off
-  the list, with a reason, for at most 30 days. It comes back by itself when the date passes, or sooner with **Back on
+  the list and off every queue, with a reason, for at most 30 days. It comes back by itself when the date passes, or sooner with **Back on
   the list**. Safety work such as an IOW breach cannot be shelved.
 
 Where several sources reported one event, the row lists each one. **Split out** gives a source that turns out to be a

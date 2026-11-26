@@ -174,17 +174,22 @@ def _order_cost(conn, job_ids: list[int]) -> float | None:
     return float(row["cost"]) if row and row["n"] else None
 
 
-def _actuals(conn, case_ids: list[int]) -> dict:
-    jobs = conn.execute("select * from plan_item where item_id = any(%s) and status <> 'cancelled'",
+def jobs(conn, case_ids: list[int]) -> list[dict]:
+    """The jobs on the plan for these cases, less the cancelled ones: what their hours are read from."""
+    return conn.execute("select * from plan_item where item_id = any(%s) and status <> 'cancelled'",
                         (case_ids,)).fetchall() if case_ids else []
+
+
+def _actuals(conn, case_ids: list[int]) -> dict:
+    jobs_ = jobs(conn, case_ids)
     states = [r["state"] for r in conn.execute("select state from work_item where id = any(%s)", (case_ids,))] \
         if case_ids else []
     return {
         "cases": len(case_ids), "cases_closed": sum(s in ("done", "cancelled") for s in states),
-        "jobs": len(jobs), "jobs_done": sum(j["status"] == "done" for j in jobs),
-        "hours_done": round(sum(_hours(j) for j in jobs if j["status"] == "done"), 1),
-        "hours_booked": round(sum(_hours(j) for j in jobs if j["status"] != "done"), 1),
-        "cost": _order_cost(conn, [j["id"] for j in jobs]) if jobs else None,
+        "jobs": len(jobs_), "jobs_done": sum(j["status"] == "done" for j in jobs_),
+        "hours_done": round(sum(_hours(j) for j in jobs_ if j["status"] == "done"), 1),
+        "hours_booked": round(sum(_hours(j) for j in jobs_ if j["status"] != "done"), 1),
+        "cost": _order_cost(conn, [j["id"] for j in jobs_]) if jobs_ else None,
     }
 
 

@@ -2,6 +2,7 @@
 the daily report, read by everyone, and never written by a read."""
 
 import json
+import re
 from datetime import date
 from types import SimpleNamespace
 
@@ -62,6 +63,11 @@ def test_a_note_is_written_from_the_panels_and_kept_for_its_period(okan_db):
     facts = rs.facts(conn, pack, "work", None, "7d", DAY)
     assert facts["panels"] and all(p["type"] not in ("note", "summary") for p in facts["panels"])
     assert len(json.dumps(facts, default=str)) <= rs.FACTS_CAP
+    # a list panel says it is the first rows of how many (#1396): "all six cases in the field" was 6 of 41
+    lists = [p for p in facts["panels"] if p["type"] == "cases"]
+    assert lists and all(re.fullmatch(r"\d+ of \d+ shown", p["result"]["shown"]) for p in lists), lists
+    assert all("total" not in p["result"] for p in lists)
+    assert "6 of 41 shown" in rs.SYSTEM
     fake = FakeNote()
     assert rs.latest(conn, "work", None, "7d", DAY) is None
     out = rs.write(conn, pack, "work", None, "7d", DAY, "user:test", client=fake)

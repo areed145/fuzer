@@ -183,6 +183,7 @@ def test_any_option_takes_an_optional_why_and_is_counted_as_not_taken(conn):
                       (e["id"],)).fetchone()
     assert on and "crew already on OKJ-01 that day" in on["notes"] and "OKJ-01 well work" in on["notes"]
     assert options.decisions(conn, e["id"])[0]["reason"] == "crew already on OKJ-01 that day"
+    conn.execute("update exception_record set state = 'closed' where id = %s", (e["id"],))  # the next trip is its own
     # no why: still carried out (#1347), and the recommendation's reason is not passed off as this choice's
     e2 = trip(conn, "K-2300B trip 5")
     out = options.choose(conn, e2["id"], "riley", "shelve")
@@ -413,3 +414,106 @@ def test_a_ride_along_and_a_dispatch_carry_the_message_as_the_ask(conn, report_t
     sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind in "
                         "('handed_off', 'created') order by id desc limit 1", (out["event"]["item_id"],)).fetchone()["r"]
     assert sent == "Gauge on OKJ01-GLM reads low since the night shift"
+
+
+def _queued(conn, person: str) -> set[int]:
+    from fuzer.workflow import assignment
+
+    got = assignment.my_work(conn, person)
+    return {r["item_id"] for r in got["mine"] + got["queue"]}
+
+
+def test_shelve_takes_the_case_off_every_queue_until_its_date(conn, report_type):
+    """#1390 (D1): Shelve on case 221 said "Shelved, as recommended", yet the case stayed in My work, overdue, with Shelve
+    recommended again; only a comment was written."""
+    e = raise_report(conn, "sign 2", f"Faded sign at the wellhead of {WELLS[2]}", [f"well:{WELLS[2]}"])
+    options.choose(conn, e["id"], "riley", "escalate")  # in a desk queue of riley's, as 221 was in the ops lead's
+    conn.commit()
+    item = conn.execute("select item_id from exception_record where id = %s", (e["id"],)).fetchone()["item_id"]
+    person = "riley"
+    assert item in _queued(conn, person)
+    shelf = by_key(options.for_exception(conn, e["id"]))
+    assert "shelve" in shelf and shelf["shelve"]["available"], shelf["shelve"]
+    options.choose(conn, e["id"], "riley", "shelve", reason="sign only, next turnaround")
+    conn.commit()
+    assert item not in _queued(conn, person), "a shelved case is off the queue until its date"
+    out = options.for_exception(conn, e["id"])
+    assert out["applies"] is False and out["why_not"].startswith("it is shelved until"), out["why_not"]
+    ex.unshelve(conn, e["id"], "riley")
+    conn.commit()
+    assert item in _queued(conn, person) and options.for_exception(conn, e["id"])["applies"] is True
+
+
+def test_a_ride_along_adds_a_field_step_for_the_visits_operator_with_the_message(conn, report_type):
+    """#1390 (D2, C5): "Add to the visit" on 1168 moved the due date only: no field step, no ask, nothing on sam's
+    visit, and the case stayed with the ops lead."""
+    e = raise_report(conn, "erratic 4", "20-TT-2250B reading erratic", ["tag:20-TT-2250B"])
+    message(conn, e["id"], "20-TT-2250B reading erratic, jumping 73 degF")
+    start = (datetime.now(UTC) + timedelta(days=2)).replace(microsecond=0)
+    plan.propose(conn, "maintenance", "Clean 20-E-2250B", "planner", start, start + timedelta(hours=8),
+                 refs=["tag:20-E-2250B"], status="scheduled", crew="sam")
+    conn.commit()
+    w = by_key(options.for_exception(conn, e["id"]))["window"]
+    assert w["available"] and w["operator"] == "sam" and "Clean 20-E-2250B" in w["detail"], w
+    out = options.choose(conn, e["id"], "riley", "window")
+    conn.commit()
+    item = out["event"]["item_id"]
+    assert out["event"]["stage"] == "field", out["event"]
+    held = conn.execute("select assignee from work_item where id = %s", (item,)).fetchone()["assignee"]
+    step = conn.execute("select assignee from work_token where item_id = %s and state = 'waiting' and kind = 'user'",
+                        (item,)).fetchone()
+    assert "sam" in (held, step and step["assignee"]), (held, step)
+    sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind in "
+                        "('handed_off', 'created') order by id desc limit 1", (item,)).fetchone()["r"]
+    assert sent == "While you are there: 20-TT-2250B reading erratic, jumping 73 degF"
+    bar = conn.execute("select start_at, crew from plan_item where exception_id = %s and status = 'scheduled'",
+                       (e["id"],)).fetchone()
+    assert bar["crew"] == "sam" and bar["start_at"] == start, bar
+
+
+def _opt(key: str, usd: float, hours: float, risk: str | None, ready: bool = True, **more) -> dict:
+    return {"key": key, "available": True, "ready": ready, "hours": hours, "deferred": {"usd": usd, "oil_bbl": 0},
+            "risk": {"level": risk, "why": ""} if risk else None, "blockers": [] if ready else ["Spares: none"],
+            "clashes": [], "label": {"escalate": "Escalate to the engineer"}.get(key, key), "detail": "x, Wed 25 Nov",
+            **more}
+
+
+def test_options_never_recommend_shelve(conn, report_type):
+    """#1390 (D4): Shelve was recommended for a loose coupling guard on a running export pump and a missing Ex cover
+    bolt. A person may still choose it; the rule never recommends it."""
+    cheap_shelf = [_opt("dispatch", 0, 4, "Low"), _opt("shelve", 0, 700, "Low"), _opt("escalate", 0, 28, "Low")]
+    assert options.recommend(cheap_shelf, None, 5000)[0] == "dispatch"
+    blocked = [_opt("dispatch", 0, 4, "Low", ready=False), _opt("shelve", 0, 700, "Low"), _opt("escalate", 0, 28, "Low")]
+    assert options.recommend(blocked, None, 5000)[0] == "escalate"
+    no_basis = [_opt("dispatch", 0, 4, None), _opt("shelve", 0, 700, None), _opt("escalate", 0, 28, None)]
+    assert options.recommend(no_basis, None, 5000)[0] == "dispatch"
+    # on Okan: a tidy-up with no limit or leak in it still offers a shelf, and never recommends it
+    tidy = raise_report(conn, "guard", f"Loose coupling guard at the wellhead of {WELLS[2]}", [f"well:{WELLS[2]}"])
+    out = options.for_exception(conn, tidy["id"])
+    assert by_key(out)["shelve"]["available"] is True and out["recommended"] != "shelve", out["reason"]
+
+
+def test_no_risk_word_beside_a_risk_that_is_not_known(conn):
+    """#1390 (B-N4): "Risk low · ready" stood beside "The risk of waiting is not known" when no wait was open."""
+    key, reason, _ = options.recommend([_opt("dispatch", 0, 4, "Low"), _opt("escalate", 0, 28, "Medium")], None, 5000)
+    assert key == "dispatch" and "not known" not in reason, reason
+    key, reason, _ = options.recommend([_opt("dispatch", 0, 4, None), _opt("escalate", 0, 28, None)], None, 5000)
+    assert key == "dispatch" and "The risk of waiting is not known" in reason, reason
+
+
+def test_a_question_or_a_bulletin_gets_no_options(conn, report_type):
+    """#1390 (B-N10): "Anyone know why train C tripped?" and a vendor's service bulletin got full options with Escalate
+    recommended; neither asks for field work."""
+    from fuzer.ops import messages
+
+    q = raise_report(conn, "train c", "Anyone know why train C tripped", ["tag:20-TT-2250B"])
+    message(conn, q["id"], "Anyone know why train C tripped last night?")
+    out = options.for_exception(conn, q["id"])
+    assert out["applies"] is False and out["why_not"].startswith("the message asks a question"), out["why_not"]
+    b = raise_report(conn, "bulletin", "Service bulletin for the fuel nozzles", ["tag:20-TT-2250B"])
+    message(conn, b["id"], "Service bulletin attached for the Taurus 60 fuel nozzles. It applies to all three drivers.")
+    out = options.for_exception(conn, b["id"])
+    assert out["applies"] is False and out["why_not"].startswith("the message passes on a notice"), out["why_not"]
+    # a question that asks for work, or a bulletin with something wrong, still gets them
+    assert not messages.info_only("Anyone know why 20-K-2300A tripped? Can someone check the discharge temp?")
+    assert not messages.info_only("Service bulletin: fuel nozzles on train B leaking, please check")

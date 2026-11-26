@@ -101,7 +101,9 @@ export async function request<T>(method: string, path: string, params?: Params, 
     }
     return res.json();
   };
-  return readOnly ? scheduleRequest(() => keptRead(url, run), `${csrf}:${project}:${url}`, first) : scheduleRequest(run);
+  // A write goes ahead of the reads waiting (P5.28f): a person pressed it and waits for its answer, while a page's reads
+  // (My work asks for a dozen, and again after every change) held Done back for seconds.
+  return readOnly ? scheduleRequest(() => keptRead(url, run), `${csrf}:${project}:${url}`, first) : scheduleRequest(run, undefined, true);
 }
 
 export async function requestText(path: string): Promise<string> {

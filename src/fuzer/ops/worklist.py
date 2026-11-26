@@ -186,6 +186,14 @@ def _place(conn, rows: list[dict]) -> dict[str, str]:
     return labels
 
 
+def _holds(r: dict, person: str, acting: list[str] | None = None) -> bool:
+    """Whether one of the row's open steps (or the case, when no step is open) is held by the person, in a role they
+    act as (as `_waits_on` counts it)."""
+    steps = r["waiting"] or ([{"assignee": r.get("assignee"), "role": r.get("role")}] if r.get("item_id") else [])
+    return any(s.get("assignee") == person and (acting is None or not (role := (s.get("role") or "").removeprefix("role:"))
+                                                or role in acting) for s in steps)
+
+
 def _waits_on(r: dict, person: str, roles: set[str], acting: list[str] | None = None) -> bool:
     """A step of theirs (in a role they act as, when the demo account picked some: work.acting_roles), or one waiting
     unclaimed in their roles' queues."""
@@ -240,8 +248,12 @@ def figures(conn, person: str | None = None) -> dict:
         # an ops lead's includes what waits to be dispatched; Needs you and My work list that part on its own, and
         # `my_work` is the rest, so Home's My work and the My work page read one number (#1352)
         to_dispatch = sum(1 for r in mine if r["stage"] == "dispatch")
+        # My work's chips split the rest (P5.28d): held by them, or waiting unclaimed in their roles' queues, so its
+        # All, Assigned to you and Unclaimed add up and Take it moves one from the second to the first
+        assigned = sum(1 for r in mine if r["stage"] != "dispatch" and _holds(r, person, acting))
         out["waiting_on_you"] = {"total": len(mine), "overdue": sum(1 for r in mine if r["overdue"]),
-                                 "to_dispatch": to_dispatch, "my_work": len(mine) - to_dispatch}
+                                 "to_dispatch": to_dispatch, "my_work": len(mine) - to_dispatch,
+                                 "assigned": assigned, "unclaimed": len(mine) - to_dispatch - assigned}
     return out
 
 

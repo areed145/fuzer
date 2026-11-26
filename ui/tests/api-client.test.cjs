@@ -94,3 +94,22 @@ test("A read that meets a deploy's 502 waits for the new server; a write is not 
   await assert.rejects(c.api.entity("db"), /Database restarting/);
   assert.equal(sent("/entities/db"), 1);
 });
+
+test("A write goes ahead of the reads waiting their turn (P5.28f: Done took over 2.5 s behind My work's reads)", async () => {
+  const c = client();
+  const held = [];
+  c.respond((url) => url.startsWith("/entities/")
+    ? new Promise((done) => held.push(() => done({ ok: true, json: async () => ({}) })))
+    : { ok: true, json: async () => ({ ok: true }) });
+  const reads = Array.from({ length: 7 }, (_, i) => c.api.entity(`asset-${i}`));
+  await new Promise((r) => setTimeout(r, 0));
+  const write = c.api.comment(3, "riley", "on my way");
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(c.calls.length, 4, "four reads hold the browser's places");
+  held.shift()();  // one read answers: the write takes its place, before the three reads waiting
+  await write;
+  assert.equal(c.calls[4].url, "/work/items/3/comment");
+  let finished = false;
+  void Promise.all(reads).then(() => { finished = true; });
+  while (!finished) { held.splice(0).forEach((done) => done()); await new Promise((r) => setTimeout(r, 0)); }
+});
