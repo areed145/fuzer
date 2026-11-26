@@ -21,3 +21,6 @@ links:
   - rel: part_of
     when: line_id
     to: {kind: pipeline, from: line_id}
+  - rel: starts_at                    # the station a segment leaves from, where one sits between two segments
+    when: from_floc
+    to: {from: from_floc, as: floc}

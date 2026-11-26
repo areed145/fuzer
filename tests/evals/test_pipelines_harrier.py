@@ -64,6 +64,10 @@ def test_every_case_on_the_line_gets_this_specialists_brief(c):
     # the origin station's mainline pump tripped: the line's pump, so its trip is this specialist's hydraulics brief
     [pump] = [dict(r) for r in c.execute("select * from work_item where type = 'machine_trip'")]
     assert "A1-P-1003A" in pump["title"] and brief.owner(c, pump)["path"] == HYDRAULICS
+    # so is a midline pump's: the midline station is where the segment after it starts
+    for tag in ("B1-P-2001A", "B1-P-2001B"):
+        fid = c.execute("select fuzer_id from entity_label where label = %s", (tag,)).fetchone()["fuzer_id"]
+        assert brief.owner(c, {"type": "machine_trip", "subjects": [fid]})["path"] == HYDRAULICS, tag
     # an outage's windows are a plan change the planner agent works out: no pack briefs a plan change, here or on
     # Okan and Kestrel, so none of theirs waits on one
     window = c.execute("select * from work_item where type = 'plan_change' and title like 'Harrier mainline outage%%'"
