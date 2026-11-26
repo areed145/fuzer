@@ -9,6 +9,7 @@
 #               sends only the rows that changed); `rebuild` then runs the build that follows every load
 #   suggest:    a new export reaches the mapping suggester
 #   round:      an operator's reading on a round
+#   closeout:   a case closed out contained, its follow-up sent to the operator queue (a follow_up field job)
 #   readings:   Claude's recorded readings land in the readers' cache as a reader run leaves them (no model call)
 #   about: source  work about a source rather than an asset
 #   tuning:     a window detector made noisy, its cases closed as false alarms, then the tuning job (about: detector)
@@ -27,6 +28,7 @@ arrive:
   records_gap: {detector: records_gaps}
   sap_notification: {source: sap_notifications}
   routine_due: {source: routines}  # a maintenance plan's next due date (step 7)
+  follow_up: {closeout: true}  # a close-out, contained, that sends its follow-up to the operator queue
   # The register build's own questions, open before the run (the stewards' queue holds them)
   conflicting_sources: {build: true}
   context_gap: {build: true}

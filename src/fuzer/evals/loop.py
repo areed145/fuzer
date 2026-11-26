@@ -21,7 +21,8 @@ The eval writes to the database it runs on (cases open and close), so run it on 
 
 Work arrives the way it does in production (P1.7c, Gate A): each bundle's `evals/loop.yaml` says, per type, what
 brings it in: a registered detector run as a schedule runs it (`detectors.run`) over the window the bundle names, the
-window detectors through the SRE scan and hand-off, a source's sync, or the register build's own questions. The arrive
+window detectors through the SRE scan and hand-off, a source's sync, the register build's own questions, or a case
+closed out contained with its follow-up sent to the operator queue (`closeout`, the follow-up's field job). The arrive
 step runs that and takes the exception it raised. A type the bundle names no arrival for is raised by the loop itself
 and reported `synthetic`, so the report shows what is not yet covered. Before the run, the processes load and the
 cases opened before they did run them (`routing.adopt_open_cases`), as on the API's start. Work about a source rather
@@ -292,6 +293,18 @@ def _bring(conn, how: dict) -> str:
         return _watch_live(conn, pack, how["since"], how["until"])
     if "skill" in how:  # a skill falls short twice (briefs not followed), and its specialist drafts a change
         return _skill_falls_short(conn, how["skill"])
+    if how.get("closeout"):  # a close-out that left work for the field: its follow-up goes out as a field job (P5.30b)
+        from ..ops import disposition
+
+        [ref] = _assets(conn, 1)
+        subjects = [r["fuzer_id"] for r in conn.execute(
+            "select fuzer_id from entity_key where kind || ':' || key = %s", (ref,))]
+        case = work.open_case(conn, "manual", f"Loop eval: weep on {ref.removeprefix('tag:')}, clamped", IOC,
+                              subjects=subjects)["id"]
+        disposition.record(conn, pack, case, IOC, "real", failure_mode="OTH", cause="3", activity="6",
+                           outcome="contained", note="Fit a new gasket at the next opportunity (loop eval).",
+                           follow_up_to=f"role:{FIELD_ROLE}")
+        return f"a close-out on {ref.removeprefix('tag:')}, contained, its follow-up sent to the operator queue"
     if "round" in how:  # an operator takes a reading on a round, on the phone
         from ..ops import rounds
 
@@ -512,10 +525,15 @@ def _row(conn, exception_id: int) -> dict:
     return conn.execute("select * from exception_record where id = %s", (exception_id,)).fetchone()
 
 
-def _visible(conn, row: dict, route: dict) -> str:
-    """Where someone can see the work: a person's or queue's Inbox, or the board."""
-    from ..ops import routing
+def _visible(conn, row: dict, route: dict, how: dict | None = None) -> str:
+    """Where someone can see the work: a person's or queue's Inbox, or the board; work its close-out already sent to
+    the operator queue, on the field's list to take."""
+    from ..ops import exceptions, routing
 
+    if route["starts"] == "dispatch" and (how or {}).get("closeout"):
+        if not any(j["id"] == row["id"] for j in exceptions.field_jobs(conn, FIELD, brief=True)):
+            raise Step("its close-out sent it to the operator queue, but it is not on the field's list")
+        return "on the field's list, to take"
     if route["starts"] == "dispatch":
         if not routing.waiting_case(conn, row["item_id"]):
             raise Step("its route waits for the IOC, but no case waits at To dispatch")
@@ -532,10 +550,14 @@ def _visible(conn, row: dict, route: dict) -> str:
     raise Step("its case is in nobody's Inbox")
 
 
-def _routed(conn, row: dict, route: dict) -> str:
+def _routed(conn, row: dict, route: dict, how: dict | None = None) -> str:
     from ..ops import routing
 
     if route["starts"] == "dispatch":  # its case opens when it arrives and waits for the IOC (step 4)
+        if (how or {}).get("closeout"):  # the close-out that raised it is the IOC sending it: a Field check, at once
+            if not any(t["element"] == "field_check" and t["role"] == FIELD_ROLE for t in _waiting(conn, row["item_id"])):
+                raise Step("its close-out sent it to the operator queue, but its case has no Field check there")
+            return "sent to the operator queue by its close-out, as a Field check"
         if not routing.waiting_case(conn, row["item_id"]):
             raise Step("its route waits for the IOC to dispatch, but its case isn't waiting at To dispatch")
         return "waits on the board"
@@ -702,7 +724,7 @@ def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | N
         return f"matched {len(row['subjects'])} asset"
 
     def triage():
-        return _visible(conn, _row(conn, row["id"]), route)
+        return _visible(conn, _row(conn, row["id"]), route, how)
 
     def dispatch():
         if not field:
@@ -752,7 +774,7 @@ def run_type(conn, route: dict, ref: str | None, run_id: str = "", how: dict | N
             raise Step("closed without a closing time, so no measure can count it")
         return f"closed {case['state']}" + (f" ({case['outcome']})" if case["outcome"] else "")
 
-    for name, fn in (("arrive", arrive), ("match", match), ("route", lambda: _routed(conn, _row(conn, row["id"]), route)),
+    for name, fn in (("arrive", arrive), ("match", match), ("route", lambda: _routed(conn, _row(conn, row["id"]), route, how)),
                      ("triage", triage), ("dispatch", dispatch), ("field", field_leg), ("close", close),
                      ("write_back", lambda: _write_back(conn, row["id"], field, sap)), ("count", count)):
         try:
