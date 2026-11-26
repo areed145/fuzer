@@ -255,6 +255,11 @@ def stale(conn, pack, kept: dict, scope: str | None, window: str, at: date | Non
     f = (row or {}).get("facts") or {}
     if not f.get("panels"):
         return ["facts"]
+    # A note written before a list said how many of how many it shows read "all six cases in the field are overdue"
+    # beside In the field 30 (#1396, tour D7/E): it is written again, never shown.
+    if any(p["type"] == "cases" and "shown" not in (p.get("result") or {}) and "cut" not in (p.get("result") or {})
+           for p in f["panels"]):
+        return ["facts"]
     changed = []
     for p in said(kept, f):
         r = report_pages.panel_data(conn, pack, kept["report"], p["id"], scope, window, at, history=False)

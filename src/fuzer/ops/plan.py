@@ -7,13 +7,15 @@
     plan_exception(conn, id, ...)  an exception the IOC chose to plan rather than work now
     link_case(conn, id, item)    the case working an exception, on the bars it was planned as (a bar is its case's job)
     book(conn, id, by, resource) book a job on a crew (or any resource): checked against capacity, over it only with a reason
-    book_dispatch(conn, ...)     work sent to the field now takes a day of its crew, on the same capacity as planned work
+    book_dispatch(conn, ...)     work sent to a field operator now is a bar booked to them, never to a maintenance crew
     finish_closed_work(conn)     bars whose work closed are done (or cancelled with a cancelled case), never left behind
+    finish_field_job(conn, id)   the bar of a field job the field said Done is done
 
 Clashes: two active items on one asset at the same time (simultaneous operations on it), and one person booked on
 two items at once. Bundling: an item due within BUNDLE_DAYS of a turnaround or shutdown of its area could be
 done in it (and one that needs the unit down should be). Readiness: active work starting within READY_DAYS lists
-its assets' spare parts recorded with zero stock (`parts_short`), so stores can be asked before the crew turns up.
+the parts on its own work order that stock does not cover (`parts_short`, as the Spares check reads them), so stores
+can be asked before the crew turns up.
 """
 
 from datetime import UTC, date, datetime, time, timedelta
@@ -152,6 +154,8 @@ def _clashes(rows: list[dict]) -> dict[int, list[dict]]:
     active = [r for r in rows if r["status"] in ACTIVE]
     for i, a in enumerate(active):
         for b in active[i + 1:]:
+            if a.get("rides_with") == b["id"] or b.get("rides_with") == a["id"]:
+                continue  # a job riding along with a visit is done on that trip: no clash with it (tour E, D16)
             overlap = a["start_at"] < b["end_at"] and b["start_at"] < a["end_at"]
             shared = set(a["subjects"]) & set(b["subjects"])
             if overlap and shared:
@@ -174,11 +178,13 @@ def _clashes(rows: list[dict]) -> dict[int, list[dict]]:
 
 
 def items(conn, start=None, end=None, area: str | None = None, status: str | None = None,
-          subject: str | None = None, crew: str | None = None, within: str | None = None) -> list[dict]:
+          subject: str | None = None, crew: str | None = None, within: str | None = None,
+          active: bool = False) -> list[dict]:
     """The plan between start and end (default: from a week ago to eight weeks ahead), in start order, each item
     with its subjects' and area's labels, its clashes and bundling chances. Items just outside the window that
     touch the same areas are compared too, so a clash at its edge still shows. `within` keeps the items about an
-    entity or anything beneath it (an entity page's Schedule)."""
+    entity or anything beneath it (an entity page's Schedule); `active` keeps the work still to do (Plan's timeline:
+    a job that is done or cancelled is no longer on the day)."""
     now = datetime.now(UTC)
     inside = None
     if within:
@@ -207,7 +213,7 @@ def items(conn, start=None, end=None, area: str | None = None, status: str | Non
     for item_id, found in simops.on_plan(conn, rows).items():  # hazards side by side in one area (P5.11b)
         clashes[item_id].extend(found)
     shown = [r for r in rows if r["start_at"] < end and r["end_at"] > start and (status is None or r["status"] == status)
-             and (crew is None or r["crew"] == crew)]
+             and (crew is None or r["crew"] == crew) and (not active or r["status"] in ACTIVE)]
     short = _parts_short(conn, shown, now)
     return [{**r, "clashes": clashes[r["id"]], "parts_short": short.get(r["id"], []), "stage": job_stage(r)}
             for r in shown]
@@ -228,23 +234,20 @@ def job_stage(row: dict) -> str:
 
 
 def _parts_short(conn, rows: list[dict], now: datetime) -> dict[int, list[dict]]:
-    """For active items starting within READY_DAYS (and not yet over): the spare parts of their assets whose
-    recorded stock is zero, by item id, each part once (a tag and the equipment installed at it share their parts).
-    A part with no stock record is not reported (unknown is not short), and a stock count is not a reservation: this
-    says what to check with stores, not what is booked."""
-    from ..graph import queries
-    by_asset: dict[str, list[dict]] = {}
+    """For active items starting within READY_DAYS (and not yet over): the parts reserved on the job's own work
+    order that stock does not cover, by item id. The same parts and the same rule as the Spares check (readiness.spares),
+    never the equipment's BOM: a fogged level glass does not wait on the vessel's gasket set (tour E, D3). A part with
+    no stock level is not reported (unknown is not short); a job with no order has none."""
+    from . import readiness
+
     out: dict[int, list[dict]] = {}
     for r in rows:
         if r["status"] not in ACTIVE or r["end_at"] < now or r["start_at"] > now + timedelta(days=READY_DAYS):
             continue
-        for s in r["subjects"]:
-            if s not in by_asset:
-                by_asset[s] = [{"id": p["fuzer_id"], "label": p["label"], "description": p["description"],
-                                "mpn": p["mpn"], "bin": p["bin"], "for": s} for p in queries.spares(conn, s)
-                               if p["stock"] is not None and p["stock"] <= 0]
-            have = out.setdefault(r["id"], [])
-            have.extend(p for p in by_asset[s] if all(p["id"] != h["id"] for h in have))
+        work_orders = readiness.orders(conn, r["exception_id"], r["id"])
+        if work_orders:
+            out[r["id"]] = [{"id": p["material"], "label": p["label"], "description": p["description"]}
+                            for p in readiness.spares(conn, work_orders)["parts"] if p["short"]]
     return out
 
 
@@ -429,14 +432,17 @@ def _same_due(conn, plan_key: str, written: datetime, by: str) -> str:
 
 
 def plan_exception(conn, exception_id: int, by: str, start, end, crew: str | None = None,
-                   needs_shutdown: bool = False, notes: str | None = None) -> dict:
-    """Plan an exception rather than work it now: a plan item on its assets, linked to it."""
+                   needs_shutdown: bool = False, notes: str | None = None, rides_with: int | None = None) -> dict:
+    """Plan an exception rather than work it now: a plan item on its assets, linked to it. `rides_with`, the visit it
+    rides along with: done on that trip, so never a clash with it."""
     e = conn.execute("select * from exception_record where id = %s", (exception_id,)).fetchone()
     if e is None:
         raise PlanError(f"no exception {exception_id}")
     row = propose(conn, "exception", e["title"], by, start, end, refs=e["subjects"], source="exceptions",
                   source_key=str(exception_id), crew=crew, needs_shutdown=needs_shutdown,
                   deferment_usd=e["value_usd"], exception_id=exception_id, notes=notes, status="scheduled")
+    row = conn.execute("update plan_item set rides_with = %s where id = %s returning *",
+                       (rides_with, row["id"])).fetchone()
     if e["item_id"]:
         row = next((r for r in link_case(conn, exception_id, e["item_id"]) if r["id"] == row["id"]), row)
     events.publish(conn, "exception.planned", f"exception:{exception_id}",
@@ -469,27 +475,33 @@ def finish_closed_work(conn, exception_ids: list[int] | None = None, by: str = "
         from over where p.id = over.id
         returning p.id, p.title, p.status, p.start_at, p.end_at, p.exception_id, p.item_id
         """, {"by": by, "active": list(ACTIVE), "ids": exception_ids}).fetchall()
+    _finished(conn, rows, by, "its work closed")
+    return rows
+
+
+def finish_field_job(conn, exception_id: int, by: str) -> list[dict]:
+    """The field said Done: the field job it was sent to do is over, so its bar is done now, not when the IOC closes
+    the case later. Plan's day no longer lists it as work to do, and crew load stops counting it (tour E, E11).
+    Sending the case to the field again brings the bar back (book_dispatch)."""
+    rows = conn.execute(
+        """
+        update plan_item set status = 'done', updated_by = %(by)s, updated_at = now()
+        where exception_id = %(id)s and status = any(%(active)s) and place = 'field'
+        returning id, title, status, start_at, end_at, exception_id, item_id
+        """, {"by": by, "id": exception_id, "active": list(ACTIVE)}).fetchall()
+    _finished(conn, rows, by, "done in the field")
+    return rows
+
+
+def _finished(conn, rows: list[dict], by: str, reason: str) -> None:
     for r in rows:
         events.publish(conn, "plan.changed", f"plan_item:{r['id']}",
                        {"id": r["id"], "change": "updated", "by": by, "fields": ["status"], "title": r["title"],
                         "start": r["start_at"].isoformat(), "end": r["end_at"].isoformat(), "status": r["status"],
-                        "reason": "its work closed"})
-    return rows
+                        "reason": reason})
 
 
-DISPATCH_HOURS = 4.0  # what work sent to the field now is booked for on its crew, until it comes back
-
-
-def crew_for(conn, subjects: list[str]) -> dict | None:
-    """The crew resource that does a job's work: the plan resource of kind crew on the work center of its equipment's
-    work orders (the same work center the ready check reads), if one is set up."""
-    from .readiness import _centers
-
-    labels = [c["label"] for c in _centers(conn, subjects) if c["label"]]
-    if not labels:
-        return None
-    return conn.execute("select * from plan_resource where kind = 'crew' and work_center = any(%s) order by code limit 1",
-                        (labels,)).fetchone()
+DISPATCH_HOURS = 4.0  # what work sent to the field now is booked for, to whoever it went to, until it comes back
 
 
 def _overloads(conn, resource: str, item: dict) -> list[dict]:
@@ -546,10 +558,10 @@ def book(conn, item_id: int, by: str, resource: str, quantity: float = 1, person
 
 
 def book_dispatch(conn, exception_id: int, item_id: int, to: str, by: str) -> dict | None:
-    """Work sent to the field now (an urgent dispatch) takes its crew's time like planned work does: its bar starts now,
-    runs DISPATCH_HOURS and books one of the crew that does the equipment's work, so Plan, Resources, Logistics and the
-    next dispatch's ready check all see it. A bar it was already planned as is brought forward to now. The bar closes
-    with the case."""
+    """Work sent to a field operator now (an urgent dispatch) takes their time like planned work does: its bar starts
+    now, runs DISPATCH_HOURS and is booked to whoever it went to, so Plan and the clashes see it. It books no
+    maintenance crew: a field operator's look does not use the fitters who do the equipment's work orders (#1401). A
+    bar it was already planned as is brought forward to now. The bar closes with the case."""
     e = conn.execute("select * from exception_record where id = %s", (exception_id,)).fetchone()
     if e is None:
         return None
@@ -567,11 +579,7 @@ def book_dispatch(conn, exception_id: int, item_id: int, to: str, by: str) -> di
         bar = conn.execute("update plan_item set status = 'in_progress', start_at = %s, end_at = greatest(end_at, %s), "
                            "crew = %s, updated_by = %s, updated_at = now() where id = %s returning *",
                            (now, end, to, by, bar["id"])).fetchone()
-    conn.execute("update plan_item set item_id = %s where id = %s", (item_id, bar["id"]))
-    crew = crew_for(conn, list(e["subjects"] or []))
-    if crew and not conn.execute("select 1 from plan_demand where item_id = %s", (bar["id"],)).fetchone():
-        conn.execute("insert into plan_demand (item_id, resource, quantity) values (%s, %s, 1)", (bar["id"], crew["code"]))
-    return conn.execute("select * from plan_item where id = %s", (bar["id"],)).fetchone()
+    return conn.execute("update plan_item set item_id = %s where id = %s returning *", (item_id, bar["id"])).fetchone()
 
 
 # ---- prerequisites decide Ready; field work reaches the field through Release (step 5 of docs/work-model.md) --------
@@ -588,7 +596,7 @@ def prerequisites(conn, item_id: int) -> dict:
     """What a job needs before it can go: each prerequisite satisfied or not, with what holds it. Scheduled (booked
     on a crew or given to someone), each ready check (parts, crew capacity, permits, SIMOPS, MOCs), no clash on the
     plan, and the unit down when the job needs it. A new kind of check is a new prerequisite, not a change to the
-    gate. Ready is all of them satisfied."""
+    gate. Ready is all of them satisfied. A job booked to a field operator needs no maintenance crew (#1401)."""
     from . import readiness
 
     row = conn.execute("select * from plan_item where id = %s", (item_id,)).fetchone()
@@ -598,7 +606,8 @@ def prerequisites(conn, item_id: int) -> dict:
         "select 1 from plan_demand where item_id = %s limit 1", (item_id,)).fetchone())
     out = [{"kind": "scheduled", "label": "Scheduled", "satisfied": booked,
             "detail": [] if booked else ["not booked on a crew yet"]}]
-    checks = readiness.check(conn, list(row["subjects"] or []), row["exception_id"], plan_item=item_id)["checks"]
+    checks = readiness.check(conn, list(row["subjects"] or []), row["exception_id"], plan_item=item_id,
+                             to=row["crew"])["checks"]
     for c in checks:
         out.append({"kind": c.get("check") or c["label"].lower(), "label": c["label"],
                     "satisfied": not c["blockers"], "detail": list(c["blockers"])})

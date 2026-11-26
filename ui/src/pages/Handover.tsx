@@ -47,8 +47,10 @@ export function HandoverPage({ query }: { query: URLSearchParams }) {
     <section>
       <PageHeader>
         Shift handover</PageHeader>
-      {operate && <Text as="p" small><Button variant="secondary" disabled={!!a.busy} onClick={() =>
-        a.run("draft", () => api.draftHandover(person), reload)} title="Writes the handover for the shift in progress, or brings it up to date">Draft the handover</Button>
+      {/* Drafting writes the running shift's handover: offered until there is one, and never over a past one shown (E12);
+          once drafted, its lines are read live (fuzer.ops.handover.get), so there is nothing to bring up to date. */}
+      {operate && !picked && list.data && list.data[0]?.status !== "in progress" && <Text as="p" small><Button variant="secondary" disabled={!!a.busy} onClick={() =>
+        a.run("draft", () => api.draftHandover(person), reload)} title="Writes the handover for the shift in progress">Draft the handover</Button>
         <ErrorText inline>{a.error}</ErrorText></Text>}
       {/* The handover shown leads and the past ones follow once it is in: drawn sooner, its lines filling in pushed the
           past handovers out of view (#1069). */}
@@ -76,6 +78,8 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
   const a = useAction();
   const [shown, setShown] = useState<Set<string>>(new Set());
   const acked = h.status === "acknowledged";
+  // acknowledged, or replaced by a later shift's handover: read as it was, nothing to add (E12)
+  const fixed = acked || !!h.read_only;
   // The outgoing lead's draft of the shift still running: it goes to the incoming lead at the shift change, so it
   // can't be acknowledged yet.
   const running = h.status === "in progress";
@@ -94,11 +98,12 @@ function HandoverView({ h, person, canAct, reload }: { h: Handover; person: stri
         <Badge tone={acked ? "ok" : "warn"}>{acked ? `acknowledged by ${personName(h.acknowledged_by)} ${when(h.acknowledged_at!)}`
           : running ? `shift in progress: goes to the incoming lead ${when(h.shift_end)}` : h.status}</Badge>
         {h.item_id && <> · <a href={caseHref(h.item_id)}>its case</a></>}
-        <Text muted> · drafted {when(h.drafted_at)}</Text>
+        {/* a running shift's lines are as of now; a past one says when it was drafted */}
+        {!running && <Text muted> · drafted {when(h.drafted_at)}</Text>}
       </Text>
       {/* Notes and Acknowledge lead (#1351): the banner opens the page here, and on a phone they were eight screens down. */}
-      {h.notes && (acked || !canAct) && <p>{h.notes} <Text small muted>({personName(h.notes_by)}, {when(h.notes_at!)})</Text></p>}
-      {!acked && canAct && (
+      {h.notes && (fixed || !canAct) && <p>{h.notes} <Text small muted>({personName(h.notes_by)}, {when(h.notes_at!)})</Text></p>}
+      {!fixed && canAct && (
         <>
           <Textarea rows={2} className="handover-notes" aria-label="Outgoing notes" placeholder="Outgoing notes: what the lines don't say"
             value={notes ?? h.notes ?? ""} onChange={(e) => setNotes(e.target.value)} />

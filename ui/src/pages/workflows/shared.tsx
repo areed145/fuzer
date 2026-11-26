@@ -106,9 +106,10 @@ export function WorkLine({ r, title, extra }: {
 }
 
 /** A person or a role's queue (role:<role>), optionally an agent (agent:<role>): the one Send picker, on a case, its
- * step, a List row and a follow-up (P5.28f), each person with their roles and what they hold or that they are away. */
-export function AssignPicker({ value, onChange, agents = false, placeholder = "choose…", label }: {
-  value: string; onChange: (v: string) => void; agents?: boolean; placeholder?: string; label?: string;
+ * step, a List row and a follow-up (P5.28f), each person with their roles and what they hold or that they are away.
+ * `children` adds a page's own option group after them: Plan's crews, so a job has one picker for who goes. */
+export function AssignPicker({ value, onChange, agents = false, placeholder = "choose…", label, children }: {
+  value: string; onChange: (v: string) => void; agents?: boolean; placeholder?: string; label?: string; children?: ReactNode;
 }) {
   const people = useAsync(() => api.workPeople(), []);
   const roles = useAsync(() => api.rolesCatalog(), []);
@@ -128,6 +129,7 @@ export function AssignPicker({ value, onChange, agents = false, placeholder = "c
           {(roles.data ?? []).filter((r) => r.kind === "agent").map((r) => <option key={r.name} value={`agent:${r.name}`}>{r.name} agent</option>)}
         </optgroup>
       )}
+      {children}
     </Select>
   );
 }

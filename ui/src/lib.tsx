@@ -61,7 +61,13 @@ export { CHANGED, notifyChanged, refreshAll } from "./snapshot";
 
 /** Load data for a view. The answer this read last gave in this tab (see `snapshot.ts`) shows at once, marked
  * `loading`, while the read asks the server again, so a refresh or a return to a page never starts from blank. */
-export function useAsync<T>(fn: () => Promise<T>, deps: unknown[], keptBy: unknown[] = deps) {
+export interface Async<T> {
+  key: object; data?: T; error?: string; loading: boolean; reload: () => void;
+  /** Shows an action's answer that carries what this read gives; a method, so a read of a narrower answer still fits. */
+  put(data: T): void;
+}
+
+export function useAsync<T>(fn: () => Promise<T>, deps: unknown[], keptBy: unknown[] = deps): Async<T> {
   const place = useId();
   const key = useMemo(() => ({}), deps);
   // `keptBy` names the inputs that tell answers apart, when `deps` also holds a gate that only says when to read
@@ -100,7 +106,13 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[], keptBy: unkno
       turn.drop();
     };
   }, [...deps, tick]);
-  return { ...(state.key === key ? state : start()), reload };
+  // An action's answer that carries what this read gives (the case it changed, P5.29d) is shown at once, rather than
+  // after every view on the page has read again on a busy server. The read made after the action still follows it.
+  const put = useCallback((data: T) => {
+    remember(snap, data, keptAt(data) !== null);
+    setState({ key, data, loading: false });
+  }, [snap, key]);
+  return { ...(state.key === key ? state : start()), reload, put };
 }
 
 /** Whether a Refresh (or the first reads after a page load) is still bringing in new answers. */

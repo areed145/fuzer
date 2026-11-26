@@ -54,7 +54,8 @@ rows:
 
 Every panel has an `id` (unique in the report, kept across versions so notes and links stay attached), a `type`, a
 `size` (1 to 4 quarters of the desktop width, default 4 for table and cases, 1 for stat, 2 otherwise), an optional
-`title` (the measure's label when left out) and `phone: false` to leave it out on phones.
+`title` (the measure's label when left out) and `phone: false` to leave it out on phones, where it is not read
+either (Print still has it).
 
 | Type | Fields | Draws | Owner |
 |---|---|---|---|

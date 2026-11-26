@@ -28,13 +28,17 @@ Read from what Fuzer already has, never from equipment type:
                             turnaround or shutdown of the area, at most `exceptions.max_shelve_days`, never for a limit
                             or a leak with production behind it (#1381); escalate: the engineer queue's SLA (the ops
                             lead's for a gas test or permit), then a dispatch, never to a role the reader acts as
-    what the field is asked the IOC's words, else the message the case came from, else ASK (#1381)
-    carrying one out        dispatch: to whom it is sent; ride along: a field step for the visit's operator (the
-                            person on it, else the operator queue) on the visit's day, asking the same (#1390);
+    what the field is asked the IOC's words, else the message the case came from, else ASK (#1381); a ride
+                            along names the visit and asks the message, else the case's title (#1402)
+    carrying one out        dispatch: to whom it is sent; ride along: a Field check for the visit's operator (the
+                            person on it, else the operator queue) on the visit's day, whether or not the case had
+                            an open step (#1390, #1402);
                             shelve: off every queue until its date; escalate: to that queue
-    readiness and clashes   readiness.check (the field's last report, crew, permit, spares, simultaneous operations,
-                            MOC) for dispatch now, less the visit it can ride along with: someone already at the
-                            asset is the ride along, not a clash; the visit's own clashes on the plan for riding along
+    readiness and clashes   readiness.check (the field's last report, permit, spares, simultaneous operations, MOC;
+                            no maintenance crew, since a field operator does it, #1401) for dispatch now, less the
+                            visit it can ride along with: someone already at the asset is the ride along, not a
+                            clash; the visit's own clashes on the plan for riding along, never one with the event's
+                            own bars. A case the field already has on the same asset is `field_case`, not a clash
     price                   the pack's value config (oil per bbl, gas per Mscf)
 
 The recommendation is a rule, the same on every case, so two people reading one case get one answer: riding along
@@ -64,6 +68,7 @@ HAZARD = re.compile(r"(?i)\b(h2s|hydrogen sul[pf]hide|smoke|flames?|explosion|le
 # Past or heading past a limit, or leaking: on kit with production behind it, never one to shelve (#1381).
 LIMIT_OR_LEAK = re.compile(r"(?i)\blimits?\b|\b(hi ?hi|lo ?lo|high|low)[- ](alarm|limit)\b"
                            r"|\b(leak\w*|weep\w*|seep\w*|drip\w*)\b|\b(dropping|falling|rising|climbing|crept up|down to)\b")
+LEAK = re.compile(r"(?i)^(leak|weep|seep|drip)")
 # What the field's report says it waits on that the ops lead arranges, not an engineer: the permit holder's work.
 PERMIT_WORK = ("a gas test", "a permit", "an isolation", "depressurising")
 OPEN_STAGES = ("dispatch", "desk", "back", "planned")
@@ -252,7 +257,9 @@ def _no_shelf(conn, row: dict, now: dict | None, behind: dict | None) -> str | N
         return None
     said = (f"about {_n(about(flow['oil_bbld']))} bbl/d" if flow["oil_bbld"]
             else f"about {_n(about(flow['gas_mscfd']))} Mscf/d")
-    return f"“{m.group(0)}” with {said} behind it can't be shelved"
+    # the reason in words, never a word quoted from the title (tour E, E6)
+    what = "it leaks" if LEAK.search(m.group(0)) else "it is past or heading past a limit"
+    return f"{what} with {said} behind it"
 
 
 def _base(priority: float | None, crit: str | None, hazard: str | None = None) -> dict | None:
@@ -323,7 +330,8 @@ def _alongside(conn, row: dict, at: datetime) -> dict | None:
         if last.get("status") in ("done", "could_not_do"):
             continue  # back from the field (a note after it changes nothing): nobody there now
         there = "on site" if last.get("status") == "on_site" and last.get("by") == r["assignee"] else "sent there"
-        return {"id": None, "exception": r["id"], "person": r["assignee"], "title": f"{r['assignee']}, {there} for "
+        return {"id": None, "exception": r["id"], "person": r["assignee"], "job": r["title"],
+                "title": f"{r['assignee']}, {there} for "
                 f"“{r['title']}”", "kind": "field_job", "start_at": at, "end_at": at + timedelta(hours=JOB_HOURS),
                 "crew": r["assignee"], "basis": f"{r['assignee']} is {there} on its asset now, then {JOB_HOURS:g} h "
                 "for the job"}
@@ -410,12 +418,16 @@ def _turnaround(conn, row: dict, at: datetime) -> dict | None:
     return dict(r) if r else None
 
 
-def _plan_clashes(conn, item_id: int, start: datetime, end: datetime) -> list[str]:
+def _plan_clashes(conn, item_id: int, start: datetime, end: datetime, row: dict) -> list[str]:
+    """The visit's clashes on the plan, less those with the event's own bars: a case never clashes with itself
+    (tour E, D16)."""
     from . import plan
 
-    for i in plan.items(conn, start - timedelta(hours=1), end + timedelta(hours=1)):
+    every = plan.items(conn, start - timedelta(hours=1), end + timedelta(hours=1))
+    own = {i["id"] for i in every if i["exception_id"] == row["id"] or (row["item_id"] and i["item_id"] == row["item_id"])}
+    for i in every:
         if i["id"] == item_id:
-            return [c["say"] for c in i["clashes"] if c["kind"] != "bundle"]
+            return [c["say"] for c in i["clashes"] if c["kind"] != "bundle" and c["with"] not in own]
     return []
 
 
@@ -508,7 +520,8 @@ def for_exception(conn, exception_id: int, at: datetime | None = None, viewer: l
 
     # dispatch now
     respond = _hours(conn, "operator", 4.0)
-    ready = _beside(readiness.check(conn, list(row["subjects"] or []), row["id"]), visit)
+    ready = _beside(readiness.check(conn, list(row["subjects"] or []), row["id"],
+                                    to=f"role:{readiness.OPERATOR}"), visit)
     clashes = next((c["blockers"] for c in ready["checks"] if c["check"] == "simops"), [])
     notes = [c["note"] for c in ready["checks"] if not c.get("checked") and c.get("note")]
     options.append({
@@ -534,8 +547,9 @@ def for_exception(conn, exception_id: int, at: datetime | None = None, viewer: l
             "hours": round(hours, 1), "by": (at + timedelta(hours=hours)).isoformat(),
             "deferred": _deferred(now, hours, prices), "risk": _risk(base, hours, crit, behind),
             "ready": not short, "blockers": short, "warnings": [], "unknown": [parts["note"]] if parts.get("unknown") else [],
-            "clashes": _plan_clashes(conn, visit["id"], visit["start_at"], visit["end_at"]), "available": True,
+            "clashes": _plan_clashes(conn, visit["id"], visit["start_at"], visit["end_at"], row), "available": True,
             "person": visit.get("person"), "with_exception": visit.get("exception"),
+            "visit": visit.get("job") or visit["title"],
             "operator": visit.get("person") or visit.get("operator"),
             "basis": visit.get("basis") or f"{visit['kind'].replace('_', ' ')} on the plan on its equipment, then "
                                            f"{JOB_HOURS:g} h for the job"})
@@ -579,7 +593,10 @@ def for_exception(conn, exception_id: int, at: datetime | None = None, viewer: l
             "basis": f"the {to.replace('_', ' ')} queue answers within {_hours(conn, to, 24.0):g} h, then a dispatch"})
 
     key, reason, deciding = recommend(options, now, float(settings.get(conn, "options.trip_usd")))
-    return {**head, "applies": True, "why_not": None, "at": at.isoformat(), "loss": now, "if_it_trips": behind,
+    # a case the field already has on the same asset: said and linked, never a clash (tour E, E14)
+    there = next((f for c in ready["checks"] if c["check"] == "simops" for f in c.get("field_cases") or []), None)
+    return {**head, "applies": True, "why_not": None, "at": at.isoformat(), "field_case": there,
+            "loss": now, "if_it_trips": behind,
             "criticality": crit, "prices": {"oil_bbl": prices["oil_bbl"], "gas_mscf": prices["gas_mscf"],
                                             "source": prices["source"]},
             "options": options, "recommended": key, "reason": reason, "deciding": deciding, "unknown": unknown,
@@ -686,6 +703,15 @@ def _ask(conn, exception_id: int) -> str:
     return messages.text_of(conn, exception_id) or ASK
 
 
+def _case_text(conn, exception_id: int) -> str:
+    """What a ride-along asks the visit to see to when the IOC writes nothing: the message the case came from, else
+    the case's own title, never "go and have a look" (#1402)."""
+    from . import messages
+
+    return messages.text_of(conn, exception_id) or conn.execute(
+        "select title from exception_record where id = %s", (exception_id,)).fetchone()["title"]
+
+
 def choose(conn, exception_id: int, by: str, option: str, reason: str | None = None, *, to: str | None = None,
            ask: str | None = None, due=None, priority: float | None = None, override: str | None = None) -> dict:
     """Carry out one of an event's options and record it: dispatch it (to a person or the operator queue, with what to
@@ -709,9 +735,7 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
     why = reason or (offered["reason"] if option == rec else "none given")
     eid = offered["exception_id"]
     if option == "dispatch":
-        ready = readiness.for_exception(conn, eid)
-        if not readiness.holds(conn, to or "role:operator"):  # the planner plans what it waits on (#1391)
-            ready = {**ready, "ready": True, "blockers": []}
+        ready = readiness.for_exception(conn, eid, to or f"role:{readiness.OPERATOR}")
         override = (override or "").strip() or why
         # The field reads only what to check or do (#1344). Why it goes now, the IOC's or the recommendation's, is kept
         # on the case's history below, not sent as the instruction.
@@ -726,8 +750,8 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
         # A field step for whoever goes on the visit, asking what was reported (#1390): someone already at the asset
         # takes it with them now; a visit on the plan takes it on its day, booked to its operator, else the operator
         # queue. Never only a bar on the plan with the case left at the desk.
-        said = _ask(conn, eid)
-        told = (ask or "").strip() or f"While you are there: {said[0].lower()}{said[1:]}"
+        said = _case_text(conn, eid)
+        told = (ask or "").strip() or f"While you are on “{o['visit']}”: {said}"
         to = o.get("operator") or f"role:{exceptions.OPERATOR_ROLE}"
         if o.get("person"):
             row = exceptions.dispatch(conn, eid, by, to, told)
@@ -737,7 +761,7 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
             start = datetime.fromisoformat(o["start"])
             try:
                 plan.plan_exception(conn, eid, by, start, start + timedelta(hours=JOB_HOURS), crew=to,
-                                    notes=f"Rides along with {o['detail']}. Why: {why}")
+                                    notes=f"Rides along with {o['detail']}. Why: {why}", rides_with=o["plan_item"])
             except PlanError as e:
                 raise OptionsError(str(e)) from e
             row = exceptions.dispatch(conn, eid, by, to, told, planned=True)

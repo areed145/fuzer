@@ -78,7 +78,7 @@ export function holder(assignee: string | null, role: string | null, kind?: stri
 const to = (t: unknown) => {
   const s = String(t ?? "");
   // an escalation writes where it came from as words around the role's key ("the data_steward queue")
-  return s.startsWith("role:") ? `the ${queue(s)}` : s.startsWith("agent:") ? `the ${s.slice(6)} agent` : say(s);
+  return s.startsWith("role:") ? `the ${queue(s)}` : s.startsWith("agent:") ? `the ${personName(s)}` : say(s);
 };
 
 const UNITS: Record<string, string> = { D: "day", H: "hour", M: "minute" };
@@ -132,7 +132,6 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "attached": return { text: <>attached an answer from Ask</>, body: <div className="attached-answer">
       <Text as="p" small><strong>{d.question}</strong></Text><Markdown text={String(d.answer ?? "")} /></div> };
     case "cancelled": return { text: <>cancelled the workflow</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
-    case "adopted": return { text: <>now runs as the <strong>{d.process_key}</strong> process, still with {to(d.assignee ?? (d.role ? `role:${d.role}` : null))}</> };
     case "auto_assigned": return { text: <><strong>{step}</strong> went to {personName(d.to)} (the {d.role} role assigns automatically)</> };
     case "delegated": return { text: <><strong>{el ?? "a step"}</strong> went to {personName(d.to)} instead of {personName(d["for"])}, who is away</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
     case "item_changed": return { text: <>changed {[d.priority && priorityChange(d.priority.from, d.priority.to), d.due && `due → ${when(d.due.to)}`].filter(Boolean).join(", ")}</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
@@ -168,8 +167,7 @@ const LIMIT_WORDS: Record<string, string> = { lo: "low", lolo: "low-low", hi: "h
  * (`excursions:alarm:lo`) as words ("alarm low excursions"). Anything else is shown as recorded. */
 export function readable(v: string): string {
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(v)) return when(v);
-  const agent = /^agent:([a-z_]+)$/.exec(v);
-  if (agent) return `${agent[1].replace(/_/g, " ")} agent`;
+  if (/^agent:[a-z0-9_-]+$/.test(v)) return personName(v);
   const m = /^([a-z]+):([a-z_]+):([a-z]+)$/.exec(v);
   if (m) return `${m[2].replace(/_/g, " ")} ${LIMIT_WORDS[m[3]] ?? m[3]} ${m[1].replace(/_/g, " ")}`;
   // a bare code ("field_check", a step or route id) as words: "Field check" (#16)

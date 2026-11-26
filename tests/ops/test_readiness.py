@@ -192,6 +192,12 @@ def test_a_job_waits_for_a_free_crew_and_the_blocker_says_how_many_jobs_hold_it(
     assert "Crew: Electrical technicians (ELEC): all 1 busy on 1 open job" in \
         out["blockers"]
     assert client.post(f"/exceptions/{second}/dispatch", json={"by": "ioc-ann", "to": "fred"}).status_code == 409
+    # readiness is for the send: a look by the operator queue uses no electrician (tour E, E2), and a send to the
+    # planner is not held at all, so the dispatch card shows nothing for it
+    look = client.get(f"/exceptions/{second}/readiness", params={"to": "role:operator"}).json()
+    assert look["ready"] is True and look["holds"] is True and "crew" not in [c["check"] for c in look["checks"]]
+    planner = client.get(f"/exceptions/{second}/readiness", params={"to": "role:maintenance_planner"}).json()
+    assert planner["ready"] is True and planner["holds"] is False
     # the first one is not held up by itself, and a compressor's mechanical crew (3) still has room
     assert client.get(f"/exceptions/{first}/readiness").json()["checks"][2]["ready"] is True
     k2001 = readiness.crew(conn, [queries.resolve_ref(conn, pack, "B1-K-2001")])

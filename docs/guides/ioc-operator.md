@@ -97,16 +97,18 @@ same equipment, **Shelve** until the area's next turnaround, and **Escalate** to
 would be done, the production deferred until then in barrels and dollars, the risk of waiting (only when its
 criticality or a hazard is on record), and whether it is ready. One is recommended, with the reason; Shelve never is,
 though you may choose it. Taking it is one tap; taking another takes an optional why, kept on the case. **Add to the
-visit** gives the visit's operator (the operator queue when nobody is booked) a field job on the visit's day, asking
-what was reported. A message that only asks a question, passes on a bulletin or says something is already over gets no
+visit** gives the visit's operator (the operator queue when nobody is booked) a Field check on the visit's day, naming
+the visit and asking what was reported. A message that only asks a question, passes on a bulletin or says something is already over gets no
 options: answer it and close it out.
 
 To send it yourself, choose **Send to** on the row. Pick a person (shown with their roles, how much they hold, and
 marked if they are away) or a role's queue, and say what to check or do: they see it on their job. Before you send,
 Fuzer checks the job is ready from the equipment's records, such as whether the work centre's crew is free, whether
 a valid permit covers it, and whether the parts reserved on the job's own work order are in stock (a job with no order
-has no parts to wait on). If it is not ready you can still send it, with a reason that is kept on the case. A send to
-the maintenance planner is never held: planning the parts and the crew is their work. A job sent
+has no parts to wait on). The check is for the person you pick: a job sent to a field operator or the operator queue
+is theirs to do, so no maintenance crew is checked for it. If it is not ready you can still send it, with a reason
+that is kept on the case. A send to the maintenance planner is never held: planning the parts and the crew is their
+work. A job sent
 to a queue waits there until one of its holders chooses **Take it**.
 
 ![Dispatch: who, what to do, and whether it is ready](../assets/screens/guides/ioc-dispatch-desktop.png){ loading=lazy }
@@ -153,8 +155,8 @@ is a deliberate, metered call.
 At each shift change (06:00 and 18:00 by default, in the project's time zone) a handover is drafted from live work.
 Before you leave, open it from the banner on **Waiting on me** (or **Shift handover** in the List's preset picker), add **outgoing notes**
 for what the lines do not say (plans, risks, asks), and **Save notes**; both sit at the top, above what changed this
-shift. **Draft the handover** brings it up to date from live work if the shift has moved on since it was drafted. The
-incoming lead acknowledges it. The rest of the open work is on **All work**.
+shift. While the shift runs, its lines are the work as it stands when you open it; **Draft the handover** starts one
+if none is drafted yet. The incoming lead acknowledges it; an older handover stays readable, as it was. The rest of the open work is on **All work**.
 
 ## Good to know
 
@@ -164,7 +166,9 @@ incoming lead acknowledges it. The rest of the open work is on **All work**.
   [data steward](data-steward.md#match-a-reference-nothing-matched) can make the reference an alias so the next one
   matches.
 - A job that clashes with another (the same asset at once, hot work beside a line break) is flagged at Dispatch
-  and is only sent with a reason.
+  and is only sent with a reason. A case a field operator already has on the same asset is no clash: Options says
+  **The field already has a case on it** and links that case, so a repeat report can be closed out as a duplicate. A
+  case never clashes with itself or with the visit it rides along with.
 
 - One event, one case: when SAP, a detector and an IOW breach all report the same compressor, you see one row with
   three sources. [How work is routed](../work-routing.md#3-one-event-one-case) explains how.

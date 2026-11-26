@@ -28,7 +28,8 @@ Shift changes are the `handover.shift_times` setting (local times in the project
 work tick drafts a handover once per shift change (`at_shift_change`); it starts the `shift_handover` process, one
 step on the ops lead queue with its SLA (#509). The outgoing lead adds notes, which changes nothing else; the incoming lead
 acknowledges it, which is kept on the case history (who and when) and closes the case. Past handovers stay readable,
-each with its `status`: in progress, acknowledged, or not acknowledged.
+each with its `status`: in progress, acknowledged, or not acknowledged. While a shift runs its handover's lines are read
+from live work (`get`); one acknowledged or replaced by a later shift's is `read_only` (tour E12).
 """
 
 from datetime import UTC, datetime, time, timedelta
@@ -362,11 +363,38 @@ def _ordered(row) -> dict:
     return {**row, "status": status(row)}
 
 
-def get(conn, handover_id: int) -> dict:
+def _stored(conn, handover_id: int) -> dict:
     r = conn.execute("select * from shift_handover where id = %s", (handover_id,)).fetchone()
     if r is None:
         raise ExceptionError(f"no handover {handover_id}")
-    return _ordered(r)
+    return dict(r)
+
+
+def _open_to_change(conn, h: dict, now: datetime | None = None) -> None:
+    """Notes and an acknowledgement go on a handover still current: not one acknowledged, nor one a later shift's
+    handover replaced, which is kept as it was (tour E12)."""
+    if h["state"] == "acknowledged":
+        raise ExceptionError(f"already acknowledged by {h['acknowledged_by']}; add a comment on its case instead")
+    if _superseded(conn, h, now or datetime.now(UTC)):
+        raise ExceptionError("a later shift's handover says what holds now; this one is kept as it was")
+
+
+def _superseded(conn, row, now: datetime) -> bool:
+    """A later shift has ended since this one: its handover says what holds now (_supersede closed this one's case)."""
+    return conn.execute("select 1 from shift_handover where shift_end > %s and shift_end <= %s limit 1",
+                        (row["shift_end"], now)).fetchone() is not None
+
+
+def get(conn, handover_id: int, now: datetime | None = None) -> dict:
+    """A handover as the page reads it (tour E12). While its shift runs, its lines are the work as it stands now, not
+    as it stood when someone last drafted it ("PT-2001 ... (open)" after it closed); nothing is stored by reading.
+    `read_only` once it was acknowledged or a later shift ended: an old handover stays readable but takes no notes
+    and no acknowledgement."""
+    now = now or datetime.now(UTC)
+    r = _stored(conn, handover_id)
+    if r["state"] != "acknowledged" and r["shift_end"] > now:
+        r["facts"], r["drafted_at"] = facts(conn, r["shift_start"], now), now
+    return {**_ordered(r), "read_only": r["state"] == "acknowledged" or _superseded(conn, r, now)}
 
 
 def listing(conn, limit: int = 60) -> list[dict]:
@@ -376,12 +404,11 @@ def listing(conn, limit: int = 60) -> list[dict]:
         "from shift_handover order by shift_end desc limit %s", (limit,))]
 
 
-def add_notes(conn, handover_id: int, by: str, notes: str) -> dict:
+def add_notes(conn, handover_id: int, by: str, notes: str, now: datetime | None = None) -> dict:
     """The outgoing lead's notes (what the lines don't say). Kept on the case history too. Saving them changes nothing
     else: a running shift stays in progress, and only acknowledging hands it over (#1351)."""
-    h = get(conn, handover_id)
-    if h["state"] == "acknowledged":
-        raise ExceptionError("this handover was acknowledged; add a comment on its case instead")
+    h = _stored(conn, handover_id)
+    _open_to_change(conn, h, now)
     row = _ordered(conn.execute("update shift_handover set notes = %s, notes_by = %s, notes_at = now() "
                                 "where id = %s returning *", (notes.strip(), by, handover_id)).fetchone())
     if h["item_id"]:
@@ -402,11 +429,10 @@ def _supersede(conn, end: datetime, label: str, by: str) -> None:
                         reason=f"Superseded by the {label} handover, which says what holds now")
 
 
-def acknowledge(conn, handover_id: int, by: str, note: str | None = None) -> dict:
+def acknowledge(conn, handover_id: int, by: str, note: str | None = None, now: datetime | None = None) -> dict:
     """The incoming lead has read it: who and when go on the record, and its case closes."""
-    h = get(conn, handover_id)
-    if h["state"] == "acknowledged":
-        raise ExceptionError(f"already acknowledged by {h['acknowledged_by']}")
+    h = _stored(conn, handover_id)
+    _open_to_change(conn, h, now)
     row = _ordered(conn.execute("update shift_handover set state = 'acknowledged', acknowledged_by = %s, "
                             "acknowledged_at = now(), acknowledged_note = %s where id = %s returning *",
                             (by, (note or "").strip() or None, handover_id)).fetchone())

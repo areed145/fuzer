@@ -14,6 +14,7 @@ cases don't join the IOC's cases about the same asset (`joins=False`): a disagre
 steward's, not part of the pump's trip.
 """
 
+from ..core import wording
 from ..core.exceptions import clear_exception, exception_type, open_keys, raise_exception
 from ..core.findings import EXTERNAL, Finding, at, fact, page
 
@@ -77,7 +78,9 @@ def title(kind: str, subject: str, p: dict) -> str:
         return _drawing_title(p)
     if kind == "message" and p.get("message"):
         m = p["message"]
-        return f"Which entity is this about? {m.get('channel_label', 'Message')} from {m.get('sender')}: {m.get('text')}"
+        # by the sender's name: a field note's sender is the account that sent it ("Field note from user:demo", C8)
+        sender = m.get("sender_name") or wording.say(m.get("sender"))
+        return f"Which entity is this about? {m.get('channel_label', 'Message')} from {sender}: {m.get('text')}"
     return p.get("question") or f"{KINDS[kind][1]}: {subject}"
 
 

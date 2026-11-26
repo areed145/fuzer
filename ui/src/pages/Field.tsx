@@ -340,6 +340,9 @@ export function FieldJobCard({ job, person, onChange, onReported, onTaken }: {
   // Taken here: the card is the job's own at once, before the jobs are read again, and a second tap can't take it again.
   const [taken, setTaken] = useState(false);
   const taking = useRef(false);
+  // Said here and answered (P5.29d): On site shows as said at once, not after My work is read again (6.8 s on an iPad).
+  const [saidHere, setSaidHere] = useState<string[]>([]);
+  useEffect(() => setSaidHere([]), [job.sent?.at]);  // sent out again: a new visit
   const queued = job.queued && !taken;
   useEffect(() => {
     if (justTaken !== job.id || job.queued) return;
@@ -384,7 +387,7 @@ export function FieldJobCard({ job, person, onChange, onReported, onTaken }: {
         setKept(how === "queued");
         if (how === "sent" && (status === "done" || status === "could_not_do"))
           onReported?.(`${SAID[status]} sent for "${words(job.title)}". It goes back to the IOC.`);
-        if (how === "sent") onChange();
+        if (how === "sent") { setSaidHere((s) => [...s, status]); onChange(); }
       });
   };
   const addPhoto = async (files: FileList | null) => {
@@ -402,7 +405,7 @@ export function FieldJobCard({ job, person, onChange, onReported, onTaken }: {
   // On site on this visit, even with notes said since: Done is the next step then, not before. Before it, Done needs
   // something to say (a note, a reading or a photo, now or earlier on this visit), so one stray tap can't close a job
   // with no evidence (#1380: On site then Add note left Done asking for On site again).
-  const onSite = said.some((f) => f.status === "on_site");
+  const onSite = said.some((f) => f.status === "on_site") || saidHere.includes("on_site");
   const evidence = !!note.trim() || !!reading || photos.length > 0 || said.some((f) => f.status === "note");
   // A permit that holds On site back sits by the button; any other waits under Details.
   const gating = !queued && !desk && !!job.permit && (blocked || !!job.permit.unchecked);

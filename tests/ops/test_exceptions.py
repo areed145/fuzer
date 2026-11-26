@@ -673,6 +673,16 @@ def test_dispatching_an_upset_sends_it_through_its_own_field_check(conn, types):
     [listed] = [r for r in ex.listing(conn) if r["id"] == e["id"]]
     assert listed["back_from_field"] is True  # All work's Back from the field list
     conn.commit()
+    # the engine putting it back in its own queue is not a reason anyone gave: every row read "Back to its own queue:
+    # overdue work stays with its team, marked escalated" (tour E10)
+    conn.execute("insert into work_event (item_id, process_id, token_id, definition_id, kind, actor, element, data) "
+                 "select t.item_id, t.process_id, t.id, p.definition_id, 'handed_off', 'system', t.element, "
+                 "jsonb_build_object('from', 'role:ops_lead', 'to', 'role:engineer', 'reason', 'Back to its own queue') "
+                 "from work_token t join work_process p on p.id = t.process_id where t.item_id = %s "
+                 "and t.state = 'waiting' and t.kind = 'user'", (e["item_id"],))
+    [row] = [r for r in engine.my_work(conn, "erin")["queue"] if r["item_id"] == e["item_id"]]
+    assert row["handed_reason"].startswith("Back from the field: done")
+    conn.rollback()
 
 
 def test_a_case_back_from_the_field_with_the_person_who_went_is_still_back(conn, types):

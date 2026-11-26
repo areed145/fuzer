@@ -2,11 +2,12 @@
  * when it would be done, the production deferred until then, the risk of waiting and whether it is ready, one of them
  * recommended with its reason. The recommended one is one tap; any choice takes an optional why, kept on the case. */
 import { useState, type ReactNode } from "react";
-import { api, type CaseOption, type CaseOptions } from "../../api";
+import { api, type CaseNow, type CaseOption, type CaseOptions } from "../../api";
 import { estimate, money, twoFigures, when } from "../../format";
 import { Status, notifyChanged, useAction, useAsync } from "../../lib";
 import { ActionStatus, Badge, Button, Card, Field, Input, Line, Notice, Select, Text, type Tone } from "../../ui";
 import { person as personName, queue, say } from "../../wording";
+import { caseHref } from "./shared";
 
 const RISK: Record<string, Tone> = { Low: "ok", Medium: "warn", High: "danger" };
 /** What the button does, said as the act. */
@@ -27,7 +28,9 @@ const PRIORITY = [["", "as it is"], ["0.9", "High"], ["0.6", "Medium"], ["0.3", 
 /** The options for the event a case works (read by the case page, which hides its own Send to the field while they
  * show); nothing when there are none to choose (desk work, with the field, the field reported it done). */
 export function CaseOptionsCard({ o, person, readOnly = false, onDone }: {
-  o: { data?: CaseOptions; reload: () => void }; person: string; readOnly?: boolean; onDone: () => void;
+  o: { data?: CaseOptions; reload: () => void }; person: string; readOnly?: boolean;
+  /** Called with the case as the choice left it, which the page shows with the confirmation (P5.29d). */
+  onDone: (now: CaseNow | null) => void;
 }) {
   return <OptionsLoaded o={o} person={person} readOnly={readOnly} onDone={onDone} />;
 }
@@ -41,7 +44,7 @@ export function EventOptions({ exceptionId, person, onDone }: { exceptionId: num
 }
 
 function OptionsLoaded({ o, person, readOnly = false, onDone }: {
-  o: { data?: CaseOptions; reload: () => void }; person: string; readOnly?: boolean; onDone: () => void;
+  o: { data?: CaseOptions; reload: () => void }; person: string; readOnly?: boolean; onDone: (now: CaseNow | null) => void;
 }) {
   const [said, setSaid] = useState<string | null>(null);
   // The card it replaces can be a screen tall, scrolled to its button: the confirmation is brought into view.
@@ -50,11 +53,11 @@ function OptionsLoaded({ o, person, readOnly = false, onDone }: {
   const d = o.data;
   if (!d?.applies || d.exception_id == null) return null;
   return <OptionsView d={d} person={person} readOnly={readOnly}
-    onChosen={(text) => { setSaid(text); onDone(); notifyChanged(); }} />;
+    onChosen={(text, now) => { setSaid(text); onDone(now); notifyChanged(); }} />;
 }
 
 function OptionsView({ d, person, readOnly, onChosen }: {
-  d: CaseOptions; person: string; readOnly: boolean; onChosen: (said: string) => void;
+  d: CaseOptions; person: string; readOnly: boolean; onChosen: (said: string, now: CaseNow | null) => void;
 }) {
   const [open, setOpen] = useState<CaseOption["key"] | null>(null);
   const [acted, setActed] = useState<CaseOption["key"] | null>(null);
@@ -62,16 +65,19 @@ function OptionsView({ d, person, readOnly, onChosen }: {
   const last = d.decided?.[0];
   const choose = (opt: CaseOption, c: Choice = {}, name?: string) => {
     setActed(opt.key);
-    return a.run(DOING[opt.key], () => api.chooseOption(d.exception_id!, person, opt.key, c), () => {
+    return a.run(DOING[opt.key], () => api.chooseOption(d.exception_id!, person, opt.key, c), (r) => {
       // who it went to: a dispatch's pick, or the visit's operator a ride along adds a field step for (#1390)
       const who = opt.key === "dispatch" ? c.to : opt.key === "window" ? opt.operator ?? undefined : null;
       const to = who === null ? "" : ` ${opt.key === "window" ? "for" : "to"} ${who && !who.startsWith("role:") ? name ?? personName(who) : `the ${queue(who ?? "operator")}`}`;
-      onChosen(`${DONE[opt.key]}${to}${opt.key === d.recommended ? ", as recommended" : ""}. The choice and why are on the case.`);
+      onChosen(`${DONE[opt.key]}${to}${opt.key === d.recommended ? ", as recommended" : ""}. The choice and why are on the case.`,
+        r.item ?? null);
     });
   };
   return (
     <Card className="case-options" aria-label="Options" title="Options">
       <Cost d={d} />
+      {d.field_case && <Text as="div" small>The field already has a case on it:{" "}
+        <a href={caseHref(d.field_case.item_id)}>{d.field_case.title}</a></Text>}
       {/* nothing recommended (it can't go now and escalating would come back to the reader): the reason is the line */}
       {!d.recommended && d.reason && <Text as="div" small>{d.reason}</Text>}
       <ul className="case-options-list">

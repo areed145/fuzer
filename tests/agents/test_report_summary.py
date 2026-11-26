@@ -152,3 +152,13 @@ def test_a_note_whose_figures_moved_is_not_shown(okan_db):
     other = next(p for p in f["panels"] if p["type"] == "stat" and p["id"] != "backlog")
     kept_with(other["id"], 123456)
     assert rs.current(conn, pack, "work", sc, "7d", day) is not None
+
+    # tour E (D7): a note kept from before a list said "N of M shown" read "All six cases in the field are overdue"
+    # beside In the field 30; one written from facts without that is not shown
+    cases = next(p["id"] for p in f["panels"] if p["type"] == "cases")
+    before = {**f, "panels": [{**p, "result": {k: v for k, v in p["result"].items() if k != "shown"}}
+                              if p["id"] == cases else p for p in f["panels"]]}
+    conn.execute("update report_summary set facts = %s where report_key = 'work' and at = %s", (rs.Jsonb(before), day))
+    conn.commit()
+    assert rs.stale(conn, pack, rs.latest(conn, "work", sc, "7d", day), sc, "7d", day) == ["facts"]
+    assert rs.current(conn, pack, "work", sc, "7d", day) is None

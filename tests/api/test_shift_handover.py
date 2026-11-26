@@ -126,6 +126,18 @@ def test_a_handover_is_drafted_at_the_shift_change_and_acknowledged(monkeypatch)
                                    "data->>'reason' like 'Superseded%%'", (unread["item_id"],)).fetchone()
                 assert why and "handover, which says what holds now" in why["r"]
                 assert ok(client.get(f"/handovers/{unread['id']}"))["state"] != "acknowledged"  # its record stays
+                # once the newest's shift has ended, the replaced one is read only: no notes, no acknowledgement (E12)
+                after = newest["shift_end"] + timedelta(minutes=1)
+                assert handover.get(conn, unread["id"], now=after)["read_only"] is True
+                assert handover.get(conn, newest["id"], now=after)["read_only"] is False
+                assert handover.get(conn, h["id"], now=after)["read_only"] is True  # acknowledged
+                for change in (lambda: handover.add_notes(conn, unread["id"], "lead-out", "late note", now=after),
+                               lambda: handover.acknowledge(conn, unread["id"], "lead-in", now=after)):
+                    try:
+                        change()
+                        raise AssertionError("a replaced handover took a change")
+                    except handover.ExceptionError as e:
+                        assert "a later shift's handover says what holds now" in str(e)
 
                 # the outgoing lead writes the handover of the shift still running: it has no case until the shift
                 # change, which brings that same handover up to date, keeps the notes and opens it for the incoming lead
@@ -137,6 +149,16 @@ def test_a_handover_is_drafted_at_the_shift_change_and_acknowledged(monkeypatch)
                 assert handover.draft(conn, "lead-out", mid, force=True) is None, "an ended shift isn't redrafted"
                 noted = handover.add_notes(conn, running["id"], "lead-out", "Compressor B on recycle overnight")
                 assert noted["status"] == "in progress"  # notes don't hand the shift over (#1351)
+                # while the shift runs, its lines are the work as it is now, not as last drafted (E12: "PT-2001 ...
+                # (open)" after it closed); reading stores nothing
+                stale = {"sections": {"Closed": [{"text": "PT-2001 reading erratic (open)", "cites": []}]}, "more": {},
+                         "unknown": {}}
+                conn.execute("update shift_handover set facts = %s where id = %s", (handover.Jsonb(stale), running["id"]))
+                live = handover.get(conn, running["id"], now=mid)
+                assert live["drafted_at"] == mid and live["read_only"] is False
+                assert not any("PT-2001 reading erratic" in x["text"] for x in live["facts"]["sections"]["Closed"])
+                assert conn.execute("select facts from shift_handover where id = %s",
+                                    (running["id"],)).fetchone()["facts"] == stale
                 opened = handover.at_shift_change(conn, running["shift_end"] + timedelta(minutes=1))
                 assert opened["id"] == running["id"] and opened["item_id"] is not None
                 assert opened["notes"] == "Compressor B on recycle overnight"

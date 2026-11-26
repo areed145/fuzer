@@ -47,7 +47,8 @@ The case is the unit of **accountability**, not of execution. Every piece of wor
 - **A case's stage comes from its jobs.** With no open job it is To dispatch or With a desk, from its step. Otherwise it
   takes the earliest stage of its open jobs: Planned, Scheduled, Ready, With the field, Back from the field.
 - **Field work reaches the field only through Release.** A field job passes Planned, Scheduled and Ready, and the IOC
-  releases it. Urgent work (Dispatch now) skips to the field but still books the crew's time on the same capacity.
+  releases it. Urgent work (Dispatch now) skips to the field but is still a bar on the plan, booked to the field
+  operator it went to; it books no maintenance crew, whose capacity is for the work orders it does.
 
 ## Hierarchy
 
@@ -227,7 +228,8 @@ its kind (**project**, **turnaround**, **package**); a booking shows as the crew
 Each step is a pull request that ships on its own. The first three fix today's gaps in the plan, schedule and dispatch
 flow before the larger moves.
 
-1. **Close the bar with its case.** Closing a case marks its plan item done; cancelling a plan item with an open case asks first.
+1. **Close the bar with its case.** Closing a case marks its plan item done, and so does the field's Done on its field job;
+   cancelling a plan item with an open case asks first.
 2. **The plan item becomes a job.** `plan_item` gains its case (`item_id`), where it happens (field or desk) and a link to its result.
 3. **Bookings and one crew capacity.** Crew is picked from the resources, with capacity and clashes shown on booking.
    Urgent dispatches and released jobs book demand, and the ready check reads that one ledger.

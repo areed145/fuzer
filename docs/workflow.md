@@ -101,8 +101,10 @@ the published version, and running cases stay on their original version.
   and monitoring desks whose work cuts across fields are **overarching** (`fuzer.work_person_cover`, shared by the
   instance): their roles count in every field they cover (all fields, or the ones named), on top of any roles a
   field's own roster gives them. Their My work lists their work at their other sites too (**At your other sites**, `/work/inbox/fields`), only
-  for fields the viewer may open: covering a field is routing, never an access grant. Set on Users, workflow
-  assignments (`PUT /work/people/{name}/cover`).
+  for fields the viewer may open: covering a field is routing, never an access grant. Another site's queues are listed
+  only for roles a person was given there (its roster or a cover), never the every-role span of an owner or the demo
+  account; what is assigned to them by name is listed wherever it is. Set on Users, workflow assignments
+  (`PUT /work/people/{name}/cover`).
 
 API: `/work/inbox`, `/work/items` (cases) and `/work/items/{id}/set|reassign|transition`, `/work/tasks/{id}/...`,
 `/work/stats`, `/work/instances`, `/work/definitions/{id}/routing`, `/work/roles/catalog`, `/work/roles/{name}`,
@@ -206,8 +208,11 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   safety or HSE type), which is high to wait on and never reads low; with neither, no risk word is shown and the
   criticality is named as not known. A field report that says the job needs a gas test, a permit, an isolation, a
   scaffold, depressurising or parts holds Dispatch now and a ride along until a later report, and says what it waits
-  on (#1381). The crew checked is the one
+  on (#1381). Dispatch now goes to a field operator, who does the look: no maintenance crew is checked for it, nor
+  for any send to the operator queue or someone in it (#1401). Elsewhere the crew checked is the one
   the job's words need (a transmitter or gauge is the instrument crew's), and a full crew is one line with its count.
+  A case the field already has on the same asset is no clash: the card says so and links it (`field_case`). A case
+  never clashes with its own bars or with the visit it rides along with.
   What it defers now is the producing wells it reaches at their latest test, all of it while a machine is stopped (a
   trip, with its share where parallel trains carry the rest), else the pack's share for a process upset still going
   (`upsets.rate_at_risk_share`, the assumption an upset's value uses). A report of a smell or a drip, or a
@@ -230,7 +235,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   priority); any choice takes one optional why, and nothing holds the button back, a dispatch that is not ready included
   (`POST /exceptions/{id}/options/choose`). Once the field reports it done the options go and the case leads with Close out. The dispatch carries what to check or do
   to the field job (when the IOC writes nothing, the message a message case came from, word for word, else "Go and
-  have a look, report what you find"; a ride along prefixes it with "While you are there:") and nothing else: why it goes
+  have a look, report what you find"; a ride along names the visit and asks the message, else the case's title:
+  "While you are on “Clean 20-E-2250B”: …") and nothing else: why it goes
   now, the IOC's or the recommendation's costing, stays on the case, not on the field's instruction; the choice, the recommendation and the reason go on the case's history, and Work performance by work type
   shows how often the recommendation was taken (`GET /options/acceptance`).
 - **Dispatch.** The IOC sends an exception to a person, with what to check or do. Its case (or the case's open
@@ -257,9 +263,21 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
 - **Seeing it come back.** The task page shows a **From the field** box above the form, My work says why a step
   came back ("Back from the field: done: gauge reads 13 barg"; a Done after a reading sent in its own note comes back
   with that note and reading), and All work has a **Back from the field** view, whose rows show the field's latest note.
-- **A follow-up planned is sent.** Closing out a real problem as **Contained, follow-up planned** offers **Send the
-  follow-up to** a person or a role's queue: the follow-up opens as a case of its own, linked from the closed case.
-  The case page's **Send to someone else** says where it went and folds away.
+- **A follow-up planned is sent.** Closing out a real problem as **Contained, follow-up planned** asks **Send the
+  follow-up to** a person or a role's queue, and doesn't close until one is picked: the follow-up opens as a case of
+  its own, linked from the closed case. Sent to a person, it runs in a queue of theirs with its step handed to them,
+  so it shows as theirs under Waiting on. The case page's **Send to someone else** says where it went and folds away. On a case still at To dispatch it dispatches the
+  event (`ops.exceptions.send_case`), so the case gets a step for whoever it went to and leaves To dispatch; a case
+  with no process says who holds it under Waiting on.
+- **Only what was chosen is saved.** An outcome belongs to a real problem: a false alarm, duplicate, data problem or
+  log only saves none, whatever the hidden Outcome held. The field's "no leak or damage found" reads as nothing found,
+  so the form pre-fills False alarm, not "A real problem / Fixed". A case opened again as a repeat opens its event
+  with it, so it has its Options again. A shelved case says **Shelved until** its date in place of Open and its due
+  time.
+- **The page follows the action.** Dispatch, Choose who, Add to the visit, Escalate, Send to someone else and Change
+  the entity answer with the case as they left it (`item`, as `GET /work/items/{id}` reads its steps, holder and
+  subjects); the case page shows it with the confirmation, then reads the case again (first in the browser's queue)
+  for the rest. A field job shows On site as said as soon as the report is answered.
   A field job card only offers to open a step in the operator's own roles.
 - **Picked, not typed.** Dispatch picks a person (shown with their roles) or a role's queue; a new exception type
   picks its queue from the person roles under Settings > Users, and the API refuses a queue that isn't one. Equipment
@@ -309,7 +327,10 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   (`POST /handovers/{id}/acknowledge`), which goes on the case history with who and when and closes the case. Past
   handovers are listed (`GET /handovers`) and readable, each with its status: in progress, acknowledged or not
   acknowledged. Notes change nothing else; only acknowledging hands a shift over. The rest of the open work is on All
-  work, which the page links. **Draft the handover** refreshes an unacknowledged one from live work.
+  work, which the page links. **Draft the handover** writes the running shift's handover when there is none yet; while
+  the shift runs its lines are read from live work each time it is opened (nothing is stored by reading). A handover
+  that was acknowledged, or that a later shift's handover replaced, is kept as it was: it takes no notes and no
+  acknowledgement.
 
 ### The installed app on a phone
 

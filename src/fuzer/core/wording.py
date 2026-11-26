@@ -178,6 +178,9 @@ _SNAKE_QUEUE = re.compile(r"\b(?P<role>[a-z]+(?:_[a-z]+)+) queue\b")
 _DEMO_ACTOR = re.compile(r"\buser:demo\b")
 # a line written with the demo's source key, before it read as words ("field report from sample crew")
 _SAMPLE_CREW = re.compile(r"\bfrom sample crew\b")
+# a handover line drafted with a kind's key and a source's key, before they read as words: "(machine health from
+# rotating_screen, closed)" is "(Machine health from Rotating screen, closed)" (tour C8)
+_KEYS_FROM = re.compile(r"\((?P<kind>[a-z][a-z ]*) from (?P<src>[a-z0-9]+(?:_[a-z0-9]+)*), (?P<state>[a-z ]+)\)")
 
 
 def say(text: str | None) -> str | None:
@@ -195,4 +198,6 @@ def say(text: str | None) -> str | None:
     text = _ONE.sub(lambda m: f"1 {m['word']}", text)
     text = _DEMO_ACTOR.sub("Demo account", text)
     text = _SAMPLE_CREW.sub("from Demo crew", text)
+    text = _KEYS_FROM.sub(lambda m: f"({m['kind'][:1].upper()}{m['kind'][1:]} from {source(m['src'])}, {m['state']})",
+                          text)
     return units(text)

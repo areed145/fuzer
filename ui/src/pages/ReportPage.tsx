@@ -236,6 +236,10 @@ function Slot({ panel, view, scope, inColumn, tools, editor }: {
   panel: Panel; view: ReportView; scope: ScopeRef; inColumn?: boolean; tools?: ReactNode; editor: Editing | null;
 }) {
   const Component = PANELS[panel.type];
+  // a panel left out on a phone isn't read there either: two whole-register analyses no longer held the request
+  // queue while Plan against actual's own rows waited (tour E, E8); Print still asks for it
+  const phone = usePhone(), all = useContext(Everything);
+  if (phone && panel.phone === false && !all) return null;
   const className = ["report-slot", !inColumn && `report-size-${panel.size}`, `report-type-${panel.type}`,
     panel.phone === false && "report-no-phone"].filter(Boolean).join(" ");
   const draft = !!editor && editor.saved.get(panel.id) !== reading(panel);

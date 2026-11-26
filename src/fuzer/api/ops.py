@@ -740,7 +740,7 @@ def exception_dispatch(exception_id: int, d: ExceptionDispatch, conn=Depends(get
     not ready to dispatch (P5.5) goes only with a reason, kept on its case's history."""
     from ..ops import exceptions, readiness
     try:
-        ready = readiness.for_exception(conn, exception_id)
+        ready = readiness.for_exception(conn, exception_id, d.to)
     except LookupError as e:
         raise HTTPException(404, str(e)) from e
     override = (d.override or "").strip()
@@ -749,8 +749,6 @@ def exception_dispatch(exception_id: int, d: ExceptionDispatch, conn=Depends(get
         # A field operator taking a job the IOC already sent to their queue: readiness was the sender's call (with
         # its reason, when it went though not ready), and the operator has no say on spares or crew.
         return _exception_call(conn, exceptions.dispatch, exception_id, d.by, d.to, d.reason)
-    if not readiness.holds(conn, d.to):  # the planner plans the parts and crew a not-ready job waits on (#1391)
-        ready = {**ready, "ready": True, "blockers": []}
     if not ready["ready"] and not override:
         raise HTTPException(409, "Not ready to dispatch: " + "; ".join(ready["blockers"])
                             + ". Say why it should go anyway.")
@@ -764,11 +762,12 @@ def exception_dispatch(exception_id: int, d: ExceptionDispatch, conn=Depends(get
 
 
 @router.get("/exceptions/{exception_id}/readiness")
-def exception_readiness(exception_id: int, conn=Depends(get_conn)):
-    """Is this job ready to dispatch (P5.5)? Ready, or each blocker by name, from its equipment's records."""
+def exception_readiness(exception_id: int, to: str | None = None, conn=Depends(get_conn)):
+    """Is this job ready to dispatch (P5.5)? Ready, or each blocker by name, from its equipment's records; for a send
+    to `to`, the checks that send needs and whether they hold it (#1401)."""
     from ..ops import readiness
     try:
-        return readiness.for_exception(conn, exception_id)
+        return readiness.for_exception(conn, exception_id, to)
     except LookupError as e:
         raise HTTPException(404, str(e)) from e
 
@@ -815,10 +814,19 @@ def _viewer_roles(conn) -> list[str] | None:
 
 @router.post("/exceptions/{exception_id}/options/choose")
 def exception_option_choose(exception_id: int, c: OptionChoice, conn=Depends(get_conn)):
-    """Carry out one of an event's options and record the choice, the recommendation and the reason (P5.20)."""
+    """Carry out one of an event's options and record the choice, the recommendation and the reason (P5.20). Answers
+    with its case as it now stands (`item`), which the page shows at once (P5.29d)."""
     from ..ops import options
-    return _exception_call(conn, options.choose, exception_id, c.by, c.option, c.reason, to=c.to, ask=c.ask,
-                           due=c.due, priority=c.priority, override=c.override)
+    out = _exception_call(conn, options.choose, exception_id, c.by, c.option, c.reason, to=c.to, ask=c.ask,
+                          due=c.due, priority=c.priority, override=c.override)
+    return {**out, "item": _case_now(conn, out["event"]["item_id"])}
+
+
+def _case_now(conn, item_id: int | None) -> dict | None:
+    """The case an action changed, as GET /work/items reads its processes, steps, holder and subjects (P5.29d): a page
+    shows the action's result with its confirmation, not after reading everything again on a busy server."""
+    from ..workflow import engine
+    return engine.item(conn, item_id) if item_id else None
 
 
 @router.get("/options/acceptance")
@@ -935,7 +943,7 @@ class MessageEntities(BaseModel):
 @router.post("/exceptions/{exception_id}/message/entities")
 def message_entities(exception_id: int, m: MessageEntities, conn=Depends(get_conn)):
     """Change the entities a message case is about (#1382): a wrong match, by the reader or a steward, redone on the
-    case. Returns the case and what it is about now."""
+    case. Returns the case, what it is about now, and the case as it now stands (`item`, P5.29d)."""
     from ..ops import messages
     _loaded_types()
     try:
@@ -944,7 +952,7 @@ def message_entities(exception_id: int, m: MessageEntities, conn=Depends(get_con
         conn.rollback()
         raise HTTPException(404 if str(e).startswith("no message case") else 400, str(e)) from e
     conn.commit()
-    return out
+    return {**out, "item": _case_now(conn, out["case"])}
 
 
 @router.get("/exceptions/{exception_id}/photos/{photo_id}")
@@ -1350,8 +1358,9 @@ def handover_get(handover_id: int, conn=Depends(get_conn)):
 
 @router.post("/handovers/draft")
 def handover_draft(d: HandoverDraft, conn=Depends(get_conn)):
-    """Draft the handover for the shift in progress (or bring it up to date), so the outgoing lead writes it before
-    they go. At the shift change it opens for the incoming lead; a handover whose shift ended is not redrafted."""
+    """Draft the handover for the shift in progress, so the outgoing lead writes it before they go (reading it shows
+    its lines from live work while the shift runs). At the shift change it opens for the incoming lead; a handover
+    whose shift ended is not redrafted."""
     from ..ops import handover
     out = _exception_call(conn, handover.draft, d.by, force=d.refresh, current=True)
     if out is None:
@@ -1445,12 +1454,13 @@ def plan_at_risk(start: str | None = None, days: int = 90, conn=Depends(get_conn
 
 @router.get("/plan")
 def plan_items(start: str | None = None, end: str | None = None, area: str | None = None, status: str | None = None,
-               subject: str | None = None, within: str | None = None, conn=Depends(get_conn)):
+               subject: str | None = None, within: str | None = None, active: bool = False, conn=Depends(get_conn)):
     """The integrated plan in a window (default: a week ago to eight weeks ahead), each item with its clashes
     (same asset, same person), bundling chances (could ride along with a shutdown of its area) and, for work
-    starting within 30 days, its assets' spare parts with no stock on record."""
+    starting within 30 days, its assets' spare parts with no stock on record. `active` keeps the work still to do."""
     from ..ops import plan
-    return _plan_call(conn, plan.items, start, end, area=area, status=status, subject=subject, within=within)
+    return _plan_call(conn, plan.items, start, end, area=area, status=status, subject=subject, within=within,
+                      active=active)
 
 
 @router.post("/plan")

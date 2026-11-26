@@ -33,7 +33,7 @@ from datetime import datetime
 
 from psycopg.types.json import Jsonb
 
-from ..core import nel, settings
+from ..core import nel, settings, wording
 from ..core.exceptions import exception_type, match, raise_exception
 from ..core.findings import EXTERNAL, Finding, at, fact
 
@@ -187,6 +187,15 @@ def _message(m: dict) -> dict:
             "subject": m.get("subject") or None, "text": m["text"], "received_at": _when(m["received_at"])}
 
 
+def _sender_name(conn, sender: str) -> str:
+    """Who sent a message, as a name: a note sent from the app keeps the account's actor, which reads as the account's
+    name; any other sender is as the source gave it."""
+    if sender.startswith("user:") and (row := conn.execute(
+            "select display_name from access_account where id = %s and display_name <> ''", (sender[5:],)).fetchone()):
+        return row["display_name"]
+    return wording.say(sender) or sender
+
+
 def _short(text: str, n: int = 120) -> str:
     text = " ".join(text.split())
     return text if len(text) <= n else text[:n - 1].rsplit(" ", 1)[0] + "…"
@@ -225,7 +234,7 @@ def _ask_steward(conn, m: dict, reading: Reading) -> int:
     ids, _ = match(conn, reading.candidates)
     labels = {r["fuzer_id"]: r["label"] for r in conn.execute(
         "select fuzer_id, label from entity_label where fuzer_id = any(%s)", (ids,))}
-    payload = {"message": _message(m), "why": reading.why, "question": f"Which entity is this about? {_short(m['text'], 80)}",
+    payload = {"message": {**_message(m), "sender_name": _sender_name(conn, m["sender"])}, "why": reading.why, "question": f"Which entity is this about? {_short(m['text'], 80)}",
                "candidates": [{"fuzer_id": i, "label": labels.get(i)} for i in ids]}
     return conn.execute(
         "insert into review_item (kind, subject, payload) values (%s, %s, %s) "

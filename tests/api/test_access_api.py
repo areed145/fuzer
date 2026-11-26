@@ -591,32 +591,35 @@ def test_overarching_people_work_every_field_they_cover_but_open_only_granted_on
         work.remove_person(conn, "vera", by="test")
 
 
-def test_the_demo_account_acting_as_operator_sees_only_operator_work_in_its_other_fields(runtime, second_project,
-                                                                                        monkeypatch):
+def test_the_demo_account_sees_no_other_sites_queues_and_only_its_acting_roles_own_work(runtime, second_project,
+                                                                                       monkeypatch):
     """#1380 (tour C12): acting as the operator, the demo account's My work listed other sites' planner and ops lead
-    work. The roles it acts as here hold in its other fields too."""
+    work. Tour E (D15): acting as the ops lead it still listed "and 84 at other sites", every other site's queue,
+    because it may act as anyone everywhere. Another site's queues are listed only for roles a person was given there
+    (a roster or an overarching cover); what is assigned to the demo account by name stays, in the roles it acts as."""
     from fuzer.core import projects
 
     monkeypatch.setenv("FUZER_DEMO_TOKEN", DEMO_TOKEN)
     demo_signed_in(runtime)
     with db.connect() as conn, projects.use(conn, second_project), db.connect() as ridge:
         walk = work.create_item(ridge, "check", "Ridge separator walkdown", "test", role="operator")
-        plan = work.create_item(ridge, "check", "Ridge pump overhaul plan", "test", role="maintenance_planner")
+        plan = work.create_item(ridge, "check", "Ridge pump overhaul plan", "test", role="ops_lead")
+        own = work.create_item(ridge, "check", "Ridge gauge check", "test", role="operator", assignee="user:demo")
         ridge.commit()
     here = db.scope().project or ""
 
     def ridge_work():
-        return next(f for f in work.work_across("user:demo") if f["project"] == second_project)
+        return next((f for f in work.work_across("user:demo") if f["project"] == second_project), None)
 
-    every = ridge_work()  # no pick: every role, everywhere
-    assert {walk["id"], plan["id"]} <= {r["item_id"] for r in every["queue"]}
-    token = access.ACTING.set({here: ["operator"]})
+    every = ridge_work()  # no pick: every role, but none given at the other site
+    assert every["roles"] == [] and not {r["item_id"] for r in every["queue"]} & {walk["id"], plan["id"]}
+    assert own["id"] in {r["item_id"] for r in every["mine"]}
+    token = access.ACTING.set({here: ["ops_lead"]})
     try:
-        acting = ridge_work()
+        acting = ridge_work()  # its own operator job is not the ops lead's
     finally:
         access.ACTING.reset(token)
-    assert acting["roles"] == ["operator"]
-    assert {r["item_id"] for r in acting["queue"]} & {walk["id"], plan["id"]} == {walk["id"]}
+    assert acting is None or own["id"] not in {r["item_id"] for r in acting["mine"]}
 
 
 def test_audit_record_is_owner_only_and_per_project(runtime, second_project):

@@ -388,7 +388,7 @@ def on_case(conn, item_id: int) -> list[dict]:
     rows = conn.execute("select * from exception_record where item_id = %s order by joined_to nulls first, first_seen",
                         (item_id,)).fetchall()
     return [{**{k: r[k] for k in ("id", "type", "key", "title", "source", "state", "value_usd", "first_seen",
-                                  "last_seen", "joined_to", "subjects")},
+                                  "last_seen", "joined_to", "subjects", "shelved_until")},
              "label": _label(conn, r["type"]), "finding": f}
             for r, f in zip(rows, _findings(conn, rows), strict=True)]
 
@@ -507,6 +507,22 @@ def _held(conn, type: str, key: str, signal: str, by: str) -> dict | None:
         work.close_case(conn, row["item_id"], "open", by, reason=f"Came back changed: was {was}, now {signal}")
     events.publish(conn, "exception.reopened", f"exception:{row['id']}", {**_payload(row), "signal": signal})
     return row
+
+
+def reopen_with_case(conn, item_id: int) -> list[dict]:
+    """A closed case opened again (a repeat, a fix that did not hold): the events it closed open with it, so the case
+    is worked like any open one, with its options (#1400). Not one whose condition cleared, nor one whose type and key
+    another open event now holds."""
+    rows = conn.execute(
+        """
+        update exception_record e set state = 'open', closed_at = null, updated_at = now()
+        where e.item_id = %s and e.state = 'closed'
+          and not exists (select 1 from exception_record o where o.type = e.type and o.key = e.key and o.state = 'open')
+        returning *
+        """, (item_id,)).fetchall()
+    for row in rows:
+        events.publish(conn, "exception.reopened", f"exception:{row['id']}", _payload(row))
+    return rows
 
 
 def clear(conn, type: str, key: str, by: str, reason: str | None = None, closeout: str | None = None) -> dict | None:
@@ -783,7 +799,7 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
         from . import plan
         plan.link_case(conn, row["id"], item_id)  # a bar it was planned as is now this case's job
     row = _row(conn, exception_id)
-    if not planned and (to == f"role:{OPERATOR_ROLE}" or to in operators(conn)):  # to the field now: crew time (step 3)
+    if not planned and (to == f"role:{OPERATOR_ROLE}" or to in operators(conn)):  # to the field now: their time (step 3)
         from . import plan
         plan.book_dispatch(conn, row["id"], row["item_id"], to, by)
     if override:  # sent though not ready (P5.5): what blocked it and why it went anyway, on the case's history
@@ -791,6 +807,22 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
     events.publish(conn, "exception.dispatched", f"exception:{row['id']}", {**_payload(row, t), "to": to, "by": by,
                                                                             "reason": reason, "override": override})
     return row
+
+
+def send_case(conn, item_id: int, by: str, to: str, reason: str | None = None) -> dict:
+    """A case's Send to someone else. A case still waiting at To dispatch goes out as its event's dispatch, so it
+    leaves To dispatch with a step for whoever it went to (P5.29d, #1403): handed over as a bare case, 1203 stayed at
+    To dispatch with "No step is open" and its options, and nothing on the page said who had it. Any other case hands
+    everything open on it to them."""
+    from . import routing
+
+    if not to.startswith("agent:") and routing.waiting_case(conn, item_id):
+        row = conn.execute("select id from exception_record where item_id = %s and state = %s and joined_to is null "
+                           "order by id limit 1", (item_id, OPEN)).fetchone()
+        if row:
+            dispatch(conn, row["id"], by, to, reason)
+            return {"item_id": item_id, "to": to}
+    return work.reassign(conn, item_id, by, to, reason)
 
 
 PHOTO_TYPES = ("image/jpeg", "image/png", "image/webp")
@@ -963,6 +995,10 @@ def report(conn, exception_id: int, by: str, status: str, note: str | None = Non
                                        _payload(_row(conn, exception_id)))
                 else:  # back to the IOC: never a fresh field check
                     work.return_to(conn, row["item_id"], by, IOC_QUEUE, back)
+    if status == "done":
+        from . import plan
+
+        plan.finish_field_job(conn, exception_id, by)  # the field job is over, whenever the IOC closes the case
     row = _row(conn, exception_id)
     from . import closeout
 

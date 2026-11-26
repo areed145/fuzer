@@ -512,6 +512,8 @@ alter table plan_item add column if not exists not_before timestamptz;
 -- one; place says whether it is done in the field (it goes through Ready and Release) or at a desk.
 alter table plan_item add column if not exists item_id bigint;
 alter table plan_item add column if not exists place text not null default 'field';
+-- the visit a job rides along with (options' ride along): done on that trip, so never a clash with it
+alter table plan_item add column if not exists rides_with bigint;
 -- Released to the field (step 5 of docs/work-model.md): who released it, when, and why if a prerequisite was open
 alter table plan_item add column if not exists released_at timestamptz;
 alter table plan_item add column if not exists released_by text;

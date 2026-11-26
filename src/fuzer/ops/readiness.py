@@ -10,21 +10,26 @@ its equipment type:
     crew     the work center (SAP `arbpl`) that does the equipment's work orders, its crew size, and the jobs
              already sent to it and still open (P5.5b): a full crew is a blocker naming the jobs holding it. A work
              center with a crew resource on the plan is read from the plan's one capacity ledger instead: everyone
-             booked on it today, planned or sent out (step 3 of the work model). Work whose words name a trade
+             booked on it today (step 3 of the work model). Work whose words name a trade
              (a transmitter or gauge is instrument work, a motor or switchgear electrical) is checked against that
-             trade's work center only, not every crew that has worked on the equipment (#1365)
+             trade's work center only, not every crew that has worked on the equipment (#1365). Work that goes to a
+             field operator (the operator queue or someone in it) is theirs to do: no maintenance crew is checked for
+             it, so a look is never held on a fitters' crew it does not use (#1401)
     field    what the field's latest report says the job waits on: a note or could-not-do naming a gas test, a
              permit, an isolation, depressurising, a scaffold or parts holds it until a later report (#1365)
 
 A check with no records to read says so and does not block. A blocked job is sent only with a reason (enforced where
 people dispatch: the dispatch route and card), and the reason goes on the case's history. A send to the maintenance
-planner is never held: planning the parts and the crew is the planner's work (#1391).
+planner is never held: planning the parts and the crew is the planner's work (#1391). Readiness is for the send it is
+asked about (`to`): which crew it needs, and whether it holds the send at all, are decided here once for the dispatch
+card, the dispatch route, Options and Plan.
 """
 
 import re
 from datetime import UTC, date, datetime
 
 from ..core import clock
+from .exceptions import OPERATOR_ROLE as OPERATOR
 
 
 def _units(conn, subjects: list[str]) -> list[str]:
@@ -213,9 +218,12 @@ def crew(conn, subjects: list[str], job: int | None = None) -> dict:
     if not centers:
         return {"check": "crew", "label": "Crew", "ready": True, "blockers": [], "centers": [], "checked": False,
                 "note": "No work orders name a work center for this equipment, so no crew to check."}
+    from ..core import work
+
+    field = set(work.role_holders(conn, OPERATOR))
     sent = conn.execute(
         """
-        select e.id, e.title, e.subjects, w.assignee from exception_record e join work_item w on w.id = e.item_id
+        select e.id, e.title, e.subjects, w.assignee, w.role from exception_record e join work_item w on w.id = e.item_id
         where e.state = 'open' and e.joined_to is null and w.state not in ('done', 'cancelled')
           and e.id is distinct from %s
           and exists (select 1 from event_outbox o where o.topic = 'exception.dispatched' and o.ref = 'exception:' || e.id)
@@ -223,6 +231,8 @@ def crew(conn, subjects: list[str], job: int | None = None) -> dict:
         """, (job,)).fetchall()
     holding: dict[str, list[dict]] = {c["id"]: [] for c in centers}
     for s in sent:
+        if s["role"] == OPERATOR or s["assignee"] in field:
+            continue  # a field operator's look holds none of the crew (#1401)
         for c in _centers(conn, list(s["subjects"] or [])):
             if c["id"] in holding:
                 holding[c["id"]].append({"id": s["id"], "title": s["title"], "assignee": s["assignee"]})
@@ -425,10 +435,10 @@ def _spares(conn, subjects: list[str], job: int | None = None, plan_item: int | 
     return spares(conn, orders(conn, job, plan_item))
 
 
-def _simops(conn, subjects: list[str], job: int | None = None) -> dict:
+def _simops(conn, subjects: list[str], job: int | None = None, plan_item: int | None = None) -> dict:
     from . import simops
 
-    return simops.at_dispatch(conn, subjects, job)
+    return simops.at_dispatch(conn, subjects, job, plan_item=plan_item)
 
 
 _MOCS = """
@@ -524,11 +534,15 @@ def _list(words: list[str]) -> str:
 CHECKS = (field, _spares, crew, permits, _simops, mocs)
 
 
-def check(conn, subjects: list[str], job: int | None = None, plan_item: int | None = None) -> dict:
+def check(conn, subjects: list[str], job: int | None = None, plan_item: int | None = None,
+          to: str | None = None) -> dict:
     """Every readiness check for a job on these subjects (`job`, the exception being sent, is not counted against
-    itself): ready, or each blocker by name. `unknown` says each check that can't be said and why (parts with no
-    stock source), and `undetermined` what would answer it (P6.6)."""
-    results = [_spares(conn, subjects, job, plan_item) if c is _spares else c(conn, subjects, job) for c in CHECKS]
+    itself; `plan_item`, the bar it is planned as): ready, or each blocker by name. `to` is who does it: a field
+    operator needs no maintenance crew, so the crew check is left out (#1401). `unknown` says each check that can't be
+    said and why (parts with no stock source), and `undetermined` what would answer it (P6.6)."""
+    look = bool(to) and field_operator(conn, to)
+    results = [c(conn, subjects, job, plan_item) if c in (_spares, _simops) else c(conn, subjects, job)
+               for c in CHECKS if not (look and c is crew)]
     blockers = [b if b.startswith("blocked:") else f"{r['label']}: {b}" for r in results for b in r["blockers"]]
     warnings = [w for r in results for w in r.get("warnings") or []]  # said to whoever sends it, never holding it
     return {"ready": not blockers, "blockers": blockers, "warnings": warnings, "checks": results,
@@ -539,16 +553,31 @@ def check(conn, subjects: list[str], job: int | None = None, plan_item: int | No
 PLANNER = "maintenance_planner"
 
 
+def _in(conn, to: str, role: str) -> bool:
+    """Whether `to` is `role`'s queue or a person holding it."""
+    from ..core import work
+
+    return to == f"role:{role}" or (not to.startswith("role:") and role in work.roles_of(conn, to))
+
+
+def field_operator(conn, to: str) -> bool:
+    """Whether work sent to `to` is a field operator's: the operator queue or someone in it."""
+    return _in(conn, to, OPERATOR)
+
+
 def holds(conn, to: str) -> bool:
     """Whether readiness holds a send to `to`: never one to the maintenance planner, the queue or a person in it, who
     plans the parts and the crew the check would wait on (#1391)."""
-    from ..core import work
-
-    return to != f"role:{PLANNER}" and (to.startswith("role:") or PLANNER not in work.roles_of(conn, to))
+    return not _in(conn, to, PLANNER)
 
 
-def for_exception(conn, exception_id: int) -> dict:
+def for_exception(conn, exception_id: int, to: str | None = None) -> dict:
+    """Readiness for sending an exception, to `to` when it is known: the checks that send needs, and `holds`, whether
+    they hold it at all (a send to the planner never is, so it reads ready)."""
     row = conn.execute("select subjects from exception_record where id = %s", (exception_id,)).fetchone()
     if row is None:
         raise LookupError(f"no exception {exception_id}")
-    return check(conn, list(row["subjects"] or []), exception_id)
+    out = check(conn, list(row["subjects"] or []), exception_id, to=to)
+    if to and not holds(conn, to):
+        return {**out, "ready": True, "blockers": [], "holds": False}
+    return {**out, "holds": True}

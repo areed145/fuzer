@@ -322,9 +322,12 @@ def test_a_limit_or_a_leak_with_production_behind_it_is_never_shelved(conn, repo
     out = options.for_exception(conn, hot["id"])
     assert out["if_it_trips"]["oil_bbld"] > 0
     s = by_key(out)["shelve"]
-    assert s["available"] is False and s["unavailable"].startswith("“limits” with about"), s
-    assert "bbl/d behind it can't be shelved" in s["unavailable"]
+    # the reason in words, never a word quoted from the title (tour E, E6: "“limits” with about 210 bbl/d ...")
+    assert s["available"] is False and s["unavailable"].startswith("it is past or heading past a limit with about"), s
+    assert s["unavailable"].endswith("bbl/d behind it") and "“" not in s["unavailable"]
     assert out["recommended"] != "shelve"
+    weep = raise_report(conn, "weep", f"Seal weeping on the {WELLS[3]} flowline pump", [f"well:{WELLS[3]}"])
+    assert by_key(options.for_exception(conn, weep["id"]))["shelve"]["unavailable"].startswith("it leaks with about")
     # what the message said counts as the title does
     header = raise_report(conn, "header", "Lift gas on the pad", [f"well:{WELLS[2]}"])
     message(conn, header["id"], "Lift gas header pressure dropping, down to 1150 psig from 1276.")
@@ -406,7 +409,7 @@ def test_a_ride_along_and_a_dispatch_carry_the_message_as_the_ask(conn, report_t
     conn.commit()
     sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind in "
                         "('handed_off', 'created') order by id desc limit 1", (out["event"]["item_id"],)).fetchone()["r"]
-    assert sent == "While you are there: 20-TT-2250B reading erratic, jumping 73 degF"
+    assert sent == "While you are on “Loose cable gland on 20-TT-2250B”: 20-TT-2250B reading erratic, jumping 73 degF"
     d = raise_report(conn, "erratic 3", "Gauge on OKJ01-GLM reads low", ["allocation_node:OKJ01-GLM"])
     message(conn, d["id"], "Gauge on OKJ01-GLM reads low since the night shift")
     out = options.choose(conn, d["id"], "riley", "dispatch", to="sam")
@@ -460,15 +463,44 @@ def test_a_ride_along_adds_a_field_step_for_the_visits_operator_with_the_message
     item = out["event"]["item_id"]
     assert out["event"]["stage"] == "field", out["event"]
     held = conn.execute("select assignee from work_item where id = %s", (item,)).fetchone()["assignee"]
-    step = conn.execute("select assignee from work_token where item_id = %s and state = 'waiting' and kind = 'user'",
-                        (item,)).fetchone()
-    assert "sam" in (held, step and step["assignee"]), (held, step)
+    step = conn.execute("select assignee, element from work_token where item_id = %s and state = 'waiting' "
+                        "and kind = 'user'", (item,)).fetchone()
+    assert step and step["assignee"] == "sam" and step["element"] == "field_check", (held, step)
     sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind in "
                         "('handed_off', 'created') order by id desc limit 1", (item,)).fetchone()["r"]
-    assert sent == "While you are there: 20-TT-2250B reading erratic, jumping 73 degF"
+    assert sent == "While you are on “Clean 20-E-2250B”: 20-TT-2250B reading erratic, jumping 73 degF"
     bar = conn.execute("select start_at, crew from plan_item where exception_id = %s and status = 'scheduled'",
                        (e["id"],)).fetchone()
     assert bar["crew"] == "sam" and bar["start_at"] == start, bar
+
+
+def test_a_ride_along_with_no_open_step_is_a_field_check_with_the_case_text(conn, report_type):
+    """#1402 (D2, E13): a ride-along on a case with no open step went to sam as the desk step "Work the case", and one
+    on a case with no message asked "While you are there: go and have a look", naming no visit and no case."""
+    start = (datetime.now(UTC) + timedelta(days=2)).replace(microsecond=0)
+    plan.propose(conn, "maintenance", "Clean 20-E-2250B", "planner", start, start + timedelta(hours=8),
+                 refs=["tag:20-E-2250B"], status="scheduled", crew="sam")
+    conn.commit()
+    e = raise_report(conn, "fogged", "20-TT-2250B sight glass fogged inside", ["tag:20-TT-2250B"])
+    item = conn.execute("select item_id from exception_record where id = %s", (e["id"],)).fetchone()["item_id"]
+    assert not conn.execute("select 1 from work_token where item_id = %s and kind = 'user' and state in "
+                            "('ready', 'waiting')", (item,)).fetchone(), "the case waits with no open step"
+    out = options.choose(conn, e["id"], "riley", "window")
+    conn.commit()
+    item = out["event"]["item_id"]
+    steps = conn.execute("select element, role, assignee from work_token where item_id = %s and kind = 'user' and "
+                         "state in ('ready', 'waiting')", (item,)).fetchall()
+    assert [(s["element"], s["assignee"]) for s in steps] == [("field_check", "sam")], steps
+    ask = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind = 'handed_off' "
+                       "order by id desc limit 1", (item,)).fetchone()["r"]
+    assert ask == "While you are on “Clean 20-E-2250B”: 20-TT-2250B sight glass fogged inside", ask
+    assert options.ASK.lower() not in ask.lower()
+    # the field's report comes back to the desk, not to a fresh field check
+    ex.report(conn, e["id"], "sam", "done", "Glass cleaned")
+    conn.commit()
+    back = conn.execute("select element, role, assignee from work_token where item_id = %s and kind = 'user' and "
+                        "state in ('ready', 'waiting')", (item,)).fetchall()
+    assert [(s["element"], s["role"]) for s in back] == [("work", "ops_lead")], back
 
 
 def _opt(key: str, usd: float, hours: float, risk: str | None, ready: bool = True, **more) -> dict:
@@ -517,3 +549,139 @@ def test_a_question_or_a_bulletin_gets_no_options(conn, report_type):
     # a question that asks for work, or a bulletin with something wrong, still gets them
     assert not messages.info_only("Anyone know why 20-K-2300A tripped? Can someone check the discharge temp?")
     assert not messages.info_only("Service bulletin: fuel nozzles on train B leaking, please check")
+
+
+def test_a_look_is_not_held_on_a_maintenance_crew_it_does_not_use(conn, report_type):
+    """Tour E, E2: Dispatch now (to a field operator) read "not ready: Crew: Mechanical maintenance crew (MECH): 8 of 6
+    booked today" on simple looks (1203, 1233, 1215, 1216), so Escalate was recommended. A look is the field
+    operator's: the fitters' crew is not checked for it, and sending one books none of it."""
+    from fuzer.ops import readiness, schedule
+
+    e = raise_report(conn, "seal vent", "20-K-2300B dry gas seal vent past its alarm", ["tag:20-K-2300B"])
+    subjects = list(conn.execute("select subjects from exception_record where id = %s", (e["id"],)).fetchone()["subjects"])
+    centers = [c["label"] for c in readiness.crew(conn, subjects)["centers"]]
+    assert centers, "the compressor's work orders name a work center"
+    schedule.set_resource(conn, "FULL", "planner", name="Fitters", kind="crew", capacity=1, work_center=centers[0])
+    start = datetime.now(UTC) - timedelta(hours=1)
+    job = plan.propose(conn, "maintenance", "Seal change elsewhere", "planner", start, start + timedelta(hours=8),
+                       status="scheduled")
+    plan.book(conn, job["id"], "planner", "FULL", 1)
+    conn.commit()
+    try:
+        assert not readiness.crew(conn, subjects, e["id"])["ready"]  # the crew is full today
+        out = options.for_exception(conn, e["id"])
+        d = by_key(out)["dispatch"]
+        assert not any(b.startswith("Crew") for b in d["blockers"]), d["blockers"]
+        assert "Crew" not in out["reason"] and out["recommended"] != "escalate", out["reason"]
+        options.choose(conn, e["id"], "riley", "dispatch")
+        conn.commit()
+        bar = conn.execute("select id from plan_item where exception_id = %s", (e["id"],)).fetchone()
+        assert conn.execute("select 1 from plan_demand where item_id = %s", (bar["id"],)).fetchone() is None
+    finally:
+        conn.rollback()
+        conn.execute("delete from plan_resource where code = 'FULL'")
+        conn.commit()
+
+
+def test_a_message_about_a_tag_the_field_has_a_case_on_links_it_and_is_no_clash(conn, report_type):
+    """Tour E, E14: a message repeating a fault already with the field (1204 on 25-XV-4021) showed a simultaneous
+    operations clash and recommended Escalate. The field is already on it: Options says so and links that case."""
+    first = raise_report(conn, "xv flicker", "25-XV-4021 position indicator flickers", ["tag:25-XV-4021"])
+    options.choose(conn, first["id"], "riley", "dispatch")  # to the operator queue: nobody on site yet
+    conn.commit()
+    again = raise_report(conn, "xv flicker 2", "25-XV-4021 position indicator flickers between open and closed",
+                         ["tag:25-XV-4021"])
+    message(conn, again["id"], "25-XV-4021 position indicator flickers between open and closed.")
+    out = options.for_exception(conn, again["id"])
+    held = conn.execute("select item_id from exception_record where id = %s", (first["id"],)).fetchone()["item_id"]
+    assert out["field_case"] == {"exception": first["id"], "item_id": held,
+                                 "title": "25-XV-4021 position indicator flickers"}, out["field_case"]
+    d = by_key(out)["dispatch"]
+    assert d["clashes"] == [] and d["ready"] is True, d
+    assert out["recommended"] != "escalate", out["reason"]
+
+
+def test_a_case_never_clashes_with_itself_or_the_visit_it_rides_along_with(conn, report_type):
+    """Tour E, D16: 1168's ride along read "clash Sam is also booked on “30-V-2001 level gauge glass is fogged inside”"
+    (its own bar), and on Plan the visit it rode along with showed as its clash, twice."""
+    e = raise_report(conn, "fogged", "20-TT-2250B local display fogged inside", ["tag:20-TT-2250B"])
+    start = (datetime.now(UTC) + timedelta(days=2)).replace(microsecond=0)
+    v = plan.propose(conn, "maintenance", "Clean 20-E-2250B", "planner", start, start + timedelta(hours=8),
+                     refs=["tag:20-E-2250B"], status="scheduled", crew="sam")
+    plan.plan_exception(conn, e["id"], "planner", start, start + timedelta(hours=4), crew="sam")  # its own bar, sam's
+    conn.commit()
+    w = by_key(options.for_exception(conn, e["id"]))["window"]
+    assert w["available"] and w["plan_item"] == v["id"], w
+    assert not any("fogged" in c for c in w["clashes"]), w["clashes"]
+    options.choose(conn, e["id"], "riley", "window")
+    conn.commit()
+    bar = conn.execute("select * from plan_item where exception_id = %s and status = 'scheduled'", (e["id"],)).fetchone()
+    assert bar["rides_with"] == v["id"]
+    rows = {i["id"]: i for i in plan.items(conn, start - timedelta(days=1), start + timedelta(days=1))}
+    assert not [c for c in rows[bar["id"]]["clashes"] if c["with"] == v["id"]], rows[bar["id"]]["clashes"]
+    assert not [c for c in rows[v["id"]]["clashes"] if c["with"] == bar["id"]], rows[v["id"]]["clashes"]
+    clash = next(p for p in plan.prerequisites(conn, bar["id"])["prerequisites"] if p["kind"] == "clash")
+    assert clash["satisfied"], clash
+
+
+def _api(conn):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from fuzer.api import ops as ops_api
+    from fuzer.api import workflow as workflow_api
+
+    app = FastAPI()
+    app.include_router(ops_api.router)
+    app.include_router(workflow_api.router)
+    app.dependency_overrides[ops_api.get_conn] = lambda: conn
+    return TestClient(app)
+
+
+def _waiting_on(item: dict) -> list[tuple]:
+    return [(s["name"], s["role"], s["assignee"]) for p in item["processes"] for s in p["open"] if s["kind"] == "user"]
+
+
+def test_an_action_answers_with_the_case_as_it_left_it(conn, report_type):
+    """#1403 (B-N15): after Choose who, Send to someone else and Dispatch the case still said "With ops lead queue"
+    until a reload. The action's answer carries the case, which the page shows with the confirmation."""
+    from fuzer.core import exceptions as port
+
+    e = port.raise_exception(conn, "walkdown_check", "answer 1", "Loose guard on 20-TT-2250B", "olga",
+                             refs=["tag:20-TT-2250B"], priority=0.3, role="role:ops_lead")
+    conn.commit()
+    client = _api(conn)
+    before = client.get(f"/work/items/{e['item_id']}").json()
+    assert [(r, a) for _, r, a in _waiting_on(before)] == [("ops_lead", None)], _waiting_on(before)
+    r = client.post(f"/exceptions/{e['id']}/options/choose", json={"by": "riley", "option": "dispatch", "to": "sam"})
+    assert r.status_code == 200, r.text
+    now = r.json()["item"]
+    assert now["id"] == e["item_id"] and _waiting_on(now) == _waiting_on(client.get(f"/work/items/{e['item_id']}").json())
+    assert [a for _, _, a in _waiting_on(now)] == ["sam"], _waiting_on(now)
+
+
+def test_send_to_someone_else_sends_a_case_waiting_at_to_dispatch(conn, report_type):
+    """#1403 (E5): Send to someone else on message case 1203 set the case's queue only. It stayed at To dispatch with
+    "No step is open" and its options, and nothing said who had it. It goes out as the event's dispatch now: a step in
+    the planner's queue, off To dispatch."""
+    from fuzer.core import work
+    from fuzer.ops import routing
+
+    work.add_person(conn, "pat", ["maintenance_planner"], "test")
+    e = raise_report(conn, "puddle", "20-TT-2250B lube oil console has a small oil puddle", ["tag:20-TT-2250B"])
+    message(conn, e["id"], "Small oil puddle under the filter of the lube oil console by 20-TT-2250B")
+    item = conn.execute("select item_id from exception_record where id = %s", (e["id"],)).fetchone()["item_id"]
+    assert routing.waiting_case(conn, item) and options.for_case(conn, item)["stage"] == "dispatch"
+    conn.commit()
+    r = _api(conn).post(f"/work/items/{item}/reassign", json={"by": "riley", "to": "role:maintenance_planner",
+                                                             "reason": "planner to book it"})
+    assert r.status_code == 200, r.text
+    assert _waiting_on(r.json()["item"]) == [("Work the case", "maintenance_planner", None)], r.json()["item"]
+    assert not routing.waiting_case(conn, item)
+    assert options.for_case(conn, item)["stage"] == "desk"
+    sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind = 'handed_off' "
+                        "order by id desc limit 1", (item,)).fetchone()["r"]
+    assert sent == "planner to book it"
+    # a case already sent is handed on as before
+    r = _api(conn).post(f"/work/items/{item}/reassign", json={"by": "riley", "to": "pat"})
+    assert r.status_code == 200 and [a for _, _, a in _waiting_on(r.json()["item"])] == ["pat"], r.text

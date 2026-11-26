@@ -86,11 +86,16 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
   const needsTerms = real && data.equipment !== false;
   const missingTerms = needsTerms ? ([["failure mode", d.failure_mode], ["cause", d.cause], ["action taken", d.activity]] as const)
     .filter(([, x]) => !x).map(([n]) => n) : [];
+  // an outcome is what came of a real problem's fix: hidden on anything else, so nothing else saves one (#1400)
+  const outcome = real ? d.outcome : undefined;
+  // contained means a follow-up is planned: it names who it goes to, unless one already went (#1400)
+  const needsFollowUp = outcome === "contained" && data.follow_up == null;
   const ready = !!d.disposition && missingTerms.length === 0
-    && (d.disposition !== "duplicate" || !!Number(d.duplicate_of));
+    && (d.disposition !== "duplicate" || !!Number(d.duplicate_of)) && (!needsFollowUp || !!followTo);
   const hint = !d.disposition ? "Say what it was first"
     : missingTerms.length ? `Still needed: ${missingTerms.join(", ")}`
-    : d.disposition === "duplicate" && !Number(d.duplicate_of) ? "Say which case it duplicates" : undefined;
+    : d.disposition === "duplicate" && !Number(d.duplicate_of) ? "Say which case it duplicates"
+    : needsFollowUp && !followTo ? "Say who the follow-up goes to" : undefined;
   // "Filled in" sits beside each field the pre-fill filled and still shows, never as one line over the form: a folded
   // section is never filled (the server leaves it out), so nothing is saved that the person didn't see (#1366)
   const suggested = !data.record && !!offered && !data.asked;
@@ -109,12 +114,12 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
   );
   const save = () => a.run("closeout", () => api.recordCaseCloseout(itemId, {
     by: person, disposition: d.disposition!, failure_mode: d.failure_mode, mechanism: d.mechanism, cause: d.cause,
-    activity: d.activity, outcome: d.outcome, note: d.note, duplicate_of: d.duplicate_of ? Number(d.duplicate_of) : undefined,
+    activity: d.activity, outcome, note: d.note, duplicate_of: d.duplicate_of ? Number(d.duplicate_of) : undefined,
     suggested: data.record ? undefined : s,
-    follow_up_to: d.outcome === "contained" && followTo && data.follow_up == null ? followTo : undefined,
+    follow_up_to: needsFollowUp ? followTo : undefined,
   }), onDone);
   // Contained means a follow-up is planned: it is sent from here, as a case of its own, unless one already went
-  const followUp = d.outcome === "contained" && data.follow_up == null && <Field label="Send the follow-up to" width="full">
+  const followUp = needsFollowUp && <Field label="Send the follow-up to" width="full">
     <AssignPicker value={followTo} onChange={setFollowTo} label="Send the follow-up to" /></Field>;
   return (
     <Card className="closeout-form" title={missing ? "Close-out missing" : data.asked ? "Finish" : "Close out"}>

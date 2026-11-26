@@ -263,8 +263,19 @@ def route(conn, intake: dict, by: str, assignee: str | None = None, role: str | 
 
 def _dispatch_lane(conn, t, to: str) -> str | None:
     """The queue a dispatched case's step sits in: the role it was sent to; for a person, the type's queue when they
-    hold it, else the first role they hold. None when no person role fits (the case then opens plain)."""
+    hold it, else the first role they hold. None when no person role fits (the case then opens plain).
+    Sent to the field (the operator queue or a field operator), the case's own step sits at the desk, the type's queue
+    else the IOC's, so the field gets a Field check with the ask and reports back to the desk, never the desk step
+    "Work the case" (#1402)."""
+    from . import exceptions
+
     known = work.person_roles(conn)
+    field = exceptions.OPERATOR_ROLE
+    if to == f"role:{field}" or (not to.startswith("role:") and field in work.roles_of(conn, to)):
+        desk = [r for r in ((t.role or "").removeprefix("role:"), exceptions.IOC_QUEUE.removeprefix("role:"))
+                if r and r != field and r in known]
+        if desk:
+            return desk[0]
     if to.startswith("role:"):
         lane = to.removeprefix("role:")
         return lane if lane in known else None
