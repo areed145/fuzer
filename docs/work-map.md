@@ -78,6 +78,7 @@ The same map as a table. Each row is one family of sources; each column is a sta
 | **A trip or a machine health finding** | Waiting on me: the engineer queue | The case: Take it, then work it or Send to the field | My work: the field job, or the desk | List: Closed | Held back while planned work covers the machine |
 | **An inspection or corrosion finding** | Waiting on me: the engineer queue | The case | The desk, usually by planning an inspection | List: Closed, or by itself when a later survey clears it | Planned work shows on Plan |
 | **Parts not ready** for a planned job | Waiting on me: the maintenance planner queue | The case | The desk: expedite, or move the job on Plan | By itself, when stock or an order in time covers every line | Ordering and expediting stay with supply chain |
+| **A plan change**: a trip, late part or lapsed permit on planned work | Waiting on me: the maintenance planner queue | The case: the proposal, each move and why | The desk | By itself, when nothing on the plan is held any more | |
 | **A permit lapsed** with plant still isolated | Waiting on me: the ops lead queue | The case: Take it, then work it or Send to the field | My work: the field job | By itself, when the permit is closed or back in date, or nothing on it is still isolated | |
 | **A bypass, proof test or temporary change overdue** | Waiting on me: the ops lead or engineer queue | The case | The desk | By itself, when the register shows it done | Active bypasses are on every handover |
 | **A round finding**: a reading out of limits or a failed check | Waiting on me: the ops lead queue; the List | The case: Take it, then work it or Send to the field | My work: the field job | List: Back from the field: Close, or More: Send again or Plan for a day | |
@@ -211,6 +212,8 @@ Planned work and routed work meet in three places:
 - **Planned work holds back what it explains.** A trip on a compressor that is down for a scheduled shutdown is
   counted under that shutdown and opens no case. The List shows how many findings were held back.
 - **Parts not ready** is raised as routed work for the planner when a planned job's parts will not arrive in time.
+- **A plan change** is raised for the planner when a trip, a late part or a lapsed permit holds planned work, with
+  the plan levelled again around it.
 
 ## Which page, for which stage
 

@@ -1455,7 +1455,7 @@ def _plan_call(conn, fn, *args, **kwargs):
         from ..core.plan import PlanOverload
         if isinstance(e, PlanOverload):
             raise HTTPException(409, str(e)) from e
-        raise HTTPException(404 if re.match(r"no (plan item|exception|schedule activity) \d|no schedule |no resource |no resource capacity window ", str(e)) else 400, str(e)) from e
+        raise HTTPException(404 if re.match(r"no (plan item|plan change|exception|schedule activity) \d|no schedule |no resource |no resource capacity window ", str(e)) else 400, str(e)) from e
     conn.commit()
     return out
 
@@ -1974,6 +1974,15 @@ def plan_constraints(start: datetime | None = None, days: int = Query(42, ge=1, 
     (weather, leave, a vessel in dock) that lowered it and the moves that clear it."""
     from ..ops import schedule
     return _plan_call(conn, schedule.constraints, start, days)
+
+
+@router.get("/plan/changes/{exception_id}")
+def plan_change_read(exception_id: int, conn=Depends(get_conn)):
+    """A plan change (P5.21): what broke and the constraint it puts on the work, and the proposal (each move before
+    and after with the constraint behind it, the work worth pulling forward, the finish, deferred oil and overloads
+    before and after)."""
+    from ..ops import replan
+    return _plan_call(conn, replan.change, exception_id)
 
 
 @router.post("/plan/resources/{code}/capacity")

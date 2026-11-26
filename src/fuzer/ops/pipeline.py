@@ -334,13 +334,9 @@ def follow_register(conn, pack: Pack) -> dict:
     """What follows a register build wherever it runs (the scheduled `register` asset, `fuzer up`): the work board,
     the integrated plan's SAP work orders and maintenance plans, the IOC's intake of open SAP notifications and the
     messages sent to it, so work that other systems and people hold reaches the IOC as soon as the register does."""
-    from . import board, intake, plan
+    from . import board, intake
 
-    planned = plan.sync_work_orders(conn)
-    planned["maintenance_plans"] = plan.sync_maintenance_plans(conn)
-    planned["schedules"] = _seed_schedules(conn)
-    from . import schedule
-    planned["planning_system"] = schedule.sync_activities(conn)  # after the templates: planners' own schedules stay
+    planned = sync_plan(conn)
     from . import containers
     planned["containers"] = containers.sync(conn)  # schedules, board projects and SAP revisions as containers
     from . import routines
@@ -357,6 +353,18 @@ def follow_register(conn, pack: Pack) -> dict:
     board.refresh(conn, pack)  # last, so the exceptions just raised are on it
     return {"plan": planned, "notifications": notified, "messages": read}
 
+
+
+def sync_plan(conn) -> dict:
+    """The integrated plan from its sources: SAP work orders and maintenance plans, the bundle's schedule templates
+    and the planning system's schedules."""
+    from . import plan, schedule
+
+    planned = plan.sync_work_orders(conn)
+    planned["maintenance_plans"] = plan.sync_maintenance_plans(conn)
+    planned["schedules"] = _seed_schedules(conn)
+    planned["planning_system"] = schedule.sync_activities(conn)  # after the templates: planners' own schedules stay
+    return planned
 
 
 def _seed_schedules(conn) -> list[dict] | dict:

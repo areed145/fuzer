@@ -11,6 +11,8 @@
 #   round:      an operator's reading on a round
 #   closeout:   a case closed out contained, its follow-up sent to the operator queue (a follow_up field job)
 #   readings:   Claude's recorded readings land in the readers' cache as a reader run leaves them (no model call)
+#   plan: true  the integrated plan synced from its sources first, as after every register build (run last)
+#   after: <type>  that type's own arrival runs first (the trip, part or permit a plan change is about)
 #   about: source  work about a source rather than an asset
 #   tuning:     a window detector made noisy, its cases closed as false alarms, then the tuning job (about: detector)
 #   deliver:    the next delivery in deliveries/ lands as the source's load takes it (`incremental` when the source
@@ -116,3 +118,6 @@ arrive:
   # second of the two types finds what the read left open
   message_report: {source: messages, build: true}
   message_to_match: {source: messages, build: true}
+  # Re-planning (P5.21): with the plan from its sources, the part on order five days late holds its order's job until
+  # it arrives: a plan change for the planner, the job moved and the constraint behind it
+  plan_change: {plan: true, after: parts_not_ready, detector: plan_changes}

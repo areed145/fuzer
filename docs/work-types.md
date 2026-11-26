@@ -1,7 +1,7 @@
 # Work types
 
 Generated from the work type registry (`core/exceptions.py`) and the detector registry; don't edit by hand (`uv run python -m fuzer.reference`).
-The 50 types of work declared in code, grouped by where the routing table sends each one when it arrives. A deployment adds its own as data (on **Settings > Routing**) or in a source pack's `exception_types`; **Settings > Routing** shows the table as it stands on a running site, those included. [Where work goes](work-map.md) draws the path each group takes through the pages, and [every source of work](work-sources.md) says how each source is matched, routed, dispatched and closed.
+The 51 types of work declared in code, grouped by where the routing table sends each one when it arrives. A deployment adds its own as data (on **Settings > Routing**) or in a source pack's `exception_types`; **Settings > Routing** shows the table as it stands on a running site, those included. [Where work goes](work-map.md) draws the path each group takes through the pages, and [every source of work](work-sources.md) says how each source is matched, routed, dispatched and closed.
 
 Every type is listed on the **List** (All work), whichever group it is in. *The field can be sent* means a case of the type can be dispatched to a field operator's **My work**; *joins one event's case* means it joins an open case about the same asset instead of opening another; *held back by planned work* means a finding during a shutdown or planned job on its asset is counted under that window and opens no case.
 
@@ -104,6 +104,7 @@ Starts the standard one-step `queue_item` workflow in the role's queue, on each 
 | Type of work | What it is | Found by | Declared in | How it behaves |
 |---|---|---|---|---|
 | **Parts not ready for planned work** `parts_not_ready` | A planned work order with a reserved part that won't arrive by the day the job needs it: on order too late, or short with nothing on order and too little time to get it. | [`parts_not_ready`](detectors.md#parts_not_ready) | [`ops.materials`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/materials.py) | - |
+| **Plan change to review** `plan_change` | A trip, a late part or a lapsed permit has hit planned work. | [`plan_changes`](detectors.md#plan_changes) | [`ops.replan`](https://github.com/areed145/fuzer/tree/main/src/fuzer/ops/replan.py) | - |
 | **Routine due** `routine_due` | A routine falling due: a maintenance or inspection plan's next date, or a routine duty kept in Fuzer. | - | - | - |
 
 ### Production engineer queue
