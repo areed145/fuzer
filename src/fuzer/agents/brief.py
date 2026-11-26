@@ -1,8 +1,9 @@
 """The agent brief on a case (P4.3): before a person opens a case, the specialist whose pack owns it reads it.
 
 A pack owns a case when the case's work type is one the pack `briefs` and one of the case's subjects is of a class
-the pack covers (ISO 14224, or a unit kind such as a well, a pipeline or a contract). The pack's agent writes the
-brief: what happened in plain words, the evidence, what the standard analysis shows, similar past cases and what fixed
+the pack covers (ISO 14224, or a unit kind such as a well, a pipeline or a contract; a unit at the station a pipeline
+starts from, such as its pump, is on that pipeline), unless the asset's bundle marks the pack not applicable. The
+pack's agent writes the brief: what happened in plain words, the evidence, what the standard analysis shows, similar past cases and what fixed
 them, a proposed disposition with its confidence, and what it could not check, led by the methods its pack cannot run
 on the case's subjects because a measurement it needs is not on the register there (P4.1b). Those, and what a tool
 the specialist called said it could not say (a source not loaded), are kept as what the brief could not determine
@@ -52,10 +53,33 @@ DEFAULT_TIER = timedelta(hours=6)
 _JSON = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 
 
+# A unit at the station a pipeline starts from pumps into that line, so it is on the line for a pack's classes: a
+# trip on the origin station's pump is the pipeline's as well as the pump's (P4.7a).
+_ON_A_LINE = """
+select 1 from edge u join edge s on s.dst = u.dst and s.rel = 'starts_at' and s.valid_to is null
+join entity l on l.fuzer_id = s.src and l.kind = 'pipeline' and l.merged_into is null and l.retired_at is null
+where u.src = any(%s) and u.rel = 'part_of' and u.valid_to is null limit 1
+"""
+
+
 def owner(conn, item: dict) -> dict | None:
-    """The pack whose `briefs` include the case's type and whose classes include one of its subjects' classes."""
-    classes = set(detectors.classes_of(conn, item.get("subjects") or []).values())
+    """The pack whose `briefs` include the case's type and whose classes include one of its subjects' classes (a
+    subject at a pipeline's origin station is on that pipeline too), leaving out a pack this asset's bundle marks not
+    applicable."""
+    from ..core import projects
+    from ..core.pack import resolve
+
+    subjects = item.get("subjects") or []
+    classes = set(detectors.classes_of(conn, subjects).values())
+    if subjects and conn.execute(_ON_A_LINE, (list(subjects),)).fetchone():
+        classes.add("pipeline")
+    try:
+        exempt = packs.not_applicable().get(resolve(conn).name, {})
+    except projects.ProjectError:
+        exempt = {}
     for path in packs.shipped():
+        if path in exempt:
+            continue
         p = packs.load(path)
         if item["type"] in (p.get("briefs") or ()) and classes & set(p.get("classes") or ()):
             return p
