@@ -235,7 +235,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   priority); any choice takes one optional why, and nothing holds the button back, a dispatch that is not ready included
   (`POST /exceptions/{id}/options/choose`). Once the field reports it done the options go and the case leads with Close out. The dispatch carries what to check or do
   to the field job (when the IOC writes nothing, the message a message case came from, word for word, else "Go and
-  have a look, report what you find"; a ride along prefixes it with "While you are there:") and nothing else: why it goes
+  have a look, report what you find"; a ride along names the visit and asks the message, else the case's title:
+  "While you are on “Clean 20-E-2250B”: …") and nothing else: why it goes
   now, the IOC's or the recommendation's costing, stays on the case, not on the field's instruction; the choice, the recommendation and the reason go on the case's history, and Work performance by work type
   shows how often the recommendation was taken (`GET /options/acceptance`).
 - **Dispatch.** The IOC sends an exception to a person, with what to check or do. Its case (or the case's open

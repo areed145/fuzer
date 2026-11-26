@@ -166,7 +166,7 @@ by side:
 | Option | What happens | When it is done |
 |---|---|---|
 | **Dispatch now** | Sent to a field operator, or the operator queue, with what to check or do on the job | The operator queue's SLA |
-| **Ride along with the next visit** | Sent to a field operator already at the same asset, or put on the plan with a job already booked on the same equipment (its assets or what they are part of) | Now, or that visit within `options.window_days` (21) |
+| **Ride along with the next visit** | A Field check for the field operator already at the same asset, or put on the plan with a job already booked on the same equipment (its assets or what they are part of) and a Field check for its operator; always a Field check, even for a case with no open step | Now, or that visit within `options.window_days` (21) |
 | **Shelve** | Off the list until the area's next turnaround or shutdown; not offered for a limit or a leak with production behind it | At most `exceptions.max_shelve_days` (30) |
 | **Escalate** | Sent to the engineer, or past the engineer to the ops lead; to the ops lead for a gas test, permit, isolation or depressurising; never to a role you act as | The engineer queue's SLA, then a dispatch |
 
@@ -178,7 +178,9 @@ on every case: wait while waiting leaves no high risk and defers less than a sep
 and shelve only on a risk the record backs; dispatch now when waiting costs more; escalate when it should go now and
 can't (nothing is recommended when that would come back to you). A message that says what happened and that it is
 over has no options. Taking the recommended option is one tap, and a dispatch or ride along with no words of its own
-sends the field the message the case came from; any choice takes one optional why. The choice, the recommendation and any
+sends the field the message the case came from (a ride along names the visit, and asks the case's title when no message
+came); any choice takes one optional why. Work sent to the field from a case with no open step keeps its own step at the
+desk (the type's queue, else the ops lead's), so the field gets a Field check and its report comes back there. The choice, the recommendation and any
 reason go on the case's history, and **Work performance** shows how often the recommendation was taken, per type.
 
 ## 6. Dispatch, the field, and back

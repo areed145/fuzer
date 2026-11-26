@@ -28,9 +28,11 @@ Read from what Fuzer already has, never from equipment type:
                             turnaround or shutdown of the area, at most `exceptions.max_shelve_days`, never for a limit
                             or a leak with production behind it (#1381); escalate: the engineer queue's SLA (the ops
                             lead's for a gas test or permit), then a dispatch, never to a role the reader acts as
-    what the field is asked the IOC's words, else the message the case came from, else ASK (#1381)
-    carrying one out        dispatch: to whom it is sent; ride along: a field step for the visit's operator (the
-                            person on it, else the operator queue) on the visit's day, asking the same (#1390);
+    what the field is asked the IOC's words, else the message the case came from, else ASK (#1381); a ride
+                            along names the visit and asks the message, else the case's title (#1402)
+    carrying one out        dispatch: to whom it is sent; ride along: a Field check for the visit's operator (the
+                            person on it, else the operator queue) on the visit's day, whether or not the case had
+                            an open step (#1390, #1402);
                             shelve: off every queue until its date; escalate: to that queue
     readiness and clashes   readiness.check (the field's last report, permit, spares, simultaneous operations, MOC;
                             no maintenance crew, since a field operator does it, #1401) for dispatch now, less the
@@ -328,7 +330,8 @@ def _alongside(conn, row: dict, at: datetime) -> dict | None:
         if last.get("status") in ("done", "could_not_do"):
             continue  # back from the field (a note after it changes nothing): nobody there now
         there = "on site" if last.get("status") == "on_site" and last.get("by") == r["assignee"] else "sent there"
-        return {"id": None, "exception": r["id"], "person": r["assignee"], "title": f"{r['assignee']}, {there} for "
+        return {"id": None, "exception": r["id"], "person": r["assignee"], "job": r["title"],
+                "title": f"{r['assignee']}, {there} for "
                 f"“{r['title']}”", "kind": "field_job", "start_at": at, "end_at": at + timedelta(hours=JOB_HOURS),
                 "crew": r["assignee"], "basis": f"{r['assignee']} is {there} on its asset now, then {JOB_HOURS:g} h "
                 "for the job"}
@@ -546,6 +549,7 @@ def for_exception(conn, exception_id: int, at: datetime | None = None, viewer: l
             "ready": not short, "blockers": short, "warnings": [], "unknown": [parts["note"]] if parts.get("unknown") else [],
             "clashes": _plan_clashes(conn, visit["id"], visit["start_at"], visit["end_at"], row), "available": True,
             "person": visit.get("person"), "with_exception": visit.get("exception"),
+            "visit": visit.get("job") or visit["title"],
             "operator": visit.get("person") or visit.get("operator"),
             "basis": visit.get("basis") or f"{visit['kind'].replace('_', ' ')} on the plan on its equipment, then "
                                            f"{JOB_HOURS:g} h for the job"})
@@ -699,6 +703,15 @@ def _ask(conn, exception_id: int) -> str:
     return messages.text_of(conn, exception_id) or ASK
 
 
+def _case_text(conn, exception_id: int) -> str:
+    """What a ride-along asks the visit to see to when the IOC writes nothing: the message the case came from, else
+    the case's own title, never "go and have a look" (#1402)."""
+    from . import messages
+
+    return messages.text_of(conn, exception_id) or conn.execute(
+        "select title from exception_record where id = %s", (exception_id,)).fetchone()["title"]
+
+
 def choose(conn, exception_id: int, by: str, option: str, reason: str | None = None, *, to: str | None = None,
            ask: str | None = None, due=None, priority: float | None = None, override: str | None = None) -> dict:
     """Carry out one of an event's options and record it: dispatch it (to a person or the operator queue, with what to
@@ -737,8 +750,8 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
         # A field step for whoever goes on the visit, asking what was reported (#1390): someone already at the asset
         # takes it with them now; a visit on the plan takes it on its day, booked to its operator, else the operator
         # queue. Never only a bar on the plan with the case left at the desk.
-        said = _ask(conn, eid)
-        told = (ask or "").strip() or f"While you are there: {said[0].lower()}{said[1:]}"
+        said = _case_text(conn, eid)
+        told = (ask or "").strip() or f"While you are on “{o['visit']}”: {said}"
         to = o.get("operator") or f"role:{exceptions.OPERATOR_ROLE}"
         if o.get("person"):
             row = exceptions.dispatch(conn, eid, by, to, told)

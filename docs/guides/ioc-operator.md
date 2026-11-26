@@ -97,8 +97,8 @@ same equipment, **Shelve** until the area's next turnaround, and **Escalate** to
 would be done, the production deferred until then in barrels and dollars, the risk of waiting (only when its
 criticality or a hazard is on record), and whether it is ready. One is recommended, with the reason; Shelve never is,
 though you may choose it. Taking it is one tap; taking another takes an optional why, kept on the case. **Add to the
-visit** gives the visit's operator (the operator queue when nobody is booked) a field job on the visit's day, asking
-what was reported. A message that only asks a question, passes on a bulletin or says something is already over gets no
+visit** gives the visit's operator (the operator queue when nobody is booked) a Field check on the visit's day, naming
+the visit and asking what was reported. A message that only asks a question, passes on a bulletin or says something is already over gets no
 options: answer it and close it out.
 
 To send it yourself, choose **Send to** on the row. Pick a person (shown with their roles, how much they hold, and

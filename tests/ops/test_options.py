@@ -409,7 +409,7 @@ def test_a_ride_along_and_a_dispatch_carry_the_message_as_the_ask(conn, report_t
     conn.commit()
     sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind in "
                         "('handed_off', 'created') order by id desc limit 1", (out["event"]["item_id"],)).fetchone()["r"]
-    assert sent == "While you are there: 20-TT-2250B reading erratic, jumping 73 degF"
+    assert sent == "While you are on “Loose cable gland on 20-TT-2250B”: 20-TT-2250B reading erratic, jumping 73 degF"
     d = raise_report(conn, "erratic 3", "Gauge on OKJ01-GLM reads low", ["allocation_node:OKJ01-GLM"])
     message(conn, d["id"], "Gauge on OKJ01-GLM reads low since the night shift")
     out = options.choose(conn, d["id"], "riley", "dispatch", to="sam")
@@ -463,15 +463,44 @@ def test_a_ride_along_adds_a_field_step_for_the_visits_operator_with_the_message
     item = out["event"]["item_id"]
     assert out["event"]["stage"] == "field", out["event"]
     held = conn.execute("select assignee from work_item where id = %s", (item,)).fetchone()["assignee"]
-    step = conn.execute("select assignee from work_token where item_id = %s and state = 'waiting' and kind = 'user'",
-                        (item,)).fetchone()
-    assert "sam" in (held, step and step["assignee"]), (held, step)
+    step = conn.execute("select assignee, element from work_token where item_id = %s and state = 'waiting' "
+                        "and kind = 'user'", (item,)).fetchone()
+    assert step and step["assignee"] == "sam" and step["element"] == "field_check", (held, step)
     sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind in "
                         "('handed_off', 'created') order by id desc limit 1", (item,)).fetchone()["r"]
-    assert sent == "While you are there: 20-TT-2250B reading erratic, jumping 73 degF"
+    assert sent == "While you are on “Clean 20-E-2250B”: 20-TT-2250B reading erratic, jumping 73 degF"
     bar = conn.execute("select start_at, crew from plan_item where exception_id = %s and status = 'scheduled'",
                        (e["id"],)).fetchone()
     assert bar["crew"] == "sam" and bar["start_at"] == start, bar
+
+
+def test_a_ride_along_with_no_open_step_is_a_field_check_with_the_case_text(conn, report_type):
+    """#1402 (D2, E13): a ride-along on a case with no open step went to sam as the desk step "Work the case", and one
+    on a case with no message asked "While you are there: go and have a look", naming no visit and no case."""
+    start = (datetime.now(UTC) + timedelta(days=2)).replace(microsecond=0)
+    plan.propose(conn, "maintenance", "Clean 20-E-2250B", "planner", start, start + timedelta(hours=8),
+                 refs=["tag:20-E-2250B"], status="scheduled", crew="sam")
+    conn.commit()
+    e = raise_report(conn, "fogged", "20-TT-2250B sight glass fogged inside", ["tag:20-TT-2250B"])
+    item = conn.execute("select item_id from exception_record where id = %s", (e["id"],)).fetchone()["item_id"]
+    assert not conn.execute("select 1 from work_token where item_id = %s and kind = 'user' and state in "
+                            "('ready', 'waiting')", (item,)).fetchone(), "the case waits with no open step"
+    out = options.choose(conn, e["id"], "riley", "window")
+    conn.commit()
+    item = out["event"]["item_id"]
+    steps = conn.execute("select element, role, assignee from work_token where item_id = %s and kind = 'user' and "
+                         "state in ('ready', 'waiting')", (item,)).fetchall()
+    assert [(s["element"], s["assignee"]) for s in steps] == [("field_check", "sam")], steps
+    ask = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind = 'handed_off' "
+                       "order by id desc limit 1", (item,)).fetchone()["r"]
+    assert ask == "While you are on “Clean 20-E-2250B”: 20-TT-2250B sight glass fogged inside", ask
+    assert options.ASK.lower() not in ask.lower()
+    # the field's report comes back to the desk, not to a fresh field check
+    ex.report(conn, e["id"], "sam", "done", "Glass cleaned")
+    conn.commit()
+    back = conn.execute("select element, role, assignee from work_token where item_id = %s and kind = 'user' and "
+                        "state in ('ready', 'waiting')", (item,)).fetchall()
+    assert [(s["element"], s["role"]) for s in back] == [("work", "ops_lead")], back
 
 
 def _opt(key: str, usd: float, hours: float, risk: str | None, ready: bool = True, **more) -> dict:
