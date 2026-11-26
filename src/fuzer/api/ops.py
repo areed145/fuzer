@@ -368,7 +368,7 @@ class Closeout(BaseModel):
     note: str | None = None
     duplicate_of: int | None = None
     suggested: dict[str, Any] | None = None   # what the form was pre-filled with, kept beside what was confirmed
-    follow_up_to: str | None = None           # contained: who the follow-up goes to (a person or role:<role>)
+    follow_up_to: str | None = None           # contained or not fixed: who the follow-up goes to (a person or role:<role>)
 
 
 @router.get("/work/items/{item_id}/closeout")
@@ -774,7 +774,7 @@ def exception_readiness(exception_id: int, to: str | None = None, conn=Depends(g
 
 class OptionChoice(BaseModel):
     by: str
-    option: Literal["dispatch", "window", "shelve", "escalate"]
+    option: Literal["dispatch", "window", "shelve", "escalate", "watch"]
     reason: str | None = None     # required when it is not the recommended option
     to: str | None = None         # dispatch: a person or role:<role>; the operator queue when left out
     ask: str | None = None        # dispatch: what to check or do (all the field sees)
@@ -1066,6 +1066,21 @@ def exception_split(exception_id: int, d: ExceptionSplit, conn=Depends(get_conn)
     """Take an exception that joined another's case back out to a case of its own (a different event)."""
     from ..ops import exceptions
     return _exception_call(conn, exceptions.split, exception_id, d.by, d.reason)
+
+
+class ExceptionJoin(BaseModel):
+    into: int
+    by: str
+    reason: str | None = None
+
+
+@router.post("/exceptions/{exception_id}/join")
+def exception_join(exception_id: int, d: ExceptionJoin, conn=Depends(get_conn)):
+    """Add an event to another's case (Options' "Add to that job" on a case the field already has, tour F, F6): its
+    case is merged into that one, which the field then reads it on. Answers with the case it joined (`item`)."""
+    from ..ops import exceptions
+    row = _exception_call(conn, exceptions.join, exception_id, d.into, d.by, d.reason)
+    return {"event": {k: row[k] for k in ("id", "item_id", "joined_to", "state")}, "item": _case_now(conn, row["item_id"])}
 
 
 class UpsetMerge(BaseModel):

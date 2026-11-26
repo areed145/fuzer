@@ -12,13 +12,14 @@ import { caseHref } from "./shared";
 const RISK: Record<string, Tone> = { Low: "ok", Medium: "warn", High: "danger" };
 /** What the button does, said as the act. */
 const VERB: Record<CaseOption["key"], string> = {
-  dispatch: "Dispatch now", window: "Add to the visit", shelve: "Shelve", escalate: "Escalate",
+  dispatch: "Dispatch now", window: "Add to the visit", shelve: "Shelve", escalate: "Escalate", watch: "Keep on watch",
 };
 const DOING: Record<CaseOption["key"], string> = {
   dispatch: "Dispatching…", window: "Adding to the visit…", shelve: "Shelving…", escalate: "Escalating…",
+  watch: "Saving…",
 };
 const DONE: Record<CaseOption["key"], string> = {
-  dispatch: "Dispatched", window: "Added to the visit", shelve: "Shelved", escalate: "Escalated",
+  dispatch: "Dispatched", window: "Added to the visit", shelve: "Shelved", escalate: "Escalated", watch: "Kept on watch",
 };
 type Choice = Parameters<typeof api.chooseOption>[3];
 /** Carries out an option; `name` is how the person it goes to is called, for the confirmation. */
@@ -69,15 +70,30 @@ function OptionsView({ d, person, readOnly, onChosen }: {
       // who it went to: a dispatch's pick, or the visit's operator a ride along adds a field step for (#1390)
       const who = opt.key === "dispatch" ? c.to : opt.key === "window" ? opt.operator ?? undefined : null;
       const to = who === null ? "" : ` ${opt.key === "window" ? "for" : "to"} ${who && !who.startsWith("role:") ? name ?? personName(who) : `the ${queue(who ?? "operator")}`}`;
-      onChosen(`${DONE[opt.key]}${to}${opt.key === d.recommended ? ", as recommended" : ""}. The choice and why are on the case.`,
+      // a work order nobody is named on: the planner adds it to the order its crew works (tour F, F5)
+      const done = opt.order ? `Sent to the ${queue(opt.operator ?? "maintenance_planner")} to add to ${opt.order}` : `${DONE[opt.key]}${to}`;
+      onChosen(`${done}${opt.key === d.recommended ? ", as recommended" : ""}. The choice and why are on the case.`,
         r.item ?? null);
+    });
+  };
+  // The field already has a case on it: this one joins that job, which is opened, as it now carries this report
+  const join = (into: { exception: number; item_id: number }) => {
+    setActed(null);
+    return a.run("Adding to that job…", () => api.joinException(d.exception_id!, into.exception, person), () => {
+      notifyChanged();
+      location.hash = caseHref(into.item_id);
     });
   };
   return (
     <Card className="case-options" aria-label="Options" title="Options">
       <Cost d={d} />
-      {d.field_case && <Text as="div" small>The field already has a case on it:{" "}
-        <a href={caseHref(d.field_case.item_id)}>{d.field_case.title}</a></Text>}
+      {d.field_case && <div>
+        <Text as="div" small>The field already has a case on it:{" "}
+          <a href={caseHref(d.field_case.item_id)}>{d.field_case.title}</a></Text>
+        {!readOnly && person && <Line wrap>
+          <Button variant="secondary" disabled={!!a.busy} onClick={() => join(d.field_case!)}>Add to that job</Button>
+          {acted === null && <ActionStatus busy={a.busy} error={a.error} />}</Line>}
+      </div>}
       {/* nothing recommended (it can't go now and escalating would come back to the reader): the reason is the line */}
       {!d.recommended && d.reason && <Text as="div" small>{d.reason}</Text>}
       <ul className="case-options-list">
@@ -121,7 +137,8 @@ function Option({ opt, d, readOnly, busy, open, anyOpen, onOpen, onChoose, statu
       <Line wrap><strong>{opt.label}</strong>{rec && <Badge tone="ok">Recommended</Badge>}</Line>
       {/* the server words these with whoever is on them as their actor ("user:demo is also on"): named here (#1383) */}
       {opt.detail && <Text as="div" small>{say(opt.detail)}</Text>}
-      <div className="case-option-facts">
+      {/* keep on watch sends nothing: no time, deferral or risk of its own to put beside the others */}
+      {opt.by && <div className="case-option-facts">
         <span>Done by {when(opt.by)}</span>
         {/* with nothing deferred now the card's first line says so once, not on every option */}
         {opt.deferred ? <span>about {estimate(opt.deferred.oil_bbl)} bbl, {money(twoFigures(opt.deferred.usd))} deferred</span>
@@ -129,7 +146,7 @@ function Option({ opt, d, readOnly, busy, open, anyOpen, onOpen, onChoose, statu
         {opt.risk && <span title={opt.risk.why}>Risk <Badge tone={RISK[opt.risk.level]}>{opt.risk.level.toLowerCase()}</Badge></span>}
         {!blocked && (opt.key === "dispatch" || opt.key === "window") &&
           (opt.unknown?.length ? <Badge tone="muted">unknown</Badge> : <Badge tone="ok">ready</Badge>)}
-      </div>
+      </div>}
       {blocked && <Text as="div" small><Badge tone="warn">not ready</Badge> {say(opt.blockers?.[0])}</Text>}
       {(opt.unknown ?? []).map((u) => <Text as="div" small key={u}>{say(u)}</Text>)}
       {(opt.clashes ?? []).slice(0, 2).map((c) => <Text as="div" small key={c}><Badge tone="warn">clash</Badge> {say(c)}</Text>)}

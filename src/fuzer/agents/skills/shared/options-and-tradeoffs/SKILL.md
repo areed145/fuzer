@@ -1,6 +1,6 @@
 ---
 name: options-and-tradeoffs
-description: How to weigh the options on a case - dispatch now, ride along with the next visit, shelve, escalate - on one scale every time, recommend one with the factor that decided it, and name what is not known instead of guessing. Load whenever there is a choice to make on a case.
+description: How to weigh the options on a case - dispatch now, ride along with the next visit, shelve, escalate, keep on watch - on one scale every time, recommend one with the factor that decided it, and name what is not known instead of guessing. Load whenever there is a choice to make on a case.
 ---
 
 # Options and trade-offs
@@ -15,7 +15,7 @@ Quote those figures as given, with their units and `basis`. Never work out a def
 of your own, and never weigh barrels against risk on a scale of your own.
 
 **Recommend one.** Lead with the option's label, then one line naming the factor that decided it: the tool's
-`recommended`, `reason` and `deciding` (deferred, risk or readiness). If your own evidence points to another
+`recommended`, `reason` and `deciding` (deferred, risk, readiness, or brief when the specialist brief proposes keeping it on watch). If your own evidence points to another
 option, lead with that one, name the recommended one beside it, and say which factor you weigh differently and
 why, citing the record the tool does not see. Without such a record, recommend what the tool recommends. When `recommended` is empty, say its `reason`: the
 blocker is the reader's to clear, and no option is recommended. Never recommend Shelve: it leaves the work undone,

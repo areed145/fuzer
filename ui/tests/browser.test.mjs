@@ -899,6 +899,80 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
   });
 }
 
+// P5.30b (#1409, tour F): Options follow the case. A brief that says keep on watch is recommended as Keep on watch,
+// one tap (F3); "The field already has a case on it" offers Add to that job, which opens that job (F6); a ride-along
+// on a work order nobody is named on says the planner adds it to the order (F5).
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.30b Keep on watch follows the brief, Add to that job opens the job, and a work order names its planner (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    const chosen = [], joined = [];
+    const base = caseOptions();
+    let options = caseOptions({
+      loss: null, if_it_trips: { oil_bbld: 20000, gas_mscfd: 0, usd_per_day: 1500000, wells: 177, basis: "behind it" },
+      field_case: { exception: 5, item_id: 1170, title: "20-K-2200C seal gas check" },
+      options: [...base.options.map((o) => (o.key === "window" ? { ...o, deferred: null, operator: "role:maintenance_planner",
+        order: "SAP order 4000123" } : { ...o, deferred: null })),
+      { key: "watch", label: "Keep on watch", detail: "no field work now; the case stays where it is", available: true,
+        hours: null, by: null, deferred: null, risk: null, ready: true, blockers: [], warnings: [], clashes: [], unknown: [],
+        proposed: true, basis: "the specialist brief proposes it" }],
+      recommended: "watch", deciding: "brief",
+      reason: "The specialist brief proposes keeping it on watch, and nothing is deferred while it is.",
+    });
+    await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "20-K-2200C to watch", type: "machine_health",
+      state: "open", subjects: [], created_by: "agent:rotating", created_at: "2026-11-25T12:00:00Z", events: [], processes: [],
+      payload: { exception_id: 7 } } }));
+    await page.route("**/work/items/1170", (route) => route.fulfill({ json: { id: 1170, title: "20-K-2200C seal gas check",
+      type: "message", state: "open", subjects: [], created_by: "user:demo", created_at: "2026-11-25T12:00:00Z", events: [],
+      processes: [], payload: { exception_id: 5 } } }));
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: options }));
+    await page.route("**/exceptions/7/options/choose", (route) => {
+      const body = route.request().postDataJSON();
+      chosen.push(body);
+      return route.fulfill({ json: { choice: { id: 9, chosen: body.option, recommended: "watch", accepted: body.option === "watch" },
+        event: { id: 7, item_id: 21, stage: "desk", state: "open" }, item: null } });
+    });
+    await page.route("**/exceptions/7/join", (route) => {
+      joined.push(route.request().postDataJSON());
+      return route.fulfill({ json: { event: { id: 7, item_id: 1170, joined_to: 5, state: "open" }, item: null } });
+    });
+    await page.goto(`${url}/#/cases/21`);
+    await page.evaluate(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    await page.reload();
+    let card = page.getByLabel("Options");
+    const watch = card.locator(".case-option.recommended");
+    await watch.getByText("Keep on watch", { exact: true }).first().waitFor();
+    await watch.getByText("The specialist brief proposes keeping it on watch", { exact: false }).waitFor();
+    // nothing is sent: no time, deferral or risk of its own beside the others
+    assert.equal(await watch.getByText(/^Done by/).count(), 0);
+    assert.equal(await watch.getByText(/^Risk/).count(), 0);
+    assert.deepEqual(await card.locator(".ui-button-primary").allTextContents(), ["Keep on watch"]);
+    if (size === "phone") {
+      const width = await page.evaluate(() => document.documentElement.scrollWidth);
+      assert.ok(width <= 390, `no sideways scroll (${width})`);
+    }
+    await card.getByRole("button", { name: "Keep on watch", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "Kept on watch, as recommended. The choice and why are on the case." }).waitFor();
+    assert.deepEqual(chosen, [{ by: "riley", option: "watch" }]);
+
+    // a ride-along on a work order nobody is named on goes to the planner, who adds it to the order
+    options = { ...options, recommended: "window", reason: "The visit on Wed 25 Nov does it with nothing deferred while it waits." };
+    await page.reload();
+    card = page.getByLabel("Options");
+    await card.getByRole("button", { name: "Add to the visit", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "Sent to the maintenance planner queue to add to SAP order 4000123, as recommended." }).waitFor();
+    assert.deepEqual(chosen[1], { by: "riley", option: "window" });
+
+    // the field already has a case on it: Add to that job joins it and opens that job
+    await page.reload();
+    card = page.getByLabel("Options");
+    await card.getByText("The field already has a case on it:").waitFor();
+    await card.getByRole("button", { name: "Add to that job" }).click();
+    await page.waitForURL(/#\/cases\/1170$/);
+    assert.deepEqual(joined, [{ by: "riley", into: 5 }]);
+    await page.evaluate(() => localStorage.removeItem("fuzer.reviewer"));
+  });
+}
+
 test("another option than the recommended one takes an optional why, which goes with the choice (P5.20, #1347)", async () => {
   const chosen = [];
   await page.route("**/work/items/21", (route) => route.fulfill({ json: { id: 21, title: "20-K-2300B tripped", type: "machine_trip",
@@ -7553,6 +7627,51 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     await form.getByRole("button", { name: "Close the case" }).click();
     await expectReports(posts, 1);
     assert.deepEqual([posts[0].outcome, posts[0].follow_up_to], ["contained", "role:maintenance_planner"]);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
+
+// P5.30b (#1409, tour F, F9, F10): "Not fixed" names who the follow-up goes to, as Contained does; Duplicate comes
+// with the case it most likely duplicates in the field, its title beside it.
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.30b not fixed sends a follow-up and Duplicate suggests the case (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const item = { ...demoTask.item, title: "Grinding noise at the 10-P-1001B coupling", state: "open", closed_at: null,
+      processes: [], events: [] };
+    await page.route("**/work/items/7", (route) => route.fulfill({ json: item }));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "pat", roles: ["maintenance_planner"] }] }));
+    await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "maintenance_planner", kind: "person" }] }));
+    const vocabulary = { dispositions: { real: "A real problem", duplicate: "Duplicate" },
+      outcomes: { fixed: "Fixed", contained: "Contained, follow-up planned", not_fixed: "Not fixed" }, failure_modes: {},
+      mechanisms: {}, causes: {}, activities: {} };
+    const posts = [];
+    await page.route("**/work/items/7/closeout", (route) => {
+      if (route.request().method() === "POST") {
+        posts.push(route.request().postDataJSON());
+        return route.fulfill({ status: 400, json: { detail: "kept here" } });
+      }
+      return route.fulfill({ json: { item_id: 7, record: null, vocabulary, repeats: [], equipment: false, asked: false,
+        suggestion: { from: "words", disposition: "real" },
+        duplicate_of: { item_id: 210, title: "10-P-1001B bearing temperature high" } } });
+    });
+    await page.goto(`${url}/#/cases/7`);
+    await page.getByRole("button", { name: "Close out", exact: true }).click();
+    const form = page.locator(".closeout-form");
+    await form.getByLabel("Outcome").selectOption("not_fixed");
+    assert.equal(await form.getByRole("button", { name: "Close the case" }).isDisabled(), true);
+    await form.getByText("Say who the follow-up goes to.").waitFor();
+    await form.getByLabel("Send the follow-up to").selectOption("role:maintenance_planner");
+    await form.getByRole("button", { name: "Close the case" }).click();
+    await expectReports(posts, 1);
+    assert.deepEqual([posts[0].outcome, posts[0].follow_up_to, posts[0].duplicate_of],
+      ["not_fixed", "role:maintenance_planner", undefined]);
+    await form.getByLabel("What it was").selectOption("duplicate");
+    assert.equal(await form.getByLabel("Duplicate of case").inputValue(), "210");
+    await form.getByText("10-P-1001B bearing temperature high").waitFor();
+    await form.getByRole("button", { name: "Close the case" }).click();
+    await expectReports(posts, 2);
+    assert.deepEqual([posts[1].disposition, posts[1].duplicate_of], ["duplicate", 210]);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   });
 }

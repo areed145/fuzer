@@ -300,7 +300,7 @@ export interface CloseoutSuggestion {
 export interface CloseoutInput {
   by: string; disposition: string; failure_mode?: string; mechanism?: string; cause?: string; activity?: string;
   outcome?: string; note?: string; duplicate_of?: number; suggested?: CloseoutSuggestion;
-  /** Contained, follow-up planned: who the follow-up goes to, a person or role:<role> (#1385). */
+  /** Contained or not fixed: who the follow-up goes to, a person or role:<role> (#1385). */
   follow_up_to?: string;
 }
 
@@ -327,8 +327,8 @@ export interface WorkPerformance {
 /** One of an event's options (P5.20): when it would be done, the production deferred until then, the risk of waiting,
  * and whether it is ready; an option that can't be taken says why. */
 export interface CaseOption {
-  key: "dispatch" | "window" | "shelve" | "escalate"; label: string; detail?: string; available: boolean;
-  unavailable?: string; hours?: number; by?: string;
+  key: "dispatch" | "window" | "shelve" | "escalate" | "watch"; label: string; detail?: string; available: boolean;
+  unavailable?: string; hours?: number | null; by?: string | null;
   deferred?: { oil_bbl: number; gas_mscf: number; usd: number } | null;
   risk?: { level: "Low" | "Medium" | "High"; why: string };
   ready?: boolean; blockers?: string[]; warnings?: string[]; clashes?: string[]; basis?: string;
@@ -337,6 +337,8 @@ export interface CaseOption {
   plan_item?: number; start?: string; crew?: string | null; until?: string; to?: string;
   /** A ride along: who takes it on the visit (the operator queue when null). */
   operator?: string | null;
+  /** A ride along on a work order nobody is named on ("SAP order 4000123"): the planner adds it to the order. */
+  order?: string | null;
 }
 
 export interface OptionDecision { id: number; chosen: CaseOption["key"]; recommended: CaseOption["key"]; accepted: boolean;
@@ -1268,6 +1270,10 @@ export const workApi = {
     due?: string; priority?: number; override?: string } = {}) =>
     request<{ choice: OptionDecision; event: { id: number; item_id: number | null; stage: string; state: string };
       item: CaseNow | null }>("POST", `/exceptions/${id}/options/choose`, undefined, { by, option, ...c }),
+  /** Add an event to another's case: Options' "Add to that job" on a case the field already has (tour F, F6). */
+  joinException: (id: number, into: number, by: string) =>
+    request<{ event: { id: number; item_id: number; joined_to: number; state: string }; item: CaseNow | null }>(
+      "POST", `/exceptions/${id}/join`, undefined, { by, into }),
   optionAcceptance: (days = 90) => request<OptionAcceptance>("GET", "/options/acceptance", { days: String(days) }),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
   // A case goes ahead of the reads waiting (P5.29d): after an action every view on the page reads again, the case's
@@ -1324,7 +1330,9 @@ export const workApi = {
   workload: () => request<Workload>("GET", "/work/workload"),
   workHome: (person: string, mark = false) => request<WorkHome>("GET", "/work/home", { person, mark: mark ? "true" : undefined }),
   caseCloseout: (id: number) => request<{ item_id: number; record: CaseCloseout | null;
-    /** The follow-up case sent when it closed contained. */ follow_up?: number | null; suggestion: CloseoutSuggestion;
+    /** The follow-up case sent when it closed contained or not fixed. */ follow_up?: number | null; suggestion: CloseoutSuggestion;
+    /** The case it most likely duplicates (the same equipment, open or just closed), suggested for Duplicate. */
+    duplicate_of?: { item_id: number; title: string } | null;
     vocabulary: CloseoutVocabulary; repeats: { again: number; at: string }[]; equipment?: boolean;
     /** Work someone asked for: it closes as done as asked. */ asked?: boolean;
     /** A message's case: one that only said what was done closes as log only. */ message?: boolean }>("GET", `/work/items/${id}/closeout`),

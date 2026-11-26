@@ -102,6 +102,13 @@ function escalation(e: WorkEvent): ReactNode {
     {d.from ? <> while it was with {to(d.from)}</> : null}.{moved ? <> It passed to {to(d.to)}.</> : <> It is overdue.</>}</span>;
 }
 
+/** A note with each "case 1237" it names as a link to that case: a duplicate's report on the original, a follow-up's
+ * case (tour F, F9). */
+function withCaseLinks(text: string): ReactNode {
+  return text.split(/\b(case \d+)\b/).map((part, i) =>
+    i % 2 ? <a key={i} href={href(`/cases/${part.slice(5)}`)}>{part}</a> : part);
+}
+
 /** One line saying what an event did, plus anything worth showing under it. */
 export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
   const d = e.data;
@@ -128,7 +135,7 @@ export function describe(e: WorkEvent): { text: ReactNode; body?: ReactNode } {
     case "step_cancelled": return { text: <><strong>{el}</strong> was cancelled</>, body: d.why && <Text as="p" small>{d.why}</Text> };
     case "completed_process": return { text: <>workflow {d.state}: <strong>{say(d.outcome)}</strong></> };
     case "state_changed": return { text: <>case is now <strong>{d.state}</strong>{d.outcome ? ` (${d.outcome})` : ""}</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };
-    case "commented": return { text: <>commented</>, body: <p className="section-text small">{d.text}</p> };
+    case "commented": return { text: <>commented</>, body: <p className="section-text small">{withCaseLinks(String(d.text ?? ""))}</p> };
     case "attached": return { text: <>attached an answer from Ask</>, body: <div className="attached-answer">
       <Text as="p" small><strong>{d.question}</strong></Text><Markdown text={String(d.answer ?? "")} /></div> };
     case "cancelled": return { text: <>cancelled the workflow</>, body: d.reason && <Text as="p" small>{say(String(d.reason))}</Text> };

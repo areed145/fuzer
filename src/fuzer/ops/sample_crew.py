@@ -288,9 +288,19 @@ def work_queue(t: _Tick) -> None:
         free = [p for p in FIELD if held[p] == 0]
         return min(free, key=lambda p: _u(p, now.hour)) if free else None
 
-    def send_out(r: dict, step: str, why: str = "Go and have a look, report what you find") -> None:
-        """The lead sends a field job out: to a free operator, else (some of them) to the operator queue."""
+    def send_out(r: dict, step: str, why: str | None = None) -> None:
+        """The lead sends a field job out: to a free operator, else (some of them) to the operator queue, asking what
+        the message said (else the case's title), as Options asks. A message that asks for no field work (a vendor's
+        bulletin, a question, something already over) is never sent out: the lead logs it (tour F, B-N10)."""
         nonlocal queued
+        from . import messages, options
+
+        text = messages.text_of(conn, r["id"])
+        if text and (none := messages.info_only(text)):
+            if r["item_id"]:
+                t.act("log", log_only, conn, r["item_id"], none)
+            return
+        why = why or options.case_text(conn, r["id"])
         who = free_operator()
         if who is None or _u(r["id"], step, "queue") < TO_QUEUE:
             if queued >= QUEUED:
@@ -412,6 +422,14 @@ def close_out(conn, item_id: int, note: str) -> dict:
                               cause=(s.get("cause") or "3") if real else None, activity=(s.get("activity") or "6") if real else None,
                               outcome="fixed" if real else None, note=f"On the field's report: {note or 'done'}"[:300],
                               suggested=s)
+
+
+def log_only(conn, item_id: int, why: str) -> dict:
+    """The lead's close-out of a message that asks for no field work: logged, no action, saying why."""
+    from ..core.pack import resolve
+    from . import disposition
+
+    return disposition.record(conn, resolve(conn), item_id, LEAD, "log_only", note=f"Not field work: {why}"[:300])
 
 
 def _desk_hours(exception_id: int, type: str | None = None) -> float:

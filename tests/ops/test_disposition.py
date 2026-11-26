@@ -258,3 +258,61 @@ def test_a_repeat_opens_its_event_again_with_its_case(conn):
     disposition.answer_recheck(conn, case, "fred", held=False, note="surging again")
     assert conn.execute("select state from exception_record where id = %s", (x["id"],)).fetchone()["state"] == "open"
     conn.commit()
+
+
+def test_not_fixed_names_who_the_follow_up_goes_to_as_contained_does(conn):
+    """Tour F, F10: "Not fixed" closed 1168 with no owner and no follow-up. It leaves work to do: it names who the
+    follow-up goes to, as Contained does, and sends it."""
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "pat", ["maintenance_planner"])
+    case = work.open_case(conn, "manual", "Sight glass fogged on the test separator", by="ioc-ann")["id"]
+    with pytest.raises(ValueError, match="not fixed says who the follow-up goes to"):
+        disposition.record(conn, PACK, case, "riley", "real", outcome="not_fixed")
+    row = disposition.record(conn, PACK, case, "riley", "real", outcome="not_fixed", note="glass needs replacing",
+                             follow_up_to="role:maintenance_planner")
+    assert row["follow_up"] and row["follow_up"] != case
+    assert disposition.form(conn, PACK, case)["follow_up"] == row["follow_up"]
+    conn.commit()
+
+
+def test_a_follow_up_to_an_operator_is_a_field_check_with_the_note_as_its_ask(conn):
+    """Tour F, F16: the follow-up of 989 sent to sam (1252) was a desk Task due in 4 h. To a field operator, or the
+    operator queue, it is a field job: a Field check on their list that asks the close-out's note."""
+    from fuzer.ops import exceptions
+    from fuzer.workflow import engine
+
+    engine.set_person(conn, "sam", ["operator"])
+    case = work.open_case(conn, "manual", "Flange weep on the export pump", by="ioc-ann")["id"]
+    conn.commit()
+    row = disposition.record(conn, PACK, case, "riley", "real", outcome="contained", note="Re-torque the flange bolts",
+                             follow_up_to="sam")
+    after = row["follow_up"]
+    steps = conn.execute("select element, role, assignee from work_token where item_id = %s and kind = 'user' "
+                         "and state in ('ready', 'waiting')", (after,)).fetchall()
+    assert [(s["element"], s["assignee"]) for s in steps] == [("field_check", "sam")], steps
+    job = next(j for j in exceptions.field_jobs(conn, "sam") if j["item_id"] == after)
+    assert job["sent"]["reason"] == "Re-torque the flange bolts", job["sent"]
+    assert disposition.follow_up(conn, case) == after
+    conn.commit()
+
+
+def test_a_duplicate_is_suggested_and_carries_its_report_to_the_case_it_duplicates(conn):
+    """Tour F, F9 (E14): 1237 (grinding at the coupling) closed as a duplicate of 210 (bearing temperature, same pump)
+    needed the case number typed, and 210 showed nothing of 1237's report. The form suggests the case on the same
+    equipment, and the original gets the duplicate's words and its number."""
+    conn.execute("insert into entity (fuzer_id, kind) values ('fz-p300', 'equipment'), ('fz-tt300', 'point') "
+                 "on conflict do nothing")
+    conn.execute("insert into edge (src, rel, dst, sources, confidence) "
+                 "values ('fz-tt300', 'installed_at', 'fz-p300', '{test}', 1)")
+    first = work.open_case(conn, "manual", "P-300 bearing temperature high", by="ioc-ann", subjects=["fz-tt300"])["id"]
+    other = work.open_case(conn, "manual", "Somewhere else entirely", by="ioc-ann")["id"]
+    again = work.open_case(conn, "manual", "Grinding noise at the P-300 coupling", by="ioc-ann", subjects=["fz-p300"])["id"]
+    assert disposition.form(conn, PACK, again)["duplicate_of"] == {"item_id": first,
+                                                                    "title": "P-300 bearing temperature high"}
+    assert disposition.form(conn, PACK, other)["duplicate_of"] is None
+    disposition.record(conn, PACK, again, "riley", "duplicate", duplicate_of=first)
+    said = [e["data"]["text"] for e in conn.execute(
+        "select data from work_event where item_id = %s and kind = 'commented'", (first,))]
+    assert f"Also reported in case {again}, closed as a duplicate of this one: Grinding noise at the P-300 coupling" in said
+    conn.commit()

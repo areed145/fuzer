@@ -211,8 +211,12 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   on (#1381). Dispatch now goes to a field operator, who does the look: no maintenance crew is checked for it, nor
   for any send to the operator queue or someone in it (#1401). Elsewhere the crew checked is the one
   the job's words need (a transmitter or gauge is the instrument crew's), and a full crew is one line with its count.
-  A case the field already has on the same asset is no clash: the card says so and links it (`field_case`). A case
-  never clashes with its own bars or with the visit it rides along with.
+  A case the field already has on the same asset is no clash: the card says so, links it (`field_case`) and offers
+  **Add to that job**, which joins this event to that case (`POST /exceptions/{id}/join`), so the field reads it there,
+  and opens that job. A case never clashes with its own bars or with the visit it rides along with. A case with a
+  specialist brief also offers **Keep on watch** (nothing is sent; never on a hazard, a safety type or a limit or leak
+  with production behind it), and it is recommended when the brief proposes keeping it on watch and nothing is
+  deferred (`deciding: brief`): a rule that reads no trend does not overrule the specialist who read it.
   What it defers now is the producing wells it reaches at their latest test, all of it while a machine is stopped (a
   trip, with its share where parallel trains carry the rest), else the pack's share for a process upset still going
   (`upsets.rate_at_risk_share`, the assumption an upset's value uses). A report of a smell or a drip, or a
@@ -236,7 +240,9 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   (`POST /exceptions/{id}/options/choose`). Once the field reports it done the options go and the case leads with Close out. The dispatch carries what to check or do
   to the field job (when the IOC writes nothing, the message a message case came from, word for word, else "Go and
   have a look, report what you find"; a ride along names the visit and asks the message, else the case's title:
-  "While you are on “Clean 20-E-2250B”: …") and nothing else: why it goes
+  "While you are on “Clean 20-E-2250B”: …"; a visit that is a work order with nobody named on it is done by its crew,
+  so a ride along on it goes to the maintenance planner queue, due when the visit starts, asking "Add to SAP order …
+  for <its crew> on <day>: …", and the visit on Plan notes what rides along) and nothing else: why it goes
   now, the IOC's or the recommendation's costing, stays on the case, not on the field's instruction; the choice, the recommendation and the reason go on the case's history, and Work performance by work type
   shows how often the recommendation was taken (`GET /options/acceptance`).
 - **Dispatch.** The IOC sends an exception to a person, with what to check or do. Its case (or the case's open
@@ -263,10 +269,14 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
 - **Seeing it come back.** The task page shows a **From the field** box above the form, My work says why a step
   came back ("Back from the field: done: gauge reads 13 barg"; a Done after a reading sent in its own note comes back
   with that note and reading), and All work has a **Back from the field** view, whose rows show the field's latest note.
-- **A follow-up planned is sent.** Closing out a real problem as **Contained, follow-up planned** asks **Send the
-  follow-up to** a person or a role's queue, and doesn't close until one is picked: the follow-up opens as a case of
-  its own, linked from the closed case. Sent to a person, it runs in a queue of theirs with its step handed to them,
-  so it shows as theirs under Waiting on. The case page's **Send to someone else** says where it went and folds away. On a case still at To dispatch it dispatches the
+- **A follow-up planned is sent.** Closing out a real problem as **Contained, follow-up planned** or **Not fixed**
+  asks **Send the follow-up to** a person or a role's queue, and doesn't close until one is picked: the follow-up opens
+  as a case of its own, linked from the closed case. Sent to a person, it runs in a queue of theirs with its step
+  handed to them, so it shows as theirs under Waiting on. Sent to a field operator or the operator queue, it is a field
+  job (a `follow_up` event dispatched to them): a Field check on their list asking the close-out's note.
+- **A duplicate names its original.** The close-out offers the case it most likely duplicates (another case on the
+  same equipment, open or closed within `exceptions.join_hours`) in **Duplicate of case**, its title beside it; closing
+  as a duplicate adds what the duplicate reported, and its case number as a link, to the original's history. The case page's **Send to someone else** says where it went and folds away. On a case still at To dispatch it dispatches the
   event (`ops.exceptions.send_case`), so the case gets a step for whoever it went to and leaves To dispatch; a case
   with no process says who holds it under Waiting on.
 - **Only what was chosen is saved.** An outcome belongs to a real problem: a false alarm, duplicate, data problem or

@@ -200,6 +200,44 @@ def test_desk_work_with_no_queue_goes_to_the_engineers_not_the_field(crewed):
 
 
 
+def test_a_bulletin_is_never_sent_to_the_field_and_a_message_goes_out_in_its_own_words(crewed, monkeypatch):
+    """Tour F, B-N10: the vendor's service bulletin (1214) went to morgan as "Go and have a look, report what you find",
+    and a ride-along then joined it. A message that asks for no field work is logged by the lead, never sent out; one
+    that does goes out asking what it said."""
+    from fuzer.ops import messages, options
+
+    monkeypatch.setattr(sample_crew, "LEFT", 0.0)
+    monkeypatch.setattr(sample_crew, "PLANNED", 0.0)
+    said = {}
+    for i in range(6):
+        bulletin = i % 2 == 0
+        text = (f"Service bulletin {i} attached for the fuel nozzles. It applies to all three drivers." if bulletin
+                else f"Weeping flange {i} on the glycol pump, please check")
+        r = raise_exception(crewed, messages.MESSAGE_REPORT, f"crew-msg-{i}", text[:60], "messages")
+        crewed.execute("insert into message (id, channel, sender, text, received_at, outcome, exception_id) "
+                       "values (%s, 'mailbox', 'Vendor', %s, now(), 'case', %s)", (f"crew-m-{i}", text, r["id"]))
+        said[r["id"]] = (bulletin, text)
+    crewed.commit()
+    _run_for(crewed, 6)
+    logged = sent = 0
+    for eid, (bulletin, text) in said.items():
+        item = crewed.execute("select item_id from exception_record where id = %s", (eid,)).fetchone()["item_id"]
+        asks = [e["r"] for e in crewed.execute(
+            "select data->>'reason' as r from work_event where item_id = %s and kind in ('handed_off', 'created') "
+            "and data->>'reason' is not null", (item,))]
+        assert options.ASK not in asks, asks
+        if bulletin:
+            field = crewed.execute("select 1 from work_token where item_id = %s and role = 'operator'", (item,)).fetchone()
+            assert field is None, f"bulletin {eid} went to the field"
+            closed = crewed.execute("select disposition from case_disposition where item_id = %s", (item,)).fetchone()
+            assert closed is None or closed["disposition"] == "log_only", closed
+            logged += closed is not None
+        elif asks:
+            assert text in asks, asks
+            sent += 1
+    assert logged and sent, (logged, sent)
+
+
 def test_what_the_field_found_does_not_wait_behind_the_leads_long_cases(crewed, monkeypatch):
     """On the live demo the lead held five long cases, so every field report was "queued behind the work in hand" and
     152 piled up (live demo, 24 Nov). What the field found (QUICK) is read and closed as it comes in, whatever the lead holds."""

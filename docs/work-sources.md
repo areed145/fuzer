@@ -235,6 +235,7 @@ All of these run on the one-step **task** workflow, in the queue they were asked
 | Work | Where it comes from | Routed to | Closes |
 |---|---|---|---|
 | **Did the fix hold?** | `closeout.recheck_days` (30) after a case closed as a real problem | Whoever closed it | Yes closes it. No reopens the first case as a repeat. A new case with the same failure mode on the same asset inside the window does the same. |
+| **Follow-up** `follow_up` | A close-out as **Contained, follow-up planned** or **Not fixed** that named a field operator or the operator queue (one named to a desk is a task in that queue) | Dispatched to them at once: a Field check asking the close-out's note, on the closed case's assets | As field work: the field's report comes back to the IOC to close out |
 | **Update to the source system** `source_closeout` | The field reporting Done or Could not do on work another system raised | The **source_closeout** workflow, in that system's close-out role (the maintenance planner for SAP) | When the planner approves it and the system confirms it |
 | **Write-back to approve** | Any drafted update to another system: a close-out, a correction, detection feedback | The system's approver role | When approved and confirmed, or rejected |
 | **Write-back failed** | A system refused an approved update | The approver role again, with the system's reason. It is never retried on its own. | When approved again or rejected |

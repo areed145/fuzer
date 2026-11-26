@@ -32,7 +32,9 @@ Read from what Fuzer already has, never from equipment type:
                             along names the visit and asks the message, else the case's title (#1402)
     carrying one out        dispatch: to whom it is sent; ride along: a Field check for the visit's operator (the
                             person on it, else the operator queue) on the visit's day, whether or not the case had
-                            an open step (#1390, #1402);
+                            an open step (#1390, #1402); a work order nobody is named on joins the order: the
+                            maintenance planner is asked to add it to the order for its crew before the visit, and
+                            the visit on the plan says what rides along (tour F, F5);
                             shelve: off every queue until its date; escalate: to that queue
     readiness and clashes   readiness.check (the field's last report, permit, spares, simultaneous operations, MOC;
                             no maintenance crew, since a field operator does it, #1401) for dispatch now, less the
@@ -40,6 +42,10 @@ Read from what Fuzer already has, never from equipment type:
                             clash; the visit's own clashes on the plan for riding along, never one with the event's
                             own bars. A case the field already has on the same asset is `field_case`, not a clash
     price                   the pack's value config (oil per bbl, gas per Mscf)
+
+A case with a specialist brief also offers keep on watch (nothing sent; never on a hazard, a safety type, or a limit
+or a leak with production behind it), recommended when the brief proposes keeping it on watch and nothing is deferred,
+as the brief's reader would (tour F, F3).
 
 The recommendation is a rule, the same on every case, so two people reading one case get one answer: riding along
 when it is ready and does not leave a high risk waiting, where a separate trip (`options.trip_usd`) has to save more
@@ -58,7 +64,7 @@ from psycopg.types.json import Jsonb
 from ..core import events, settings, work
 from ..core.exceptions import ExceptionError
 
-KEYS = ("dispatch", "window", "shelve", "escalate")
+KEYS = ("dispatch", "window", "shelve", "escalate", "watch")
 DOWN_TYPES = ("machine_trip",)  # the thing is stopped: everything it reaches is deferred, not a share
 SHARE_TYPES = ("upset",)  # a process upset still going: the pack's share of what it reaches, as an upset's value says
 # A hazard to people in what was reported: gas escaping, H2S, fire or smoke. Never a low risk, whatever the asset.
@@ -78,8 +84,14 @@ LEVELS = ("Low", "Medium", "High")
 # readiness, clashes, what is not known about it, and the basis for the time. A closed option says why it is closed.
 YARDSTICK = ("hours", "by", "deferred", "risk", "ready", "blockers", "clashes", "unknown", "basis")
 # What decides a recommendation: what waiting defers against a separate trip, the risk of waiting, or whether it can go
-# now (readiness: crew, permit, parts, clashes; or someone already at the asset).
-FACTORS = ("deferred", "risk", "readiness")
+# now (readiness: crew, permit, parts, clashes; or someone already at the asset), or what the specialist brief proposes.
+FACTORS = ("deferred", "risk", "readiness", "brief")
+# A specialist brief's proposal that leads with keeping the machine on watch, not sending anyone now (tour F, F3):
+# Options recommend it, not a rule that reads no trend.
+WATCH = re.compile(r"(?i)^\W*(keep (it |them )?(on|under) (watch|observation)|keep watching|continue (to )?monitor"
+                   r"|monitor|watch)\b")
+# The systems whose plan items are work orders: a ride-along on a visit with no person on it joins its order (tour F, F5).
+ORDER_SOURCES = {"sap": "SAP order"}
 
 
 class OptionsError(ExceptionError):
@@ -360,7 +372,9 @@ def _visit(conn, row: dict, at: datetime, days: int) -> dict | None:
             select e.dst, up.depth + 1 from up join edge e on e.src = up.fuzer_id and e.rel = 'part_of'
             join entity k on k.fuzer_id = e.dst and k.kind not in ('area', 'facility') where up.depth < 4),
         mine as (select array_agg(fuzer_id) as ids from up)
-        select p.id, p.title, p.kind, p.start_at, p.end_at, p.crew,
+        select p.id, p.title, p.kind, p.start_at, p.end_at, p.crew, p.source, p.source_key,
+               (select r.name from plan_demand d join plan_resource r on r.code = d.resource
+                where d.item_id = p.id and r.kind = 'crew' order by d.quantity desc, r.name limit 1) as crew_name,
                (select w.assignee from exception_record v join work_item w on w.id = v.item_id
                 where v.id = p.exception_id and w.closed_at is null) as held_by
         from plan_item p, mine
@@ -381,8 +395,12 @@ def _visit(conn, row: dict, at: datetime, days: int) -> dict | None:
     # who goes on the visit: the person it is booked to, else whoever holds the field job it is (a dispatch's bar)
     crew = r["crew"] if r["crew"] and not r["crew"].startswith("role:") else None
     held = r.pop("held_by")
+    operator = crew or (held if held in exceptions.operators(conn) else None)
+    # a work order with nobody named on it: its crew does the visit, so what rides along joins the order (tour F, F5)
+    order = (f"{ORDER_SOURCES[r['source']]} {r['source_key']}"
+             if not operator and r["source"] in ORDER_SOURCES and r["source_key"] else None)
     return {**r, "start_at": max(r["start_at"], at),  # under way: it is there now
-            "operator": crew or (held if held in exceptions.operators(conn) else None)}
+            "operator": operator, "order": order}
 
 
 def _beside(ready: dict, visit: dict | None) -> dict:
@@ -550,7 +568,9 @@ def for_exception(conn, exception_id: int, at: datetime | None = None, viewer: l
             "clashes": _plan_clashes(conn, visit["id"], visit["start_at"], visit["end_at"], row), "available": True,
             "person": visit.get("person"), "with_exception": visit.get("exception"),
             "visit": visit.get("job") or visit["title"],
-            "operator": visit.get("person") or visit.get("operator"),
+            "operator": visit.get("person") or visit.get("operator")
+            or (f"role:{readiness.PLANNER}" if visit.get("order") else None),
+            "order": visit.get("order"), "crew_name": visit.get("crew_name"),
             "basis": visit.get("basis") or f"{visit['kind'].replace('_', ' ')} on the plan on its equipment, then "
                                            f"{JOB_HOURS:g} h for the job"})
     else:
@@ -592,6 +612,17 @@ def for_exception(conn, exception_id: int, at: datetime | None = None, viewer: l
             "ready": True, "blockers": [], "warnings": [], "clashes": [], "unknown": [], "available": True,
             "basis": f"the {to.replace('_', ' ')} queue answers within {_hours(conn, to, 24.0):g} h, then a dispatch"})
 
+    # keep on watch: what a specialist brief can propose instead of sending anyone (tour F, F3); never for a hazard to
+    # people, a safety type, or a limit or a leak with production behind it
+    proposal = _proposal(conn, row["item_id"])
+    if proposal is not None and not safety and not held and not (base and base["hazard"]):
+        proposed = bool(WATCH.match(proposal))
+        options.append({
+            "key": "watch", "label": "Keep on watch", "detail": "no field work now; the case stays where it is",
+            "hours": None, "by": None, "deferred": None, "risk": None, "ready": True, "blockers": [], "warnings": [],
+            "clashes": [], "unknown": [], "available": True, "proposed": proposed,
+            "basis": "the specialist brief proposes it" if proposed else "the specialist brief proposes otherwise"})
+
     key, reason, deciding = recommend(options, now, float(settings.get(conn, "options.trip_usd")))
     # a case the field already has on the same asset: said and linked, never a clash (tour E, E14)
     there = next((f for c in ready["checks"] if c["check"] == "simops" for f in c.get("field_cases") or []), None)
@@ -601,6 +632,17 @@ def for_exception(conn, exception_id: int, at: datetime | None = None, viewer: l
                                             "source": prices["source"]},
             "options": options, "recommended": key, "reason": reason, "deciding": deciding, "unknown": unknown,
             "undetermined": undetermined_of(unknown, ready)}
+
+
+def _proposal(conn, item_id: int | None) -> str | None:
+    """What the case's specialist brief proposes (its proposal's disposition, as agents.brief keeps it on the case's
+    `brief` agent result), or None when it has no brief that proposes anything."""
+    if not item_id:
+        return None
+    r = conn.execute("select data #>> '{data,brief,brief,proposal,disposition}' as d from work_event "
+                     "where item_id = %s and kind = 'agent_result' and element = 'brief' order by id desc limit 1",
+                     (item_id,)).fetchone()
+    return (r["d"] or "").strip() or None if r else None
 
 
 def _arrives_by(blocker: str, start: datetime) -> bool:
@@ -618,7 +660,8 @@ def _safety_types(conn) -> set[str]:
 
 
 def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[str | None, str, str]:
-    """One option, by one rule, the reason and the factor that decided it (one of FACTORS). Riding along with the next
+    """One option, by one rule, the reason and the factor that decided it (one of FACTORS). Keep on watch when the
+    specialist brief proposes it and nothing is deferred (tour F, F3). Else riding along with the next
     visit is preferred while it leaves no high risk and defers less than a separate trip costs; dispatch now when
     waiting costs more or leaves the risk high; escalate when it should go now and can't. Shelve is never recommended
     (#1390): a person may choose it, but a shelf leaves the work undone, and no rule on the record can say a defect is
@@ -627,6 +670,9 @@ def recommend(options: list[dict], now: dict | None, trip_usd: float) -> tuple[s
     from ..core.wording import money
 
     by = {o["key"]: o for o in options if o.get("available")}
+    if (k := by.get("watch")) and k.get("proposed") and not now:
+        # the specialist read the trend and proposes watching it: a rule that reads no trend doesn't overrule it
+        return "watch", "The specialist brief proposes keeping it on watch, and nothing is deferred while it is.", "brief"
     d = by["dispatch"]
     usd = lambda o: (o.get("deferred") or {}).get("usd") or 0
     level = lambda o: (o.get("risk") or {}).get("level")
@@ -692,7 +738,7 @@ def _bbl(o: dict) -> str:
 
 # ---- carrying out a choice ---------------------------------------------------------------------------------------
 
-ASK = "Go and have a look, report what you find"  # what a dispatch asks when the IOC writes nothing (as the sample crew)
+ASK = "Go and have a look, report what you find"  # what a dispatch asks when the IOC writes nothing and there is no message
 
 
 def _ask(conn, exception_id: int) -> str:
@@ -703,7 +749,7 @@ def _ask(conn, exception_id: int) -> str:
     return messages.text_of(conn, exception_id) or ASK
 
 
-def _case_text(conn, exception_id: int) -> str:
+def case_text(conn, exception_id: int) -> str:
     """What a ride-along asks the visit to see to when the IOC writes nothing: the message the case came from, else
     the case's own title, never "go and have a look" (#1402)."""
     from . import messages
@@ -750,8 +796,13 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
         # A field step for whoever goes on the visit, asking what was reported (#1390): someone already at the asset
         # takes it with them now; a visit on the plan takes it on its day, booked to its operator, else the operator
         # queue. Never only a bar on the plan with the case left at the desk.
-        said = _case_text(conn, eid)
-        told = (ask or "").strip() or f"While you are on “{o['visit']}”: {said}"
+        said = case_text(conn, eid)
+        # A work order with nobody named on it is done by its crew (tour F, F5): the case joins the order, through the
+        # planner who keeps it, and the visit on the plan says what rides along, so the crew is told with the order.
+        order = o.get("order")
+        crew = f" for {o['crew_name']}" if o.get("crew_name") else ""
+        told = (ask or "").strip() or (f"Add to {order} “{o['visit']}”{crew} on {o['detail'].rsplit(', ', 1)[-1]}: "
+                                       f"{said}" if order else f"While you are on “{o['visit']}”: {said}")
         to = o.get("operator") or f"role:{exceptions.OPERATOR_ROLE}"
         if o.get("person"):
             row = exceptions.dispatch(conn, eid, by, to, told)
@@ -760,16 +811,23 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
 
             start = datetime.fromisoformat(o["start"])
             try:
-                plan.plan_exception(conn, eid, by, start, start + timedelta(hours=JOB_HOURS), crew=to,
+                plan.plan_exception(conn, eid, by, start, start + timedelta(hours=JOB_HOURS),
+                                    crew=None if order else to,
                                     notes=f"Rides along with {o['detail']}. Why: {why}", rides_with=o["plan_item"])
             except PlanError as e:
                 raise OptionsError(str(e)) from e
+            if order:
+                conn.execute("update plan_item set notes = concat_ws(' · ', notes, %s::text), updated_by = %s, "
+                             "updated_at = now() where id = %s", (f"Rides along: {said}", by, o["plan_item"]))
             row = exceptions.dispatch(conn, eid, by, to, told, planned=True)
             if row["item_id"]:
-                work.set_due(conn, row["item_id"], by, start + timedelta(hours=JOB_HOURS),
+                # on the order before the crew sets out; done on the visit otherwise
+                work.set_due(conn, row["item_id"], by, start if order else start + timedelta(hours=JOB_HOURS),
                              f"rides along with {o['detail']}")
     elif option == "shelve":
         row = exceptions.shelve(conn, eid, by, why, o["until"])
+    elif option == "watch":
+        pass  # nothing sent: the case stays with whoever has it, and the choice below is on its history
     else:
         row = exceptions.dispatch(conn, eid, by, o["to"], f"Escalated: {why}")
     row = _event(conn, eid)

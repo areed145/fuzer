@@ -98,7 +98,9 @@ would be done, the production deferred until then in barrels and dollars, the ri
 criticality or a hazard is on record), and whether it is ready. One is recommended, with the reason; Shelve never is,
 though you may choose it. Taking it is one tap; taking another takes an optional why, kept on the case. **Add to the
 visit** gives the visit's operator (the operator queue when nobody is booked) a Field check on the visit's day, naming
-the visit and asking what was reported. A message that only asks a question, passes on a bulletin or says something is already over gets no
+the visit and asking what was reported; a work order with nobody on it goes to the maintenance planner queue to add to
+that order for its crew. A case the machine specialist has briefed also offers **Keep on watch**, recommended when the
+brief proposes it. A message that only asks a question, passes on a bulletin or says something is already over gets no
 options: answer it and close it out.
 
 To send it yourself, choose **Send to** on the row. Pick a person (shown with their roles, how much they hold, and
@@ -167,8 +169,11 @@ if none is drafted yet. The incoming lead acknowledges it; an older handover sta
   matches.
 - A job that clashes with another (the same asset at once, hot work beside a line break) is flagged at Dispatch
   and is only sent with a reason. A case a field operator already has on the same asset is no clash: Options says
-  **The field already has a case on it** and links that case, so a repeat report can be closed out as a duplicate. A
-  case never clashes with itself or with the visit it rides along with.
+  **The field already has a case on it**, links that case and offers **Add to that job**, which puts this report on
+  that job for the field to read. Closing out as a duplicate suggests the case on the same equipment and adds the
+  report, with a link, to it. A case never clashes with itself or with the visit it rides along with.
+- **Contained** and **Not fixed** both need a follow-up: say who it goes to. One to a field operator or the operator
+  queue is a field job on their list.
 
 - One event, one case: when SAP, a detector and an IOW breach all report the same compressor, you see one row with
   three sources. [How work is routed](../work-routing.md#3-one-event-one-case) explains how.
