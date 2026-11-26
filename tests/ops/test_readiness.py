@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from psycopg.conninfo import make_conninfo
+from psycopg.types.json import Jsonb
 
 from fuzer.core import bundles, db, projects, settings
 from fuzer.core import pack as packs
@@ -49,12 +50,35 @@ def kestrel():
     settings._first.clear()
 
 
-def test_a_compressor_short_of_valves_waits_on_its_order_and_its_packing_has_none(kestrel):
+def reserve(conn, order: str, parts: dict[str, int]) -> str:
+    """Parts reserved on SAP order `order` (SAP RESB, as `sap_reservation` maps it): its fuzer id."""
+    wo = conn.execute("select fuzer_id from entity_key where kind = 'work_order' and key = %s", (order,)).fetchone()
+    for label, quantity in parts.items():
+        mat = conn.execute("select fuzer_id from entity_label where label = %s", (label,)).fetchone()["fuzer_id"]
+        conn.execute("insert into edge (src, rel, dst, sources, confidence, props) values (%s, 'reserves', %s, "
+                     "'{sap}', 1, %s) on conflict do nothing",
+                     (wo["fuzer_id"], mat, Jsonb({"quantity": quantity, "status": "open"})))
+    return wo["fuzer_id"]
+
+
+def on_order(conn, e: int, order: str) -> None:
+    """Job `e` is done under SAP order `order`: the order's plan item (as plan.sync_work_orders makes it) works it."""
+    conn.execute("insert into plan_item (kind, title, source, source_key, start_at, end_at, exception_id, created_by, "
+                 "updated_by) values ('maintenance', %s, 'sap', %s, now() + interval '60 days', "
+                 "now() + interval '61 days', %s, 'sap', 'sap') on conflict (source, source_key) "
+                 "where source_key is not null do update set exception_id = excluded.exception_id",
+                 (f"Order {order}", order, e))
+
+
+def test_a_compressor_short_of_valves_waits_on_its_order_and_its_packing_has_none(kestrel, client):
     from fuzer.graph import queries
 
     conn, pack = kestrel
     k2001 = queries.resolve_ref(conn, pack, "B1-K-2001")
-    out = readiness.check(conn, [k2001])
+    reserve(conn, "40007010", {"MAT-K2001-VLV": 4, "MAT-K2001-RNG": 8, "MAT-K2001-PKG": 2})  # the overhaul's parts
+    e = job(conn, "K-2001 overhaul", k2001)
+    on_order(conn, e, "40007010")
+    out = readiness.check(conn, [k2001], e)
     assert out["ready"] is False
     spares = out["checks"][1]
     valves = next(p for p in spares["parts"] if p["label"] == "MAT-K2001-VLV")
@@ -66,18 +90,27 @@ def test_a_compressor_short_of_valves_waits_on_its_order_and_its_packing_has_non
     assert any("Compressor valve assembly" in b and "on order (4500007101)" in b for b in out["blockers"])
     assert any("Rod packing set" in b and "nothing on order" in b for b in out["blockers"])
     assert len(spares["parts"]) == 3
+    # the plan item doing the order reads the same parts
+    item = conn.execute("select id from plan_item where source = 'sap' and source_key = '40007010'").fetchone()["id"]
+    assert readiness.check(conn, [k2001], plan_item=item)["checks"][1]["parts"] == spares["parts"]
 
 
-def test_equipment_with_its_parts_in_stock_is_ready_and_one_with_no_bom_says_so(kestrel):
+def test_a_job_with_no_order_has_no_parts_to_wait_on_whatever_its_equipment_holds(kestrel, client):
+    """#1391: a look at the compressor listed its BOM's valve assembly short and held the job; only the parts on the
+    job's own order count, and a job with none has no parts to check."""
     from fuzer.graph import queries
 
     conn, pack = kestrel
-    fan = queries.resolve_ref(conn, pack, "B1-E-2010")  # 2 belts needed, 3 in stock
-    assert readiness.check(conn, [fan])["ready"] is True
-    out = readiness.check(conn, ["fz-nothing-here"])
-    assert out["ready"] is True and out["checks"][1]["checked"] is False
-    assert out["checks"][1]["note"].startswith("No BOM")
+    k2001 = queries.resolve_ref(conn, pack, "B1-K-2001")  # its BOM: valves short, packing none in stock
+    out = readiness.check(conn, [k2001], job(conn, "K-2001 noise", k2001))
+    spares = out["checks"][1]
+    assert spares["ready"] and spares["checked"] is False and spares["parts"] == []
+    assert spares["note"] == "No work order on this job, so no parts to check."
+    assert not any(b.startswith("Spares:") for b in out["blockers"])
     assert [c["check"] for c in out["checks"]] == ["field", "spares", "crew", "permits", "simops", "moc"]
+    rings = reserve(conn, "40007007", {"MAT-K2001-RNG": 8})  # 8 in stock
+    assert readiness.spares(conn, [rings])["ready"] is True
+    assert readiness.check(conn, ["fz-nothing-here"])["ready"] is True
 
 
 @pytest.fixture(autouse=True)
@@ -118,7 +151,9 @@ def test_a_blocked_job_goes_only_with_a_reason_and_the_reason_is_on_its_case(kes
     from fuzer.graph import queries
 
     conn, pack = kestrel
+    reserve(conn, "40007010", {"MAT-K2001-VLV": 4})
     e = job(conn, "K-2001 valves", queries.resolve_ref(conn, pack, "B1-K-2001"))
+    on_order(conn, e, "40007010")
     ready = client.get(f"/exceptions/{e}/readiness").json()
     assert ready["ready"] is False and any("on order (4500007101)" in b for b in ready["blockers"])
     r = client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fred"})
@@ -208,7 +243,7 @@ def test_work_that_needs_a_permit_waits_for_one_in_date_with_its_isolations_in_p
         assert not sep["ready"] and "PTW-24104 requested" in sep["blockers"][0]
         e = job(conn, "K-2001 permit via api", queries.resolve_ref(conn, pack, "B1-K-2001"))
         r = client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "fred"})
-        assert r.status_code == 409 and "; blocked: no valid permit (walkdown_check" in r.text
+        assert r.status_code == 409 and "Not ready to dispatch: blocked: no valid permit (walkdown_check" in r.text
     finally:
         settings.reset(conn, "readiness.permit_types", by="test")
     # a work type that needs none still shows the permits, without blocking on them
@@ -262,7 +297,9 @@ def test_an_operator_takes_a_job_the_ioc_queued_though_it_is_not_ready(kestrel, 
 
     conn, pack = kestrel
     work.add_person(conn, "olive", ["operator"], by="test")
+    reserve(conn, "40007010", {"MAT-K2001-VLV": 4})
     e = job(conn, "K-2001 queued", queries.resolve_ref(conn, pack, "B1-K-2001"))
+    on_order(conn, e, "40007010")
     assert client.get(f"/exceptions/{e}/readiness").json()["ready"] is False
     assert client.post(f"/exceptions/{e}/dispatch", json={"by": "ioc-ann", "to": "role:operator",
                                                         "override": "look only"}).is_success
@@ -475,8 +512,13 @@ def test_okan_spares_come_from_its_own_records(okan_db):
     short = conn.execute(
         "select b.src from edge b join golden s on s.fuzer_id = b.dst and s.field = 'stock' "
         "where b.rel = 'uses_part' and (s.value #>> '{}')::numeric = 0 limit 1").fetchone()["src"]
-    out = readiness.check(conn, [short])
-    assert out["ready"] is False and out["checks"][1]["checked"]
+    # its BOM is short, but no order of this job reserves it
+    assert not any(b.startswith("Spares:") for b in readiness.check(conn, [short])["blockers"])
+    order = conn.execute(
+        "select b.src from edge b join golden s on s.fuzer_id = b.dst and s.field = 'stock' "
+        "where b.rel = 'reserves' and (s.value #>> '{}')::numeric = 0 limit 1").fetchone()["src"]
+    parts = readiness.spares(conn, [order])
+    assert parts["ready"] is False and parts["checked"]
     ordered = conn.execute("select count(*) as n from entity where kind = 'purchase_order'").fetchone()["n"]
     centers = readiness.crew(conn, [short])["centers"]
     assert centers and {c["label"] for c in centers} <= {"MECH", "INST", "ELEC"} and all(c["crew"] for c in centers)

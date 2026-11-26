@@ -103,8 +103,10 @@ options: answer it and close it out.
 
 To send it yourself, choose **Send to** on the row. Pick a person (shown with their roles, how much they hold, and
 marked if they are away) or a role's queue, and say what to check or do: they see it on their job. Before you send,
-Fuzer checks the job is ready from the equipment's records, such as whether the work centre's crew is free and whether
-a valid permit covers it. If it is not ready you can still send it, with a reason that is kept on the case. A job sent
+Fuzer checks the job is ready from the equipment's records, such as whether the work centre's crew is free, whether
+a valid permit covers it, and whether the parts reserved on the job's own work order are in stock (a job with no order
+has no parts to wait on). If it is not ready you can still send it, with a reason that is kept on the case. A send to
+the maintenance planner is never held: planning the parts and the crew is their work. A job sent
 to a queue waits there until one of its holders chooses **Take it**.
 
 ![Dispatch: who, what to do, and whether it is ready](../assets/screens/guides/ioc-dispatch-desktop.png){ loading=lazy }

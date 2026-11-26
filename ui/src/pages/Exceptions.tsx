@@ -319,7 +319,10 @@ export function DispatchControls({ r, person, people, queues, onDone }: {
   const [ask, setAsk] = useState("");
   const [why, setWhy] = useState("");
   const [ready, setReady] = useState<Readiness | null>(null);
-  const blocked = !!ready && !ready.ready;
+  // the planner plans the parts and crew a job waits on: a send to the planner is never held on them (#1391)
+  const planner = to === "role:maintenance_planner"
+    || (!to.startsWith("role:") && !!people.find((p) => p.name === to)?.roles.includes("maintenance_planner"));
+  const blocked = !planner && !!ready && !ready.ready;
   return <div className="dispatch-controls">
     <Line wrap>
       <Field label="Dispatch to" width="md"><Select value={to} onChange={(e) => setTo(e.target.value)}>
@@ -332,7 +335,7 @@ export function DispatchControls({ r, person, people, queues, onDone }: {
       {to.trim() && <Field label="What to do" width="lg"><Input placeholder="what to check or do (they see this)"
         value={ask} onChange={(e) => setAsk(e.target.value)} /></Field>}
     </Line>
-    {to.trim() && <ReadyToDispatch id={r.id} onResult={setReady} />}
+    {to.trim() && !planner && <ReadyToDispatch id={r.id} onResult={setReady} />}
     {to.trim() && blocked && <Input width="full" aria-label="Why send it anyway"
       placeholder="why it should go anyway (kept on its case)" value={why} onChange={(e) => setWhy(e.target.value)} />}
     <Line>

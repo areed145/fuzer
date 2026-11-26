@@ -598,7 +598,7 @@ def prerequisites(conn, item_id: int) -> dict:
         "select 1 from plan_demand where item_id = %s limit 1", (item_id,)).fetchone())
     out = [{"kind": "scheduled", "label": "Scheduled", "satisfied": booked,
             "detail": [] if booked else ["not booked on a crew yet"]}]
-    checks = readiness.check(conn, list(row["subjects"] or []), row["exception_id"])["checks"]
+    checks = readiness.check(conn, list(row["subjects"] or []), row["exception_id"], plan_item=item_id)["checks"]
     for c in checks:
         out.append({"kind": c.get("check") or c["label"].lower(), "label": c["label"],
                     "satisfied": not c["blockers"], "detail": list(c["blockers"])})

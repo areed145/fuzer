@@ -749,6 +749,8 @@ def exception_dispatch(exception_id: int, d: ExceptionDispatch, conn=Depends(get
         # A field operator taking a job the IOC already sent to their queue: readiness was the sender's call (with
         # its reason, when it went though not ready), and the operator has no say on spares or crew.
         return _exception_call(conn, exceptions.dispatch, exception_id, d.by, d.to, d.reason)
+    if not readiness.holds(conn, d.to):  # the planner plans the parts and crew a not-ready job waits on (#1391)
+        ready = {**ready, "ready": True, "blockers": []}
     if not ready["ready"] and not override:
         raise HTTPException(409, "Not ready to dispatch: " + "; ".join(ready["blockers"])
                             + ". Say why it should go anyway.")

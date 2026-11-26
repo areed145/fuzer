@@ -7468,6 +7468,43 @@ test("the dispatch card shows what blocks a job and sends a blocked one only wit
   assert.deepEqual([sent[0].to, sent[0].override], ["fred", "valves can be changed on the 15th, inspect now"]);
 });
 
+// P5.28c (#1391): a send to the planner is never held on parts or crew: planning them is the planner's work. The tour
+// sent a PM to pat (maintenance planner) and had to type why it should go anyway.
+test("a send to the planner goes without a reason, whatever readiness says (P5.28c, #1391)", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ines"));
+  const job = { id: 7, type: "routine_due", key: "pm-st2", title: "365-day preventive maintenance, ST2 test separator",
+    state: "open", source: "sap", priority: 2, value_usd: null, subjects: ["fz-v2001"], unmatched: [], evidence: {},
+    item_id: null, assignee: null, role: null, raised_count: 1, last_seen: "2026-11-12T05:00:00Z",
+    first_seen: "2026-11-12T05:00:00Z", joined: [], planned: null };
+  await page.route("**/exceptions?*", (route) => route.fulfill({ json: [job] }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] },
+    { name: "pat", roles: ["maintenance_planner"] }] }));
+  await page.route("**/exceptions/7/readiness", (route) => route.fulfill({ json: { ready: false,
+    blockers: ["Crew: Mechanical maintenance crew (MECH): 9 of 6 booked today"],
+    checks: [{ check: "crew", label: "Crew", ready: false, checked: true, note: null, blockers: [] }] } }));
+  const sent = [];
+  await page.route("**/exceptions/7/dispatch", (route) => { sent.push(route.request().postDataJSON()); return route.fulfill({ json: job }); });
+  for (const width of [390, 1280]) {
+    sent.length = 0;
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${url}/#/list`);
+    await page.getByRole("button", { name: "Send to", exact: true }).click();
+    await page.getByLabel("Dispatch to").selectOption("fred");
+    await page.getByText("9 of 6 booked today", { exact: false }).waitFor();  // the field still sees what holds it
+    await page.getByLabel("Dispatch to").selectOption("pat");
+    await page.getByLabel("What to do").fill("Plan and schedule the 365-day PM");
+    assert.equal(await page.getByText("not ready", { exact: true }).count(), 0);
+    assert.equal(await page.getByLabel("Why send it anyway").count(), 0);
+    const send = page.getByRole("button", { name: "Send", exact: true });
+    assert.equal(await send.isDisabled(), false);
+    await send.click();
+    await expectReports(sent, 1);
+    assert.deepEqual([sent[0].to, sent[0].override ?? null], ["pat", null]);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  }
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
 // P5.5b, P5.5c (#682, #683): the dispatch card says how busy the job's crew is and which permit covers it, and a full
 // crew is a blocker naming its jobs.
 test("the dispatch card shows the crew's load, its permit, and a full crew blocks the job (#682, #683)", async () => {

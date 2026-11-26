@@ -523,7 +523,7 @@ def for_exception(conn, exception_id: int, at: datetime | None = None, viewer: l
     field = next((c for c in ready["checks"] if c["check"] == "field"), {"blockers": [], "waits_on": []})
     if visit:
         hours = (visit["start_at"] - at).total_seconds() / 3600 + JOB_HOURS
-        parts = readiness.spares(conn, list(row["subjects"] or []))
+        parts = next(c for c in ready["checks"] if c["check"] == "spares")  # the parts on the job's own order
         # what the field said it waits on holds a ride along as it holds a dispatch (#1381)
         short = ([f"Field: {b}" for b in field["blockers"]]
                  + [b for b in parts["blockers"] if not _arrives_by(b, visit["start_at"])])
@@ -710,6 +710,8 @@ def choose(conn, exception_id: int, by: str, option: str, reason: str | None = N
     eid = offered["exception_id"]
     if option == "dispatch":
         ready = readiness.for_exception(conn, eid)
+        if not readiness.holds(conn, to or "role:operator"):  # the planner plans what it waits on (#1391)
+            ready = {**ready, "ready": True, "blockers": []}
         override = (override or "").strip() or why
         # The field reads only what to check or do (#1344). Why it goes now, the IOC's or the recommendation's, is kept
         # on the case's history below, not sent as the instruction.

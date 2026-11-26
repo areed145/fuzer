@@ -37,9 +37,9 @@ def client(conn):
     return TestClient(app)
 
 
-def _machine(conn) -> str:
-    """A unit on Okan whose bill of materials lists parts."""
-    return conn.execute("select src from edge where rel = 'uses_part' and valid_to is null order by src limit 1"
+def _order(conn) -> str:
+    """A work order on Okan with parts reserved on it."""
+    return conn.execute("select src from edge where rel = 'reserves' and valid_to is null order by src limit 1"
                         ).fetchone()["src"]
 
 
@@ -66,15 +66,16 @@ def test_a_measure_the_assistant_read_as_unknown_names_the_source_it_needs(okan_
 
 
 def test_with_no_stock_source_parts_are_unknown_and_choosing_keeps_what_would_answer_it(conn):
-    unit = _machine(conn)
-    stocked = readiness.spares(conn, [unit])
+    order = _order(conn)
+    unit = conn.execute("select dst from edge where src = %s and rel = 'concerns' limit 1", (order,)).fetchone()["dst"]
+    stocked = readiness.spares(conn, [order])
     assert stocked["checked"] and not stocked.get("unknown")  # Okan loads its stock levels
     conn.execute("delete from golden where field = 'stock'")  # the stock source is missing
     e = ex.raise_(conn, "machine_trip", "undetermined trip", "20-K-2300B tripped: four lifted wells on OKJ-01 down",
-                  "agent:sre", refs=[*(f"well:{w}" for w in WELLS), unit], priority=0.9, role=None)
+                  "agent:sre", refs=[*(f"well:{w}" for w in WELLS), unit, order], priority=0.9, role=None)
     conn.commit()
 
-    spares = readiness.spares(conn, [unit])
+    spares = readiness.spares(conn, [order])
     assert spares["unknown"] == readiness.NO_STOCK and spares["checked"] is False
     assert spares["note"] == "Parts readiness unknown: no stock source."
     assert spares["blockers"] == [] and all(p["stock"] is None and p["short"] is None for p in spares["parts"])
