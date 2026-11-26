@@ -158,6 +158,19 @@ waits for, or an activity it follows. The finish, the oil deferred by shutdowns 
 check are shown before and after. Nothing on the plan moves until the change is approved; the case clears by itself
 once nothing on the plan is held any more.
 
+On the case, **Plan change** draws each moved job on one track: its dates now as a dashed outline and where it goes as
+a bar, with the reason under it, and a table of the finish, deferred oil and overloads now and with the change. Type a
+constraint and choose **Work it out again**; the proposal is levelled again with every constraint typed so far, and
+**Remove** takes one back out. Fuzer reads three forms:
+
+| You type | What it does |
+|---|---|
+| keep A0200 on 12 Apr | Holds that schedule activity, or SAP order, to start no earlier than that day |
+| no crane work before 10 Apr | Gives every crane resource no capacity until that day |
+| crew MECH max 4 | Caps that crew at 4 for the next 90 days from the disruption |
+
+Anything else is not guessed at: Fuzer says which forms it reads and the proposal stays as it was.
+
 ## Approve the update that goes back to SAP
 
 When the field reports Done or Could not do on work SAP raised, the update for SAP is drafted and lands in the

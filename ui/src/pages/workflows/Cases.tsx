@@ -23,6 +23,7 @@ import { CaseSafeguards } from "./Safeguards";
 import { CaseBrief } from "../../CaseBrief";
 import { CaseGates } from "../Gates";
 import { CaseWritebacks } from "../Writeback";
+import { CasePlanChange } from "../PlanChange";
 import { FieldPhoto, photosOf } from "../../FieldPhoto";
 import { usePermission } from "../../Auth";
 import { WatchButton } from "../../Watch";
@@ -149,6 +150,8 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
       {/* a question about the records has no event to trend, answered or not */}
       {!question && <CaseAround id={it.id} data={around.data} focus={it.title} />}
       <Related about={{ case: it.id }} />
+      {it.sources?.filter((x) => x.type === "plan_change" && x.joined_to == null).map((x) =>
+        <CasePlanChange key={x.id} id={x.id} person={person} readOnly={demo} />)}
       <CaseWritebacks itemId={it.id} person={person} readOnly={demo} reload={item.reload} />
       <CaseGates id={it.id} />
       {it.processes.map((p) => CLOSES_WITH_CASE.has(p.process_key)

@@ -977,6 +977,24 @@ export interface PlanConstraints {
   start: string; end: string; days: number; basis: string;
   overloads: (ResourceOverload & { resource: string; name: string; kind: string; unit: string | null })[];
 }
+/** One job a plan change moves (P5.21): its dates before and after and the constraint behind the move. */
+export interface PlanMove {
+  item_id: number; title: string; code: string | null; project: string | null; kind: string; crew: string | null;
+  case: number | null; order: string | null; released: boolean;
+  before: { start: string; end: string }; after: { start: string; end: string }; hours: number; because: string;
+}
+export interface PlanKpis { finish: string | null; deferred_oil: number; deferred_unit: string; overloads: number }
+/** A plan change (GET /plan/changes/{id}): what broke, the constraint it puts on the work, and the plan levelled
+ * again around it, with what the planner typed. */
+export interface PlanChange {
+  exception_id: number; key: string; say: string; constraint: string; start: string; until: string;
+  cause_case: number | null; open: boolean; forms: string[]; constraints: { text: string; form: string }[];
+  proposal: {
+    moves: PlanMove[]; schedules: string[]; basis: string;
+    pull_forward: { item_id: number; title: string; start: string; end: string; order: string | null; because: string }[];
+    kpis: { before: PlanKpis; after: PlanKpis; start: string; days: number };
+  } | null;
+}
 export interface ResourceLoad {
   code: string; name: string; kind: string; unit: string | null; capacity: number; work_center: string | null; sources: string[];
   counts: string[]; routine: string | null; routine_load: RoutineLoad | null;
@@ -1247,6 +1265,11 @@ export const workApi = {
   scheduleLink: (by: string, pred: number, succ: number, type: ScheduleLinkRef["type"], lag_hours: number) =>
     request<unknown>("POST", "/plan/schedules/links", undefined, { by, pred, succ, type, lag_hours }),
   scheduleUnlink: (by: string, pred: number, succ: number) => request<unknown>("DELETE", "/plan/schedules/links", { by, pred, succ }),
+  planChangeOf: (id: number) => request<PlanChange>("GET", `/plan/changes/${id}`),
+  planConstraint: (id: number, by: string, text: string) =>
+    request<PlanChange>("POST", `/plan/changes/${id}/constraints`, undefined, { by, text }),
+  planConstraintRemove: (id: number, by: string, n: number) =>
+    request<PlanChange>("DELETE", `/plan/changes/${id}/constraints/${n}`, { by }),
   resourceLoad: (f: { resource?: string; start?: string; days?: number } = {}) =>
     request<{ start: string; end: string; days: number; resources: ResourceLoad[] }>("GET", "/plan/resources/load", f),
   planLogistics: (f: { start?: string; days?: number } = {}) =>

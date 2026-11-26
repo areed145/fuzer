@@ -1978,11 +1978,30 @@ def plan_constraints(start: datetime | None = None, days: int = Query(42, ge=1, 
 
 @router.get("/plan/changes/{exception_id}")
 def plan_change_read(exception_id: int, conn=Depends(get_conn)):
-    """A plan change (P5.21): what broke and the constraint it puts on the work, and the proposal (each move before
-    and after with the constraint behind it, the work worth pulling forward, the finish, deferred oil and overloads
-    before and after)."""
+    """A plan change (P5.21): what broke and the constraint it puts on the work, the proposal (each move before and
+    after with the constraint behind it, the work worth pulling forward, the finish, deferred oil and overloads before
+    and after), the constraints typed and the forms Fuzer reads."""
     from ..ops import replan
     return _plan_call(conn, replan.change, exception_id)
+
+
+class PlanConstraint(BaseModel):
+    by: str
+    text: str
+
+
+@router.post("/plan/changes/{exception_id}/constraints")
+def plan_change_constraint(exception_id: int, c: PlanConstraint, conn=Depends(get_conn)):
+    """A constraint in words (keep A0200 on 12 Apr; no crane work before 10 Apr; crew MECH max 4): read without a
+    model, and the proposal worked out again. A phrase it can't read is refused, naming the forms."""
+    from ..ops import replan
+    return _plan_call(conn, replan.add_constraint, exception_id, c.text, c.by)
+
+
+@router.delete("/plan/changes/{exception_id}/constraints/{n}")
+def plan_change_constraint_remove(exception_id: int, n: int, by: str = "", conn=Depends(get_conn)):
+    from ..ops import replan
+    return _plan_call(conn, replan.remove_constraint, exception_id, n, by)
 
 
 @router.post("/plan/resources/{code}/capacity")

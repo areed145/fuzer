@@ -6,7 +6,8 @@
     watch(conn)                  the `plan_changes` detector: each disruption that hits planned work raised as
                                  `plan_change` (keyed by the disruption), its proposal worked out; cleared once
                                  nothing is hit any more
-    change(conn, id)             a plan change as the planner reads it: what happened and the proposal
+    change(conn, id)             a plan change as the planner reads it: the proposal and the constraints typed
+    add_constraint / remove_constraint   a constraint in words (`read`), and the proposal worked out again
 
 What each disruption holds, from the records, never the equipment type:
 
@@ -18,17 +19,18 @@ What each disruption holds, from the records, never the equipment type:
     permit   the work on the plant it holds isolated, until it is reissued (PERMIT_HOURS allowed)
 
 The proposal is Fuzer's own levelling, not a second model: the held jobs move (a schedule activity gets the date as
-its start no earlier than, and its schedule is levelled again with `schedule.apply`; other work slips), and
-the result is read in a savepoint and rolled back: each move with the constraint behind it, and the finish, the
-deferred oil (`at_risk.windows`) and the overloads (`schedule.constraints`) before and after. Deterministic: no model is
-asked anything.
+its start no earlier than, and its schedule is levelled again with `schedule.apply`; other work slips), typed
+constraints become capacity windows and holds, and the result is read in a savepoint and rolled back: each move with
+the constraint behind it, and the finish, the deferred oil (`at_risk.windows`) and the overloads (`schedule.constraints`)
+before and after. Deterministic: no model is asked anything.
 """
 
+import re
 from datetime import datetime, timedelta
 
 from psycopg.types.json import Jsonb
 
-from ..core import clock, detectors, work
+from ..core import clock, detectors, gates, work
 from ..core.findings import DETERMINISTIC, Finding, at, fact
 from ..core.jsonsafe import plain
 from ..core.plan import PlanError
@@ -39,8 +41,9 @@ from .plan import ACTIVE, BUNDLE_DAYS, SHUTDOWNS, _when
 
 PLANNER = "maintenance_planner"
 PERMIT_HOURS = 24  # allowed for reissuing a lapsed permit before work under it goes on: a planning allowance
-HORIZON_DAYS = at_risk.HORIZON_DAYS  # how far past the disruption the proposal looks
+HORIZON_DAYS = at_risk.HORIZON_DAYS  # how far past the disruption a typed constraint reaches
 CAUSES = (*DOWN_TYPES, materials.TYPE, permits.TYPE)
+FORMS = ("keep A0200 on 12 Apr", "no crane work before 10 Apr", "crew MECH max 4")
 
 
 def _type():
@@ -50,8 +53,8 @@ def _type():
         "plan_change", "Plan change to review", role=f"role:{PLANNER}", audience=("ioc",), joins=False,
         description="A trip, a late part or a lapsed permit has hit planned work. The plan is levelled again around "
                     "it: each job that moves and the constraint behind it, the work worth pulling forward, and the "
-                    "finish, deferred oil and overloads before and after. It clears when nothing on the plan is hit "
-                    "any more.")
+                    "finish, deferred oil and overloads before and after. Add a constraint in words and work it out "
+                    "again. It clears when nothing on the plan is hit any more.")
 
 
 TYPE = _type().name
@@ -147,12 +150,84 @@ def pull_forward(conn, d: dict) -> list[dict]:
                         f"to {_say(d['until'])}"} for r in rows]
 
 
+# ---- constraints in words ----------------------------------------------------------------------------------------
+
+MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+
+
+def _day(text: str, ref: datetime) -> datetime:
+    """A day as a planner types it: 12 Apr, Apr 12, 12 April 2026, 2026-04-12, with an optional HH:MM. Without a year,
+    the first such day from a month before `ref`."""
+    t = text.strip().lower().rstrip(".")
+    try:
+        return clock.aware(datetime.fromisoformat(t))
+    except ValueError:
+        pass
+    m = (re.fullmatch(r"(?P<d>\d{1,2})(?:st|nd|rd|th)?\s+(?P<m>[a-z]{3})[a-z]*(?:\s+(?P<y>\d{4}))?(?:\s+(?P<h>\d{1,2}):(?P<n>\d{2}))?", t)
+         or re.fullmatch(r"(?P<m>[a-z]{3})[a-z]*\s+(?P<d>\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(?P<y>\d{4}))?(?:\s+(?P<h>\d{1,2}):(?P<n>\d{2}))?", t))
+    if not m or m["m"] not in MONTHS:
+        raise PlanError(f"not a day: {text.strip()!r} (write 12 Apr, or 2026-04-12)")
+    ref = ref.astimezone(clock.zone())
+    year = int(m["y"] or ref.year)
+    try:
+        when = datetime(year, MONTHS.index(m["m"]) + 1, int(m["d"]), int(m["h"] or 0), int(m["n"] or 0),
+                        tzinfo=clock.zone())
+    except ValueError as e:
+        raise PlanError(f"not a day: {text.strip()!r}") from e
+    if not m["y"] and when < ref - timedelta(days=31):
+        when = when.replace(year=year + 1)
+    return when
+
+
+def _resources(conn, word: str) -> list[dict]:
+    """The shared resources a word names: by code, by kind (crane) or by a word of the name (fitters)."""
+    w = word.strip().lower().removesuffix("s")
+    rows = conn.execute("select code, name, kind from plan_resource order by code").fetchall()
+    exact = [r for r in rows if r["code"].lower() == word.strip().lower()]
+    return exact or [r for r in rows if r["kind"] == w or w in r["name"].lower()]
+
+
+def read(conn, text: str, start: datetime) -> dict:
+    """A constraint typed in words, read without a model. Three forms: keep <activity or order> on <day> (it starts
+    that day), no <resource> work before <day> (the resource has nothing until then), crew <code> max <n> (that many
+    for the window). Anything else is refused, naming the forms. `start` is the disruption's: the day a date with no
+    year is read from, and where the windows begin."""
+    t = " ".join((text or "").split())
+    if m := re.fullmatch(r"keep (\S+) (?:on|from|at) (.+)", t, re.IGNORECASE):
+        jobs = conn.execute(
+            "select id from plan_item where status = any(%(a)s) and (code = %(r)s or (source = 'sap' and source_key = %(r)s "
+            "and not exists (select 1 from plan_item c where c.parent_id = plan_item.id))) order by id",
+            {"a": list(ACTIVE), "r": m[1]}).fetchall()
+        if not jobs:
+            raise PlanError(f"nothing on the plan is called {m[1]}: name an activity (A0200) or an SAP order")
+        return {"text": t, "form": "keep", "item_ids": [j["id"] for j in jobs], "at": _day(m[2], start)}
+    if m := re.fullmatch(r"no (.+?) work before (.+)", t, re.IGNORECASE):
+        found = _resources(conn, m[1])
+        if not found:
+            raise PlanError(f"no shared resource is called {m[1]}")
+        return {"text": t, "form": "before", "resources": [r["code"] for r in found], "capacity": 0,
+                "from": start, "until": _day(m[2], start)}
+    if m := re.fullmatch(r"crew (\S+) (?:max|at most) (\d+(?:\.\d+)?)", t, re.IGNORECASE):
+        found = [r for r in _resources(conn, m[1]) if r["kind"] == "crew"]
+        if not found:
+            raise PlanError(f"no crew is called {m[1]}")
+        return {"text": t, "form": "max", "resources": [found[0]["code"]], "capacity": float(m[2]),
+                "from": start, "until": start + timedelta(days=HORIZON_DAYS)}
+    raise PlanError(f"Fuzer reads three forms: {'; '.join(FORMS)}")
+
+
 # ---- the proposal ------------------------------------------------------------------------------------------------
 
-def _apply(conn, d: dict, by: str) -> dict:
-    """Write the disruption onto the plan and level each schedule it touches again. The proposal runs this in a
-    savepoint it rolls back."""
+def _apply(conn, d: dict, constraints: list[dict], by: str) -> dict:
+    """Write the disruption and the typed constraints onto the plan and level each schedule they touch again. The
+    proposal runs this in a savepoint it rolls back."""
     holds: dict[int, tuple[datetime, str]] = {h["id"]: (d["until"], d["constraint"]) for h in hits(conn, d)}
+    keeps = set()
+    for c in constraints:
+        if c["form"] == "keep":
+            for i in c["item_ids"]:
+                holds[i] = (_when(c["at"]), c["text"])
+                keeps.add(i)
     rows = {r["id"]: r for r in conn.execute("select * from plan_item where id = any(%s)", (list(holds),))}
     projects = set()
     for i, (when, _why) in holds.items():
@@ -160,18 +235,32 @@ def _apply(conn, d: dict, by: str) -> dict:
         if r is None:
             continue
         if r["source"] == "schedule":
-            nb = max(r["not_before"], when) if r["not_before"] else when
+            nb = when if i in keeps or not r["not_before"] else max(r["not_before"], when)
             conn.execute("update plan_item set not_before = %s, updated_by = %s, updated_at = now() where id = %s",
                          (nb, by, i))
             projects.add(r["project"])
             continue
-        start = max(r["start_at"], when)
+        start = when if i in keeps else max(r["start_at"], when)
         if start != r["start_at"]:
             conn.execute("update plan_item set start_at = %s, end_at = %s, moved_by = %s, updated_by = %s, "
                          "updated_at = now() where id = %s", (start, start + (r["end_at"] - r["start_at"]), by, by, i))
+    windows = []
+    for c in constraints:
+        if c["form"] not in ("before", "max"):
+            continue
+        a, b = _when(c["from"]), _when(c["until"])
+        for res in c["resources"]:
+            if b > a:
+                conn.execute("insert into plan_resource_capacity (resource, start_at, end_at, capacity, reason, created_by) "
+                             "values (%s, %s, %s, %s, %s, %s)", (res, a, b, c["capacity"], f"Plan change: {c['text']}", by))
+                windows.append({"resource": res, "text": c["text"]})
+            projects |= {r["project"] for r in conn.execute(
+                "select distinct i.project from plan_item i join plan_demand_all x on x.item_id = i.id "
+                "where i.source = 'schedule' and x.resource = %s and i.status = any(%s) and i.start_at < %s and i.end_at > %s",
+                (res, list(ACTIVE), _when(c["from"]) + timedelta(days=HORIZON_DAYS), _when(c["from"])))}
     for p in sorted(x for x in projects if x):
         schedule.apply(conn, p, by)
-    return {"holds": holds, "projects": sorted(x for x in projects if x)}
+    return {"holds": holds, "windows": windows, "projects": sorted(x for x in projects if x)}
 
 
 def _snapshot(conn, start: datetime, end: datetime, ids=()) -> dict[int, dict]:
@@ -199,7 +288,8 @@ def _why(i: int, done: dict, after: dict, acts: dict, moved: set[int], names: di
         a = acts[i]
         if a["held_back_by"]:
             res = a["held_back_by"]["resource"]
-            return f"waits for {names.get(res, res)}" + (f" ({', '.join(a['held_back_by']['activities'])})"
+            typed = next((w["text"] for w in done["windows"] if w["resource"] == res), None)
+            return typed or f"waits for {names.get(res, res)}" + (f" ({', '.join(a['held_back_by']['activities'])})"
                                                    if a["held_back_by"]["activities"] else "")
         code = {x["code"]: x["id"] for x in acts.values()}
         preds = [p["code"] for p in a["predecessors"] if code.get(p["code"]) in moved]
@@ -209,14 +299,15 @@ def _why(i: int, done: dict, after: dict, acts: dict, moved: set[int], names: di
     return "levelled"
 
 
-def work_out(conn, d: dict, by: str) -> dict:
-    """The proposal for a disruption: the plan with it applied, read in a savepoint and rolled back. Each move (before and after, and the constraint behind it), the work worth pulling
+def work_out(conn, d: dict, constraints: list[dict], by: str) -> dict:
+    """The proposal for a disruption with the constraints typed so far: the plan with them applied, read in a
+    savepoint and rolled back. Each move (before and after, and the constraint behind it), the work worth pulling
     forward, the schedules levelled again and the KPIs before and after."""
     t0, t1 = d["start"] - timedelta(days=1), d["start"] + timedelta(days=HORIZON_DAYS)
     before = _snapshot(conn, t0, t1, [h["id"] for h in hits(conn, d)])
     conn.execute("savepoint plan_change")
     try:
-        done = _apply(conn, d, by)
+        done = _apply(conn, d, constraints, by)
         after = _snapshot(conn, t0, t1, list(before))
         moved = {i for i in before if i in after
                  and (before[i]["start_at"], before[i]["end_at"]) != (after[i]["start_at"], after[i]["end_at"])}
@@ -242,8 +333,8 @@ def work_out(conn, d: dict, by: str) -> dict:
     return {"say": d["say"], "constraint": d["constraint"], "start": d["start"], "until": d["until"],
             "moves": moves, "pull_forward": pull_forward(conn, d), "schedules": done["projects"],
             "kpis": {"before": _kpis(conn, before, scope, start, days), "after": kpi_after, "start": start, "days": days},
-            "basis": "Fuzer's levelling and constraint check on the plan as it stands, with the held jobs moved; "
-                     "deferred oil is the wells behind each shutdown at their latest "
+            "basis": "Fuzer's levelling and constraint check on the plan as it stands, with the held jobs moved and "
+                     "the typed constraints applied; deferred oil is the wells behind each shutdown at their latest "
                      "test rate"}
 
 
@@ -264,20 +355,22 @@ def _finding(d: dict, p: dict) -> Finding:
 
 
 def _store(conn, d: dict, by: str) -> dict:
-    """Work the proposal out, and raise (or update) the plan change."""
+    """Work the proposal out with the constraints typed so far, and raise (or update) the plan change."""
     from ..core.exceptions import raise_exception
 
-    p = work_out(conn, d, by)
+    pc = conn.execute("select * from plan_change where key = %s", (d["key"],)).fetchone()
+    constraints = list(pc["constraints"]) if pc else []
+    p = work_out(conn, d, constraints, by)
     n = len(p["moves"])
     title = f"{d['say'][:1].upper()}{d['say'][1:]}: {plural(n, 'planned job')} to move"
     x = raise_exception(conn, TYPE, d["key"], title, by, source=d["source"], refs=d["subjects"], priority=0.6,
                         finding=_finding(d, p))
     conn.execute(
         """
-        insert into plan_change (key, exception_id, proposal) values (%s, %s, %s)
+        insert into plan_change (key, exception_id, constraints, proposal) values (%s, %s, %s, %s)
         on conflict (key) do update set exception_id = excluded.exception_id, proposal = excluded.proposal,
             updated_at = now()
-        """, (d["key"], x["id"], Jsonb(plain(p))))
+        """, (d["key"], x["id"], Jsonb(plain(constraints)), Jsonb(plain(p))))
     return x
 
 
@@ -334,8 +427,39 @@ def _open(conn, exception_id: int) -> tuple[dict, dict]:
 
 
 def change(conn, exception_id: int) -> dict:
-    """A plan change as the planner reads it: what happened and the constraint it puts on the work, and the proposal
-    (moves, pull-forwards, KPIs before and after)."""
+    """A plan change as the planner reads it: what happened and the constraint it puts on the work, the proposal
+    (moves, pull-forwards, KPIs before and after), the constraints typed and the forms Fuzer reads."""
     pc, d = _open(conn, exception_id)
     return {"exception_id": exception_id, "key": pc["key"], "say": d["say"], "constraint": d["constraint"],
-            "start": d["start"], "until": d["until"], "cause_case": d["case"], "proposal": pc["proposal"]}
+            "start": d["start"], "until": d["until"], "cause_case": d["case"],
+            "constraints": [{"text": c["text"], "form": c["form"]} for c in pc["constraints"]], "forms": list(FORMS),
+            "proposal": pc["proposal"], "open": pc["exception_state"] == "open"}
+
+
+def _editable(conn, exception_id: int, by: str) -> tuple[dict, dict]:
+    if gates.machine(by):
+        raise PlanError("a plan change is worked by a named person")
+    pc, d = _open(conn, exception_id)
+    if pc["exception_state"] != "open":
+        raise PlanError(f"plan change {exception_id} is closed")
+    return pc, d
+
+
+def add_constraint(conn, exception_id: int, text: str, by: str) -> dict:
+    """A constraint typed in words: read (`read`), kept on the plan change, and the proposal worked out again."""
+    pc, d = _editable(conn, exception_id, by)
+    c = read(conn, text, d["start"])
+    conn.execute("update plan_change set constraints = constraints || %s, updated_at = now() where key = %s",
+                 (Jsonb([plain(c)]), pc["key"]))
+    _store(conn, d, by)
+    return change(conn, exception_id)
+
+
+def remove_constraint(conn, exception_id: int, n: int, by: str) -> dict:
+    pc, d = _editable(conn, exception_id, by)
+    if not 0 <= n < len(pc["constraints"]):
+        raise PlanError(f"plan change {exception_id} has no constraint {n + 1}")
+    conn.execute("update plan_change set constraints = constraints - %s, updated_at = now() where key = %s",
+                 (n, pc["key"]))
+    _store(conn, d, by)
+    return change(conn, exception_id)

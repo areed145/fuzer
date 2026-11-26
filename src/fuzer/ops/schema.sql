@@ -551,6 +551,8 @@ create table if not exists plan_change (
     proposal      jsonb,                           -- the moves, their reasons and the KPIs before and after
     updated_at    timestamptz not null default now()
 );
+-- the constraints the planner typed (P5.21b), each as read: what the proposal is worked out with
+alter table plan_change add column if not exists constraints jsonb not null default '[]';
 
 -- Close-outs back to the source (#466, ops/closeout.py): what the field did, drafted as an update for the system that
 -- raised the work (complete the record, or a follow-up when the field could not do it), approved on the planner's

@@ -9,6 +9,7 @@ import yaml
 from fuzer.analysis import trips
 from fuzer.core.exceptions import clear_exception, raise_exception
 from fuzer.core.findings import DETERMINISTIC, Finding, fact
+from fuzer.core.plan import PlanError
 from fuzer.ops import materials, plan, replan, schedule
 from fuzer.ops.plan import _when
 
@@ -112,6 +113,55 @@ def test_a_late_part_on_a_turnaround_order_levels_the_schedule_again(c):
     assert "OK-TAR-2026" in p["schedules"]
     assert any(m["order"] == "50000306" and m["because"] == "spans its operations" for m in p["moves"])
     assert _when(p["kpis"]["after"]["finish"]) > _when(p["kpis"]["before"]["finish"])
+    clear_exception(c, materials.TYPE, part["key"], "tests", reason="covered")
+    replan.watch(c)
+    c.commit()
+
+
+def test_a_day_is_read_as_a_planner_types_it():
+    ref = _when("2026-04-08T00:00")
+    assert replan._day("12 Apr", ref) == replan._day("Apr 12", ref) == replan._day("2026-04-12", ref) == _when("2026-04-12T00:00")
+    assert replan._day("12 April 06:00", ref) == _when("2026-04-12T06:00")
+    assert replan._day("2 Jan", ref) == _when("2027-01-02T00:00")  # no year: the next one
+
+
+def test_a_constraint_typed_in_words_changes_the_proposal(c):
+    part = _late_part(c, "50000306", "2026-04-08", 3)
+    replan.watch(c)
+    pid = c.execute("select exception_id from plan_change where key = %s", (f"{part['type']}:{part['id']}",)).fetchone()["exception_id"]
+    first = replan.change(c, pid)
+    assert first["constraints"] == [] and len(first["forms"]) == 3
+
+    def start(p, code):
+        return _when(next(m for m in p["proposal"]["moves"] if m["code"] == code)["after"]["start"])
+
+    # keep an activity on a day: it starts then, and what follows it moves with it
+    p = replan.add_constraint(c, pid, "keep A0200 on 13 Apr", "tests")
+    assert start(p, "A0200") == _when("2026-04-13T00:00")
+    assert next(m for m in p["proposal"]["moves"] if m["code"] == "A0200")["because"] == "keep A0200 on 13 Apr"
+    # no crane work before a day: every lift waits for it, and says so
+    p = replan.add_constraint(c, pid, "no crane work before 15 Apr", "tests")
+    lifts = [m for m in p["proposal"]["moves"] if m["code"] in ("A0100", "A0130", "A0200", "A0220", "A0500")]
+    assert lifts and all(_when(m["after"]["start"]) >= _when("2026-04-15T00:00") for m in lifts)
+    assert any(m["because"] == "no crane work before 15 Apr" for m in lifts)
+    # a crew held to fewer people: the schedule runs longer
+    later = replan.add_constraint(c, pid, "crew MECH max 4", "tests")
+    assert _when(later["proposal"]["kpis"]["after"]["finish"]) >= _when(p["proposal"]["kpis"]["after"]["finish"])
+    assert [x["text"] for x in later["constraints"]] == ["keep A0200 on 13 Apr", "no crane work before 15 Apr",
+                                                         "crew MECH max 4"]
+    c.commit()
+    # a phrase it can't read says which it can
+    with pytest.raises(PlanError, match="keep A0200 on 12 Apr; no crane work before 10 Apr; crew MECH max 4"):
+        replan.add_constraint(c, pid, "move everything to May", "tests")
+    c.rollback()
+    with pytest.raises(PlanError, match="nothing on the plan is called A9999"):
+        replan.add_constraint(c, pid, "keep A9999 on 13 Apr", "tests")
+    c.rollback()
+    # taken off again, the proposal is the first one; and none of it touched the plan
+    for _ in range(3):
+        back = replan.remove_constraint(c, pid, 0, "tests")
+    assert back["constraints"] == [] and back["proposal"]["moves"] == first["proposal"]["moves"]
+    assert not c.execute("select 1 from plan_resource_capacity where reason like 'Plan change:%'").fetchone()
     clear_exception(c, materials.TYPE, part["key"], "tests", reason="covered")
     replan.watch(c)
     c.commit()

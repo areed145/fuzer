@@ -342,6 +342,10 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 .plan-detail { grid-column: 1 / -1; min-width: 0; padding: 0.25rem 0 0.5rem; overflow-wrap: anywhere; }
 .plan-detail label, .plan-detail select { min-width: 0; max-width: 100%; }
 @media (max-width: 640px) { .plan-row { grid-template-columns: minmax(0, 1fr); } }
+/* A plan change (P5.21): each moved job's dates now as an outline and where it goes as a bar, on one track. */
+.replan-track { height: 1.1rem; }
+.replan-before { position: absolute; top: 0; bottom: 0; border: 2px dashed var(--muted); border-radius: 0.25rem; box-sizing: border-box; }
+.replan-after { position: absolute; top: 0.2rem; bottom: 0.2rem; border-radius: 0.25rem; background: var(--accent, #2563eb); }
 /* A turnaround opens beside the timeline and shades its window on every row (#554). */
 .plan-layout.with-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem); gap: 1rem; align-items: start; }
 .plan-panel { position: sticky; top: 0.5rem; max-height: calc(100vh - 1rem); overflow: auto; }
