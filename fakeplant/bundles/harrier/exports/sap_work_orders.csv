@@ -4,3 +4,4 @@ aufnr,order_type,qmnum,equnr,floc,start,finish,basic_finish,status,priority,revi
 40009003,PM01,,60000029,HRPT-G1-K7001,today-60d,today-59d,today-59d,TECO,3,,AC-SVC,3100,VRU compressor 4000 hour service,MECH
 40009004,PM02,,60000026,HRPT-F1-FT6010,today-9d,today-9d,today-9d,TECO,2,,AC-CHK,600,Prove custody transfer meter before loading,INST
 40009005,PM01,10007005,60000019,HRPT-D1-FT4002,today-6d,,today+8d,REL,3,,AC-ADJ,1400,Check receipt meter diagnostics and clean transducers,INST
+40009006,PM02,,60000033,HRPT-H1-G8004,,,today+1d,REL,3,,AC-CHK,300,"Monthly load test, standby generator",ELEC

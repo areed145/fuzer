@@ -146,6 +146,11 @@ def run_one(conn, pack, name: str, entry: dict, say=None, bundle: Path | None = 
     after = _last_id(conn)  # a load runs some detectors itself (the source checks): what it raises counts at the first run
     if "deliver" in entry:
         land(conn, pack, bundle, entry["deliver"])
+    if entry.get("plan"):  # a detector over planned work: the plan brought in from its sources first
+        from ..ops import pipeline
+
+        pipeline.sync_plan(conn)
+        conn.commit()
     ts = times(entry)
     raises, prev = [], _when(entry["since"]) - timedelta(days=entry.get("every_days", 7))
     for t in ts:

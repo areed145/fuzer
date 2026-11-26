@@ -12326,3 +12326,146 @@ for (const [size, viewport] of PHONE_DESK) {
     assert.deepEqual(errors, []);
   });
 }
+
+// ---- P5.21 (#1416): a plan change on its case ------------------------------------------------------------------------
+const planSource = (id) => ({ id, type: "plan_change", key: "plan_change:machine_trip:7", title: "Plan change to review",
+  source: "replan", state: "open", value_usd: null, first_seen: "2026-11-20T00:00:00Z", last_seen: "2026-11-20T00:00:00Z",
+  joined_to: null, subjects: ["20-K-2200B"], label: "Plan change to review",
+  finding: { detector: "replan.plan_change", origin: "deterministic", origin_label: "Worked out by", method: null, standard: null,
+    start: null, end: null, confidence: null, items: [], checks: [], subjects: [], value_usd: null } });
+const planMove = (start, end, because) => ({ item_id: 301, title: "Compressor valve inspection", code: null, project: null,
+  kind: "pm", crew: "MECH", case: 41, order: "50000303", released: false,
+  before: { start: "2026-11-20T08:00:00Z", end: "2026-11-20T16:00:00Z" }, after: { start, end }, hours: 24, because });
+const planChangeOf = (constraints, move) => ({ exception_id: 12, key: "plan_change:machine_trip:7", say: "20-K-2200B tripped",
+  constraint: "no work that needs it running until 21 Nov 08:00", start: "2026-11-20T08:00:00Z", until: "2026-11-21T08:00:00Z",
+  cause_case: 7, open: true, forms: ["keep A0200 on 12 Apr", "no crane work before 10 Apr", "crew MECH max 4"], constraints,
+  proposal: { moves: [move], schedules: [], basis: "Fuzer's levelling and constraint check on the plan as it stands",
+    pull_forward: [{ item_id: 302, title: "Seal oil filter change", start: "2026-11-24T08:00:00Z", end: "2026-11-24T12:00:00Z",
+      order: "50000310", because: "needs 20-K-2200B stopped, and it is stopped until 21 Nov 08:00" }],
+    kpis: { before: { finish: "2026-11-27T16:00:00Z", deferred_oil: 120, deferred_unit: "bbl", overloads: 0 },
+      after: { finish: "2026-11-28T16:00:00Z", deferred_oil: 120, deferred_unit: "bbl", overloads: 1 },
+      start: "2026-11-20T00:00:00Z", days: 14 } } });
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.21b a plan change shows each move before and after with why, and a typed constraint works it out again (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "pat"));
+    const item = { ...demoTask.item, id: 40, title: "Plan change to review", type: "plan_change", state: "open", closed_at: null,
+      processes: [], events: [], sources: [planSource(12)] };
+    await page.route("**/work/items/40", (route) => route.fulfill({ json: item }));
+    let current = planChangeOf([], planMove("2026-11-21T08:00:00Z", "2026-11-21T16:00:00Z",
+      "20-K-2200B tripped: no work that needs it running until 21 Nov 08:00"));
+    const typed = [];
+    await page.route("**/plan/changes/12", (route) => route.fulfill({ json: current }));
+    await page.route("**/plan/changes/12/constraints", (route) => {
+      const body = route.request().postDataJSON();
+      typed.push(body);
+      if (body.text === "move it somewhere") return route.fulfill({ status: 400,
+        json: { detail: "Fuzer reads three forms: keep A0200 on 12 Apr; no crane work before 10 Apr; crew MECH max 4" } });
+      current = planChangeOf([{ text: body.text, form: "max" }],
+        planMove("2026-11-22T08:00:00Z", "2026-11-22T16:00:00Z", "crew MECH max 1"));
+      return route.fulfill({ json: current });
+    });
+    await page.goto(`${url}/#/cases/40`);
+    const card = page.locator(".replan");
+    await card.getByText("20-K-2200B tripped: no work that needs it running until 21 Nov 08:00.", { exact: true }).waitFor();
+    const kpis = card.getByRole("table", { name: "Before and after" });
+    await kpis.getByText("Deferred oil").waitFor();
+    const moves = card.getByRole("list", { name: "Moves" });
+    await moves.getByRole("link", { name: "Compressor valve inspection" }).waitFor();
+    await moves.getByText(/20-K-2200B tripped: no work that needs it running/).waitFor();
+    assert.equal(await moves.locator(".replan-before").count(), 1);
+    assert.equal(await moves.locator(".replan-after").count(), 1);
+    await card.getByText("Seal oil filter change", { exact: false }).waitFor();
+    // a phrase Fuzer does not read says which forms it does
+    await card.getByLabel("Constraint").fill("move it somewhere");
+    await card.getByRole("button", { name: "Work it out again" }).click();
+    await card.getByText("Fuzer reads three forms", { exact: false }).first().waitFor();
+    await card.getByLabel("Constraint").fill("crew MECH max 1");
+    await card.getByRole("button", { name: "Work it out again" }).click();
+    await card.getByRole("list", { name: "Constraints typed" }).getByText("crew MECH max 1").waitFor();
+    await moves.getByText(/: crew MECH max 1$/).waitFor();
+    assert.equal(typed.at(-1).by, "pat");
+    assert.equal(await card.getByRole("button", { name: "Remove" }).count(), 1);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.21c Approve moves the plan, links SAP's change waiting for the planner, and a notice is edited and sent (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "pat"));
+    const item = { ...demoTask.item, id: 40, title: "Plan change to review", type: "plan_change", state: "open", closed_at: null,
+      processes: [], events: [], sources: [planSource(12)] };
+    await page.route("**/work/items/40", (route) => route.fulfill({ json: item }));
+    const open = { ...planChangeOf([], planMove("2026-11-21T08:00:00Z", "2026-11-21T16:00:00Z",
+      "20-K-2200B tripped: no work that needs it running until 21 Nov 08:00")), state: "open", approved_by: null,
+      approved_at: null, writebacks: [], notices: [] };
+    const notice = { n: 0, audience: "field", to: "sam", name: "sam", jobs: [301], sent_by: null, sent_at: null,
+      text: "20-K-2200B tripped. Your job moved: 50000303 from Fri 20 Nov 08:00 to Sat 21 Nov 08:00." };
+    const approved = { ...open, open: false, state: "approved", approved_by: "pat", approved_at: "2026-11-20T09:00:00Z",
+      writebacks: [{ id: 21, record: "50000303", state: "awaiting_approval", item_id: 55, approver_role: "maintenance_planner" }],
+      notices: [notice] };
+    let current = open;
+    const calls = [];
+    await page.route("**/plan/changes/12", (route) => route.fulfill({ json: current }));
+    await page.route("**/plan/changes/12/approve", (route) => {
+      calls.push(["approve", route.request().postDataJSON()]);
+      current = approved;
+      return route.fulfill({ json: current });
+    });
+    await page.route("**/plan/changes/12/notices/0/send", (route) => {
+      const body = route.request().postDataJSON();
+      calls.push(["send", body]);
+      current = { ...approved, notices: [{ ...notice, text: body.text, sent_by: body.by, sent_at: "2026-11-20T09:05:00Z" }] };
+      return route.fulfill({ json: current });
+    });
+    await page.goto(`${url}/#/cases/40`);
+    const card = page.locator(".replan");
+    await card.getByRole("button", { name: "Approve" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Approve", exact: true }).click();
+    await card.getByText("Approved by", { exact: false }).waitFor();
+    assert.deepEqual(calls[0], ["approve", { by: "pat" }]);
+    const sap = card.getByRole("list", { name: "SAP changes" });
+    assert.equal(await sap.getByRole("link", { name: "SAP order 50000303" }).getAttribute("href"), "#/cases/55");
+    await sap.getByText("awaiting approval", { exact: false }).waitFor();
+    // once approved there is nothing more to work out
+    assert.equal(await card.getByLabel("Constraint").count(), 0);
+    assert.equal(await card.getByRole("button", { name: "Approve" }).count(), 0);
+    const text = card.getByLabel("Notice to sam");
+    await text.fill("20-K-2200B tripped: your PM moves to Saturday 08:00.");
+    await card.getByRole("button", { name: "Send" }).click();
+    await card.getByText("sent by", { exact: false }).waitFor();
+    assert.deepEqual(calls[1], ["send", { by: "pat", text: "20-K-2200B tripped: your PM moves to Saturday 08:00." }]);
+    assert.equal(await text.isDisabled(), true);
+    assert.equal(await card.getByRole("button", { name: "Send" }).count(), 0);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+
+  test(`P5.21c a field operator reads why a planned job moved, on Coming up and on the job (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "sam"));
+    const start = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    const planned = { id: 301, kind: "maintenance", title: "Preventive maintenance 2nd stage compressor", source: "sap",
+      source_key: "50000303", subjects: [], area_id: null, area_label: null, start_at: start,
+      end_at: new Date(Date.parse(start) + 8 * 3_600_000).toISOString(), status: "scheduled", crew: "sam", crew_hours: null,
+      needs_shutdown: false, deferment_usd: null, exception_id: null, notes: null, clashes: [], assets: [],
+      moved_because: "20-K-2200B tripped" };
+    const job = { id: 7, type: "leak", key: "walk-9", title: "Compressor valve inspection", source: "sap", state: "open",
+      priority: null, value_usd: null, subjects: [], unmatched: [], item_id: 31, case_state: "open", assignee: "sam", role: null,
+      raised_count: 1, first_seen: "2026-11-08T06:00:00Z", last_seen: "2026-11-08T07:00:00Z", label: "Leak", due: null,
+      task_id: null, task_name: null, assets: [], history: [], field: [], queued: false, sent: null, sources: [],
+      moved_because: "20-K-2200B tripped",
+      finding: { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null,
+        end: null, confidence: null, items: [], checks: [], subjects: [], value_usd: null } };
+    await page.route("**/exceptions/field?*", (route) => route.fulfill({ json: { person: "sam", jobs: [job], coming_up: [planned] } }));
+    await page.goto(`${url}/#/inbox`);
+    const coming = page.locator(".field-coming");
+    await coming.getByText("Preventive maintenance 2nd stage compressor", { exact: false }).waitFor();
+    await coming.getByText("Moved because 20-K-2200B tripped", { exact: true }).waitFor();
+    await page.locator(".field-job", { hasText: "Compressor valve inspection" })
+      .getByText("Moved because 20-K-2200B tripped", { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}

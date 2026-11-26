@@ -371,8 +371,7 @@ function CrewLoadCard({ from, days, pos, lines, axis }: { from: string; days: nu
   const over = (r: ResourceLoad) => r.days.filter((d) => d.demand > d.capacity + 1e-6).length;
   const overloaded = used.filter((r) => over(r) > 0).length;
   return (
-    <Card title="Crew load" className="plan-area plan-load"
-      actions={<a href="#/plan?resources=1">Resources</a>}>
+    <Card title="Crew load" className="plan-area plan-load">
       <Status of={load} />
       {load.data && (used.length ? <>
         <Text as="p" small>{overloaded ? `${overloaded} of ${used.length} over capacity on some days.` : `All ${used.length} within capacity.`}

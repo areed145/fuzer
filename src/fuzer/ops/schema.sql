@@ -543,6 +543,26 @@ create or replace view plan_demand_all as
         where r.kind <> 'seats'   -- seats carry crew changes (a crew's first and last day), not the jobs themselves
     ) x group by item_id, resource;
 
+-- Re-planning when something breaks (P5.21, ops/replan.py): a trip, a late part or a lapsed permit that hits planned
+-- work is a plan change for the planner. One row per disruption, with the proposal as last worked out.
+create table if not exists plan_change (
+    key           text primary key,                -- the disruption: its exception's type and key (parts_not_ready:50000277)
+    exception_id  bigint,                          -- the plan change's own exception (its case is the planner's)
+    proposal      jsonb,                           -- the moves, their reasons and the KPIs before and after
+    updated_at    timestamptz not null default now()
+);
+-- the constraints the planner typed (P5.21b), each as read: what the proposal is worked out with
+alter table plan_change add column if not exists constraints jsonb not null default '[]';
+-- once approved (P5.21c): who approved it, the SAP schedule changes it queued, and the notices drafted for the people
+-- affected (sent_by once a person sends one)
+alter table plan_change add column if not exists state text not null default 'open';  -- open | approved
+alter table plan_change add column if not exists approved_by text;
+alter table plan_change add column if not exists approved_at timestamptz;
+alter table plan_change add column if not exists writebacks bigint[] not null default '{}';
+alter table plan_change add column if not exists notices jsonb not null default '[]';
+-- why a job last moved, in words a field operator reads on it ("20-K-2200B tripped")
+alter table plan_item add column if not exists moved_because text;
+
 -- Close-outs back to the source (#466, ops/closeout.py): what the field did, drafted as an update for the system that
 -- raised the work (complete the record, or a follow-up when the field could not do it), approved on the planner's
 -- Inbox (or sent directly) and published as source.update for the system's adapter.

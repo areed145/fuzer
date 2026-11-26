@@ -1929,6 +1929,17 @@ Shared resources work is levelled against: crews by discipline, and the site's b
 | `resource` | text |  |
 | `quantity` | double precision |  |
 
+### `plan_change`
+
+Re-planning when something breaks (P5.21, ops/replan.py): a trip, a late part or a lapsed permit that hits planned work is a plan change for the planner. One row per disruption, with the proposal as last worked out.
+
+| Column | Type | Note |
+|---|---|---|
+| `key` | text | the disruption: its exception's type and key (parts_not_ready:50000277) |
+| `exception_id` | bigint, | the plan change's own exception (its case is the planner's) |
+| `proposal` | jsonb, | the moves, their reasons and the KPIs before and after |
+| `updated_at` | timestamptz |  |
+
 ### `source_closeout`
 
 Close-outs back to the source (#466, ops/closeout.py): what the field did, drafted as an update for the system that raised the work (complete the record, or a follow-up when the field could not do it), approved on the planner's Inbox (or sent directly) and published as source.update for the system's adapter.

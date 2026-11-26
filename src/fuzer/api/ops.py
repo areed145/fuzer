@@ -1455,7 +1455,7 @@ def _plan_call(conn, fn, *args, **kwargs):
         from ..core.plan import PlanOverload
         if isinstance(e, PlanOverload):
             raise HTTPException(409, str(e)) from e
-        raise HTTPException(404 if re.match(r"no (plan item|exception|schedule activity) \d|no schedule |no resource |no resource capacity window ", str(e)) else 400, str(e)) from e
+        raise HTTPException(404 if re.match(r"no (plan item|plan change|exception|schedule activity) \d|no schedule |no resource |no resource capacity window ", str(e)) else 400, str(e)) from e
     conn.commit()
     return out
 
@@ -1974,6 +1974,59 @@ def plan_constraints(start: datetime | None = None, days: int = Query(42, ge=1, 
     (weather, leave, a vessel in dock) that lowered it and the moves that clear it."""
     from ..ops import schedule
     return _plan_call(conn, schedule.constraints, start, days)
+
+
+@router.get("/plan/changes/{exception_id}")
+def plan_change_read(exception_id: int, conn=Depends(get_conn)):
+    """A plan change (P5.21): what broke and the constraint it puts on the work, the proposal (each move before and
+    after with the constraint behind it, the work worth pulling forward, the finish, deferred oil and overloads before
+    and after), the constraints typed and the forms Fuzer reads."""
+    from ..ops import replan
+    return _plan_call(conn, replan.change, exception_id)
+
+
+class PlanConstraint(BaseModel):
+    by: str
+    text: str
+
+
+@router.post("/plan/changes/{exception_id}/constraints")
+def plan_change_constraint(exception_id: int, c: PlanConstraint, conn=Depends(get_conn)):
+    """A constraint in words (keep A0200 on 12 Apr; no crane work before 10 Apr; crew MECH max 4): read without a
+    model, and the proposal worked out again. A phrase it can't read is refused, naming the forms."""
+    from ..ops import replan
+    return _plan_call(conn, replan.add_constraint, exception_id, c.text, c.by)
+
+
+@router.delete("/plan/changes/{exception_id}/constraints/{n}")
+def plan_change_constraint_remove(exception_id: int, n: int, by: str = "", conn=Depends(get_conn)):
+    from ..ops import replan
+    return _plan_call(conn, replan.remove_constraint, exception_id, n, by)
+
+
+class PlanChangeApprove(BaseModel):
+    by: str
+
+
+@router.post("/plan/changes/{exception_id}/approve")
+def plan_change_approve(exception_id: int, a: PlanChangeApprove, conn=Depends(get_conn)):
+    """A maintenance planner approves a plan change: the plan moves as proposed, each moved SAP order's new dates wait
+    in the write-back queue for that planner, and a notice is drafted for each crew, field operator and the unit
+    downstream."""
+    from ..ops import replan
+    return _plan_call(conn, replan.approve, exception_id, a.by)
+
+
+class PlanNotice(BaseModel):
+    by: str
+    text: str | None = None
+
+
+@router.post("/plan/changes/{exception_id}/notices/{n}/send")
+def plan_change_notice(exception_id: int, n: int, x: PlanNotice, conn=Depends(get_conn)):
+    """A person sends a drafted notice, as they edited it: it goes on the case of each moved job it is about."""
+    from ..ops import replan
+    return _plan_call(conn, replan.send_notice, exception_id, n, x.by, x.text)
 
 
 @router.post("/plan/resources/{code}/capacity")

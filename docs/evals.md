@@ -139,7 +139,8 @@ cases rather than SRE detections) are scored by a sweep (`sweep.py`, `fuzer eval
 `evals/detections.yaml` says, per detector, the stretch of history to sweep and the events it should raise: a key
 fragment and the window in which a run should raise it. A detector that can't arise on the bundle's asset type says
 why (`not_here`). An entry may first land the next delivery in the bundle's history (`deliver`), for a detector that
-reads what it brings (a bypass register, a changed alarm limit, a lab result), and may score only some of the
+reads what it brings (a bypass register, a changed alarm limit, a lab result), bring the plan in from its sources first
+(`plan: true`, for the plan changes the late parts and lapsed permits swept before it put on planned work), and may score only some of the
 detector's work types (`types`): Okan's alarm floods each follow an injected upset, while a bad actor there is the rule
 itself applied to the DCS's alarm data.
 

@@ -977,6 +977,32 @@ export interface PlanConstraints {
   start: string; end: string; days: number; basis: string;
   overloads: (ResourceOverload & { resource: string; name: string; kind: string; unit: string | null })[];
 }
+/** One job a plan change moves (P5.21): its dates before and after and the constraint behind the move. */
+export interface PlanMove {
+  item_id: number; title: string; code: string | null; project: string | null; kind: string; crew: string | null;
+  case: number | null; order: string | null; released: boolean;
+  before: { start: string; end: string }; after: { start: string; end: string }; hours: number; because: string;
+}
+export interface PlanKpis { finish: string | null; deferred_oil: number; deferred_unit: string; overloads: number }
+/** A plan change (GET /plan/changes/{id}): what broke, the constraint it puts on the work, and the plan levelled
+ * again around it, with what the planner typed. */
+export interface PlanNotice {
+  n: number; audience: "crew" | "field" | "downstream"; to: string; name: string; jobs: number[]; text: string;
+  sent_by: string | null; sent_at: string | null;
+}
+export interface PlanChange {
+  exception_id: number; key: string; say: string; constraint: string; start: string; until: string;
+  cause_case: number | null; open: boolean; forms: string[]; constraints: { text: string; form: string }[];
+  /** Once a maintenance planner approves it (P5.21c): who and when, the SAP schedule changes queued, the notices. */
+  state: "open" | "approved"; approved_by: string | null; approved_at: string | null;
+  writebacks: { id: number; record: string | null; state: string; item_id: number | null; approver_role: string }[];
+  notices: PlanNotice[];
+  proposal: {
+    moves: PlanMove[]; schedules: string[]; basis: string;
+    pull_forward: { item_id: number; title: string; start: string; end: string; order: string | null; because: string }[];
+    kpis: { before: PlanKpis; after: PlanKpis; start: string; days: number };
+  } | null;
+}
 export interface ResourceLoad {
   code: string; name: string; kind: string; unit: string | null; capacity: number; work_center: string | null; sources: string[];
   counts: string[]; routine: string | null; routine_load: RoutineLoad | null;
@@ -1011,6 +1037,8 @@ export interface PlanItem {
   area_id: string | null; area_label: string | null; start_at: string; end_at: string; status: string;
   crew: string | null; crew_hours: number | null; needs_shutdown: boolean; deferment_usd: number | null;
   exception_id: number | null; notes: string | null;
+  /** Why a plan change last moved it (P5.21c): "20-K-2200B tripped". */
+  moved_because?: string | null;
   /** Its case, once it has one; and whether the job is done in the field or at a desk. */
   item_id?: number | null; place?: "field" | "desk";
   /** Released to the field (step 5 of the work model): when, by whom, and why if it went though not ready. */
@@ -1066,6 +1094,8 @@ export interface FieldJob extends ExceptionRow {
   warnings?: string[];
   /** Waiting unclaimed in one of their roles' queues: theirs to take, not yet sent to them. */
   queued: boolean;
+  /** Why a plan change last moved this planned job (P5.21c): "20-K-2200B tripped". */
+  moved_because?: string | null;
   /** Each system's report of this event, when more than one reported it (#464). */
   sources: CaseSource[];
   /** Checks to make before the work, such as a compressor trip's restart checklist. */
@@ -1247,6 +1277,14 @@ export const workApi = {
   scheduleLink: (by: string, pred: number, succ: number, type: ScheduleLinkRef["type"], lag_hours: number) =>
     request<unknown>("POST", "/plan/schedules/links", undefined, { by, pred, succ, type, lag_hours }),
   scheduleUnlink: (by: string, pred: number, succ: number) => request<unknown>("DELETE", "/plan/schedules/links", { by, pred, succ }),
+  planChangeOf: (id: number) => request<PlanChange>("GET", `/plan/changes/${id}`),
+  planConstraint: (id: number, by: string, text: string) =>
+    request<PlanChange>("POST", `/plan/changes/${id}/constraints`, undefined, { by, text }),
+  planConstraintRemove: (id: number, by: string, n: number) =>
+    request<PlanChange>("DELETE", `/plan/changes/${id}/constraints/${n}`, { by }),
+  planChangeApprove: (id: number, by: string) => request<PlanChange>("POST", `/plan/changes/${id}/approve`, undefined, { by }),
+  planNoticeSend: (id: number, n: number, by: string, text: string) =>
+    request<PlanChange>("POST", `/plan/changes/${id}/notices/${n}/send`, undefined, { by, text }),
   resourceLoad: (f: { resource?: string; start?: string; days?: number } = {}) =>
     request<{ start: string; end: string; days: number; resources: ResourceLoad[] }>("GET", "/plan/resources/load", f),
   planLogistics: (f: { start?: string; days?: number } = {}) =>

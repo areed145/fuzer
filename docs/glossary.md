@@ -180,6 +180,11 @@ lists each with the move that clears it.
 **Plan.** The one timeline of every planned job from every source: SAP orders and maintenance plans, inspections,
 schedules, and work the IOC planned for a day. A bar on it is a **plan item**.
 
+**Plan change.** What a trip, a late part or a lapsed permit does to planned work, as routed work for the
+maintenance planner (**Plan change to review**): the jobs it holds and until when, the plan levelled again around them,
+each move with the constraint behind it, the work worth pulling forward while a machine is down anyway, and the finish,
+deferred oil and overloads before and after.
+
 **Plan line.** One line of the business plan: the work a program means to do on a facility or area over a period,
 with the hours and cost it estimates, read against the cases matched to it (plan against actual). Written by a planner or
 brought by the business plan export. Its **variance** is the actual less the estimate; above 0 is over the plan.

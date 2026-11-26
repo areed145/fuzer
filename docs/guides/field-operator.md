@@ -89,7 +89,8 @@ job, or discard it. Nothing is sent twice.
   back to the IOC's queue (a desk's step to that desk's queue) when you report.
 - You cannot close work the IOC sent you, and you do not need to: **Done** is the end of your part.
 
-- **Coming up** on My work lists planned work you are booked on; **Started** and **Done** update the plan.
+- **Coming up** on My work lists planned work you are booked on; **Started** and **Done** update the plan. A job a
+  plan change moved says why, as **Moved because 20-K-2200B tripped**, there and on the job once it is sent to you.
 - **How you are told** at the foot of My work sets whether new jobs also reach you by email, Teams or Slack.
 - The full field behaviour, including checking an installed app on real iOS and Android devices, is in
   [workflow: the installed app on a phone](../workflow.md#the-installed-app-on-a-phone).

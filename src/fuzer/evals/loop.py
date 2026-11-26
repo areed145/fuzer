@@ -28,7 +28,9 @@ and reported `synthetic`, so the report shows what is not yet covered. Before th
 cases opened before they did run them (`routing.adopt_open_cases`), as on the API's start. Work about a source rather
 than an asset (`about: source`) matches one of the project's sources instead of an asset (#747). A type that cannot
 arise on the bundle's asset type says why (`not_here: "a pipeline has no wells"`): it is reported under `not_here`,
-not run and not raised synthetically.
+not run and not raised synthetically. Work about planned work (a plan change, P5.21) brings the plan in from its
+sources first (`plan: true`, run after every other type, since planned work holds back the trips and upsets on its
+plant) and the type it is about through that type's own arrival (`after: permit_lapsed`).
 
 Write-back runs against a stand-in for SAP PM (evals/mock_sap.py): for the run, the project's SAP system sends
 through the queue's `sap_pm` adapter to it, and the step reads back what SAP holds (#751). A type whose work came from
@@ -246,6 +248,16 @@ def _bring(conn, how: dict) -> str:
     pack, how = resolve(conn), dict(how)
     landed = ""
     how.pop("about", None)
+    if how.pop("plan", False):  # the integrated plan from its sources, as after every register build
+        from ..ops import pipeline
+
+        pipeline.sync_plan(conn)
+        conn.commit()
+        landed = "the plan from its sources, then "
+    if "after" in how:  # what another type's arrival brings in first (the trip, part or permit a plan change is about)
+        first = how.pop("after")
+        landed += f"{_bring(conn, arrivals(conn)[first])} raising {first}, then "
+        conn.commit()
     if "deviation" in how:  # a deviation someone named, with the review date they gave it, now past
         from ..workflow import operating_model as om
 
@@ -812,8 +824,10 @@ def run(conn, only: list[str] | None = None, arrive: dict | None = None) -> dict
     refs = dict(zip(bare, free, strict=True))
     run_id = conn.execute("select to_char(now(), 'YYYYMMDDHH24MISSUS') as t").fetchone()["t"]  # one key per run
     # deliveries go last: the register build after a load runs the detectors too, and would bring in (and set aside)
-    # the work another type's own detector is about to raise
-    routes.sort(key=lambda r: bool({"deliver", "suggest", "round", "readings"} & set(arrive.get(r["type"], {}))))
+    # the work another type's own detector is about to raise; after them the types that bring the plan in, whose
+    # planned work would hold back the trips and upsets on its plant
+    routes.sort(key=lambda r: (bool((arrive.get(r["type"]) or {}).get("plan")),
+                               bool({"deliver", "suggest", "round", "readings"} & set(arrive.get(r["type"], {})))))
     with _sap_stand_in(conn) as sap:
         results = [run_type(conn, r, refs.get(r["type"]), run_id, arrive.get(r["type"]), sap) for r in routes]
     return {"types": results, "passed": sum(not r["failed"] for r in results), "not_here": not_here,

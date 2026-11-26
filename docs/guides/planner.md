@@ -140,6 +140,48 @@ closed**), linked to the resource on **Resources**. A crew's trip in an overload
 back after, and that job carries the flag: moving it moves the trip. On Resources each overload lists the jobs in it
 and the moves that clear it.
 
+## When something breaks
+
+A trip, a late part or a lapsed permit that lands on planned work arrives as routed work, **Plan change to review**,
+in the maintenance planner queue on **Waiting on me**. Fuzer has already worked out what it does to the plan:
+
+| What broke | What it holds |
+|---|---|
+| A trip | The work on the machine that needs it running, for the hours a trip is allowed for (24 h, as **If this trips** reckons). Work on it that needs it down and fits that window is listed as worth pulling forward. |
+| A late part | Every job on its order, until the latest part arrives |
+| A lapsed permit | The work not yet done on the plant it holds isolated, until it is reissued (24 h allowed) |
+
+The case says what happened and the constraint it puts on the work (**20-K-2200B tripped: down until Sat 25 Oct
+12:00**). Under it is the proposal: the held jobs moved, each schedule they belong to levelled again against every
+shared resource, and every job that moves with the constraint behind it: the disruption itself, a crew it now
+waits for, or an activity it follows. The finish, the oil deferred by shutdowns and the overloads in the constraint
+check are shown before and after. Nothing on the plan moves until the change is approved; the case clears by itself
+once nothing on the plan is held any more.
+
+On the case, **Plan change** draws each moved job on one track: its dates now as a dashed outline and where it goes as
+a bar, with the reason under it, and a table of the finish, deferred oil and overloads now and with the change. Type a
+constraint and choose **Work it out again**; the proposal is levelled again with every constraint typed so far, and
+**Remove** takes one back out. Fuzer reads three forms:
+
+| You type | What it does |
+|---|---|
+| keep A0200 on 12 Apr | Holds that schedule activity, or SAP order, to start no earlier than that day |
+| no crane work before 10 Apr | Gives every crane resource no capacity until that day |
+| crew MECH max 4 | Caps that crew at 4 for the next 90 days from the disruption |
+
+Anything else is not guessed at: Fuzer says which forms it reads and the proposal stays as it was.
+
+**Approve** (a maintenance planner) moves the plan as proposed and closes the case:
+
+- Each moved job keeps why it moved; a field operator booked on it reads **Moved because 20-K-2200B tripped** on
+  Coming up and on the job. A job that was released goes back to unreleased, with a note on its case to release it
+  again for the new dates.
+- Each moved SAP order's new start and finish is drafted as a schedule change in the write-back queue, on your own
+  work, for you to approve before SAP is written (see below). The plan change links each one.
+- A notice is drafted for each crew whose work moved, each person or queue booked on a moved job and, for a trip,
+  the units downstream that lose their feed (to the ops lead). Edit one and choose **Send**: it goes on the case of
+  each moved job it is about, and the plan change keeps who sent it.
+
 ## Approve the update that goes back to SAP
 
 When the field reports Done or Could not do on work SAP raised, the update for SAP is drafted and lands in the

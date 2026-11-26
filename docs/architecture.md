@@ -407,6 +407,7 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `message`
     - `opportunity`
     - `option_choice`
+    - `plan_change`
     - `plan_demand`
     - `plan_item`
     - `plan_link`
@@ -464,6 +465,7 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `message`
     - `opportunity`
     - `option_choice`
+    - `plan_change`
     - `plan_demand`
     - `plan_item`
     - `plan_link`

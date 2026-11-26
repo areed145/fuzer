@@ -40,6 +40,7 @@ Everything that looks for trouble in the data is declared once, where it is writ
 | [`ili_anomalies`](#ili_anomalies) A pig run anomaly that crosses the strength or depth screen | Rule | Once a day | `ili_anomaly` | Any asset with the inputs |
 | [`parts_not_ready`](#parts_not_ready) A planned job whose reserved parts won't be there on the day | Rule | Once a day | `parts_not_ready` | Any asset with the inputs |
 | [`permit_lapsed`](#permit_lapsed) A permit lapsed with plant still isolated under it | Rule | Every hour | `permit_lapsed` | Any asset with the inputs |
+| [`plan_changes`](#plan_changes) Planned work a trip, a late part or a lapsed permit has hit | Rule | Every hour | `plan_change` | Any asset with the inputs |
 | [`promoted_rules`](#promoted_rules) A rule drafted from confirmed watch findings and published by a person | Rule | Every 6 hours | `upset` | Any asset with the inputs |
 
 ## excursions
@@ -434,6 +435,16 @@ Everything that looks for trouble in the data is declared once, where it is writ
 - **Raises:** `permit_lapsed`
 - **Needs:** permits to work with their isolations
 - **Scored by:** `tests/ops/test_permit_work.py::test_a_lapsed_permit_with_plant_isolated_is_work_until_closed`, on the fake plant
+
+## plan_changes
+
+**Planned work a trip, a late part or a lapsed permit has hit.** Each open trip, late part or lapsed permit that holds planned work, raised as `plan_change` for the maintenance planner (keyed by the disruption) with its proposal worked out; open ones nothing is hit by any more (the cause cleared, or the work moved) are cleared.
+
+- **Kind:** Rule
+- **Runs:** Every hour
+- **Raises:** `plan_change`
+- **Needs:** planned work
+- **Scored by:** `tests/ops/test_replan.py::test_a_trip_on_planned_work_is_a_plan_change_with_each_move_and_why`, on the fake plant
 
 ## promoted_rules
 

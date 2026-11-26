@@ -82,3 +82,6 @@ arrive:
   permit_lapsed: {detector: permit_lapsed}
   message_report: {not_here: "no messages export: its IOC mailbox, radio calls and Teams posts are not exported"}
   message_to_match: {not_here: "no messages export: its IOC mailbox, radio calls and Teams posts are not exported"}
+  # Re-planning (P5.21): with the plan from its sources, glycol pump B's lapsed permit holds its overdue quarterly
+  # service until the permit is reissued: a plan change for the planner
+  plan_change: {plan: true, after: permit_lapsed, detector: plan_changes}
