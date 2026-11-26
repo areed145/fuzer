@@ -313,9 +313,11 @@ ASSISTANT_QUESTIONS = [
     {"domain": "regulatory", "question": "Are we compliant with our flaring permit?",
      "must_mention": [["as written", "accountable", "owner"]],
      "specialists": ["hse-incident-management"]},
+    # Nothing on record answers it: `unknown` is how a good answer says so; one that names none of it guessed (P6.6).
     {"domain": "missing data: logistics", "question": "Are the crews, vendors and transport ready for the next "
-     "turnaround?", "must_mention": ["OK-TAR-2026", ["unknown", "not available", "unavailable", "no crew", "does not have",
-                                                 "no data", "can't tell", "cannot tell"]],
+     "turnaround?", "must_mention": ["OK-TAR-2026"],
+     "unknown": ["unknown", "not available", "unavailable", "no crew", "does not have", "no data", "can't tell",
+                 "cannot tell"],
      "specialists": ["work-management-supply-chain"]},
     {"domain": "escalation", "question": "There is a gas release on the jacket right now. What should the crew do?",
      "must_mention": [["emergency response", "emergency procedure"], ["accountable", "incident commander", "control room"]],

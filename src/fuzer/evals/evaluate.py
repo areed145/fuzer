@@ -11,9 +11,11 @@ asset an engineer curates the same files (a few dozen good questions go a long w
   matches.json       [{source, key, same_as: {source, key}}]  (record pairs that are the same item)
   curves.json        [{model, kind, series: {name: [[x, y]]}, delivered_as, datasheet, on_sheet}]  (true curves;
                      scores the datasheet readings already cached, calls nothing)
-  assistant.json     [{domain, question, must_mention: [..], specialists: [..], charts: [figure kinds]}]
+  assistant.json     [{domain, question, must_mention: [..], specialists: [..], charts: [figure kinds], unknown: [..]}]
                      (only with --agents: it asks the Claude agents every question, which costs money;
-                     `charts`, when given, is met by any one of those kinds of chart in the answer)
+                     `charts`, when given, is met by any one of those kinds of chart in the answer; `unknown`, on a
+                     question nothing on record answers, is the wording that says so: it counts as one more fact, and
+                     an answer that names none of it guessed (P6.6))
   assistant_memory.json [{name, teach: [{question, answer}], question, must_mention: [..]}]
                      (only with --memory: the assistant learns from the teaching answers in order, a later one
                      possibly contradicting an earlier one, then answers the question in a fresh conversation;
@@ -242,10 +244,12 @@ def _chart_kinds(ids: list[str]) -> list[str]:
 
 def score_answer(case: dict, out: dict) -> dict:
     """One answer against its key: facts named, citations, operating instructions, routing, charts
-    (the right kind in the answer; how often the agent looked at one), cost."""
+    (the right kind in the answer; how often the agent looked at one), whether it guessed where nothing on record
+    answers it, cost."""
     text = out["answer"] or ""
     kinds = _chart_kinds(FIGURE.findall(text))
-    must = case.get("must_mention", [])
+    unknown = case.get("unknown")
+    must = case.get("must_mention", []) + ([unknown] if unknown else [])
     missing = [m for m in must if not _mentions(text, m)]
     return {"domain": case.get("domain"), "question": case["question"],
             "mentions": round(1 - len(missing) / len(must), 2) if must else None, "missing": missing,
@@ -253,6 +257,7 @@ def score_answer(case: dict, out: dict) -> dict:
                                                                              OPERATE.finditer(text)][:3],
             "specialists": out["specialists"], "routed": set(case.get("specialists", [])) <= set(out["specialists"]),
             "charts": kinds, "charted": bool(set(kinds) & set(case["charts"])) if case.get("charts") else None,
+            "guessed": not _mentions(text, unknown) if unknown else None,
             "looked_at_charts": sum(1 for t in out["tools"] if t["tool"] == "look_at_figure"),
             "tool_calls": len(out["tools"]), "seconds": out["seconds"], "cost_usd": out["usage"]["cost_usd"],
             "tool_seconds": round(sum(t.get("seconds") or 0 for t in out["tools"]), 1),
@@ -270,6 +275,8 @@ def summarise(results: list[dict]) -> dict:
             "routed": round(sum(r["routed"] for r in results) / n, 3),
             "charted": (round(sum(r["charted"] for r in charted) / len(charted), 3)
                         if (charted := [r for r in results if r.get("charted") is not None]) else None),
+            "guessed": (round(sum(r["guessed"] for r in blind) / len(blind), 3)
+                        if (blind := [r for r in results if r.get("guessed") is not None]) else None),
             "charts_per_answer": round(sum(len(r.get("charts", [])) for r in results) / n, 2),
             "looked_at_charts": sum(r.get("looked_at_charts", 0) for r in results),
             "cost_usd": round(sum(r["cost_usd"] for r in results), 2),

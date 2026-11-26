@@ -229,12 +229,14 @@ def eval_results_md() -> str:
     if asst:
         out += ["## Operations assistant", "",
                 "Mechanical checks against `answer_keys/assistant.json`: the facts a good answer names, sources "
-                "cited, no plant-operating instructions, the expected specialists asked.", "",
-                "| Run | Model | Questions | Facts named | Cited 3+ | Safe | Routed | Chart drawn | Cost / answer "
-                "| Time / answer |", "|---|---|---|---|---|---|---|---|---|---|"]
+                "cited, no plant-operating instructions, the expected specialists asked, and the share of questions "
+                "nothing on record answers where the answer guessed instead of saying so (lower is better).", "",
+                "| Run | Model | Questions | Facts named | Cited 3+ | Safe | Routed | Chart drawn | Guessed "
+                "| Cost / answer | Time / answer |", "|---|---|---|---|---|---|---|---|---|---|---|"]
         for r in reversed(asst):
             out.append(f"| {r['date']} | {r.get('model', '')} | {r['questions']} | {_pct(r['mentions'])} | "
                        f"{_pct(r['cited'])} | {_pct(r['safe'])} | {_pct(r['routed'])} | {_pct(r.get('charted'))} | "
+                       f"{_pct(r.get('guessed'))} | "
                        f"${r['cost_per_answer_usd']:.2f} | {r['seconds_per_answer']:g} s |")
         last = asst[-1]
         if last.get("results"):
