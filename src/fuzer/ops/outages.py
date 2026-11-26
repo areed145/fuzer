@@ -9,6 +9,8 @@ planners, not a nomination or a commitment.
                                  overloads it is in and the planner's rules its jobs break; and the same outages by
                                  asset (the areas its jobs are in and the units it takes down), by person (each crew
                                  and person booked) and by customer, a customer hit by more than one outage flagged
+    maintenance(conn, o)         the maintenance history of what an outage's jobs work on (P5.22d): each tag or piece
+                                 of equipment, its SAP notifications with their work orders and its downtime
 
 Read from the records, never from the asset type:
     an outage            a schedule whose activities need the plant down is one outage, from its first start to its
@@ -284,3 +286,24 @@ def past(conn, o: dict) -> list[dict]:
         out.append({"key": r["key"] or r["id"], "start": a, "end": b, "hours": round(_hours(a, b), 1),
                     "comment": f.get("comment")})
     return sorted(out, key=lambda x: x["start"], reverse=True)
+
+
+def maintenance(conn, o: dict, limit: int = 5) -> list[dict]:
+    """The maintenance history of what the outage's jobs work on (P5.22d): each tag or piece of equipment they name, in
+    plan order, with its latest SAP notifications and their work orders and the downtime it caused or was hit by, read
+    as the asset's own page reads them (graph.queries); an asset with neither is left out."""
+    from ..graph import queries
+
+    ids: list[str] = []
+    for r in conn.execute("select subjects from plan_item where id = any(%s) order by start_at, id", (o["item_ids"],)):
+        ids += [s for s in r["subjects"] or [] if s not in ids]
+    named = {r["fuzer_id"]: r for r in conn.execute(
+        "select e.fuzer_id, e.kind, l.label from entity e left join entity_label l using (fuzer_id) "
+        "where e.fuzer_id = any(%s) and e.kind in ('tag', 'equipment')", (ids,))}
+    out = []
+    for i in (x for x in ids if x in named):
+        notes, down = queries.maintenance(conn, i, limit=limit)["recent"], queries.downtime(conn, i, limit=limit)["recent"]
+        if notes or down:
+            out.append({"id": i, "label": named[i]["label"] or i, "kind": named[i]["kind"], "notifications": notes,
+                        "downtime": down})
+    return out

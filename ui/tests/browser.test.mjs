@@ -12838,3 +12838,72 @@ for (const [size, viewport] of PHONE_DESK) {
     assert.deepEqual(errors, []);
   });
 }
+
+// ---- P5.22d (#1428): on an outage, the line's flow and pressure with the outage shaded, and the maintenance history ---
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.22d an outage shows the line's flow and pressure with its window shaded, and its maintenance history (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "pat"));
+    const at = (d, h = 12) => new Date(Date.UTC(2026, 11, d, h)).toISOString();
+    const trace = (id, point, label, role, uom) => ({ id, point, description: label, role_label: label, role, uom, axis: uom, show: true,
+      values: [["2026-11-22T08:00", 100], ["2026-11-26T08:00", 102]], min: 100, max: 102, mean: 101, last: 102, on: null, limits: [] });
+    const view = { provider: "synthetic", centre: "2026-11-26T08:00", start: "2026-11-09T22:00", end: "2026-11-26T08:00", step_minutes: 240,
+      upsets: [], unit: "fz-area-a1", unit_label: "HRPT-A1", classes: [], template: { key: "generic", title: "Process values" }, missing: [],
+      other: [], groups: [
+        { key: "pressure", label: "Pressure", show: true, traces: [trace("pt1004", "HRPT:A1.PT1004.PV", "Suction pressure", "suction_pressure", "psig"),
+          trace("pt1005", "HRPT:A1.PT1005.PV", "Discharge pressure", "discharge_pressure", "psig")] },
+        { key: "flow", label: "Flow", show: true, traces: [trace("ft1010", "HRPT:A1.FT1010.PV", "Process flow", "flow", "bbl/d")] }] };
+    const shade = { kind: "window", start: "2026-12-10T06:00", end: "2026-12-14T12:00", tone: "accent",
+      label: "Harrier mainline outage (pig run, midline pump A overhaul, receipt meter proving)" };
+    const spec = { ...specOf(view), focus: ["pt1005", "ft1010"], marks: [shade], time: { start: view.start, end: shade.end, centre: view.centre } };
+    const wo = (id, label, activity, start) => ({ id, label, activity, start, cost: null });
+    const change = { exception_id: 31, key: "outage_window:HR-PIG-2027", say: shade.label, constraint: "a window to choose",
+      start: at(10), until: at(14, 18), cause_case: null, case: 60, picks: {}, history: [], changed: [], reverted_by: null, reverted_at: null,
+      open: true, forms: [], constraints: [], state: "open", approved_by: null, approved_at: null, writebacks: [], notices: [],
+      proposal: { moves: [], schedules: ["HR-PIG-2027"], pull_forward: [], basis: "", windows: [
+        { n: 0, start: at(23), end: at(27, 18), hours: 102, usd: 512850, volume_bbl: 255000, reasons: ["13 days later than planned"],
+          alongside: [], hits: [], customers: [] }], recommended: 0, picked: 0, recommend: "Costs the customers least ($512,850)", past: [],
+        maintenance: [
+          { id: "fz-tag-p2001a", label: "B1-P-2001A", kind: "tag", downtime: [], notifications: [{ id: "fz-n-3", label: "10007003",
+            created: "2026-11-22", type: "M2", priority: "2", failure_mode: "ELP", failure_mode_name: "External leakage - process medium",
+            failure_mechanism_name: "Wear", text: "Mechanical seal leak on midline pump A", work_orders: [wo("fz-wo-1", "40009001", "Replace", "2026-11-23")] }] },
+          { id: "fz-tag-xv3001", label: "C1-XV-3001", kind: "tag", notifications: [], downtime: [{ id: "fz-dt-1", label: "HRDT-0001",
+            start: "2026-06-29 06:00", end: "2026-06-30 18:00", duration_h: 36, reason: "Planned maintenance", reason_category: "planned",
+            lost_oil_bbl: 113217, comment: "Planned line shutdown for C1-XV-3001 valve repair and pig launcher work", reason_check: null,
+            affects: [], caused_by: [] }] }] } };
+    const item = { ...demoTask.item, id: 60, title: "Harrier mainline outage: 1 window to choose", type: "plan_change", state: "open",
+      closed_at: null, processes: [], events: [], sources: [{ ...planSource(31), key: "plan_change:outage_window:HR-PIG-2027" }] };
+    const asked = [];
+    await page.route("**/work/items/60", (route) => route.fulfill({ json: item }));
+    await page.route("**/plan/changes/31", (route) => route.fulfill({ json: change }));
+    await page.route("**/work/items/60/around", (route) => route.fulfill({ json: { window: { start: "2026-11-22T08:00", end: shade.end },
+      units: [{ id: "fz-area-a1", label: "HRPT-A1" }, { id: "fz-area-d1", label: "HRPT-D1" }], alarms: [], log: [], basis: "" } }));
+    await page.route("**/entities/fz-area-a1/trend-spec*", (route) => { asked.push(new URL(route.request().url()).searchParams.get("case"));
+      return route.fulfill({ json: spec }); });
+    await page.route("**/entities/fz-area-a1/timeline*", (route) => route.fulfill({ json: { unit: "fz-area-a1", start: view.start, end: shade.end, lanes: [] } }));
+    await page.goto(`${url}/#/cases/60`);
+    // the line where the outage takes it down, the origin first, opened on its flow and pressure with the outage shaded ahead
+    await page.getByRole("button", { name: "HRPT-D1" }).waitFor();
+    const trend = page.locator(".trend-view");
+    await trend.locator(".main-svg").first().waitFor();
+    assert.deepEqual(asked, ["60"], "the trend is the case's: its marks and focus come from the server");
+    assert.match(await trend.locator("[aria-label*=' series and ']").first().getAttribute("aria-label"), /: 2 series/);
+    const drawn = await trend.locator(".js-plotly-plot").evaluate((node) => ({ range: node.layout.xaxis.range,
+      shaded: node.layout.shapes.filter((x) => x.type === "rect").map((x) => [x.x0, x.x1]) }));
+    assert.deepEqual(drawn.range, [view.start, shade.end], "the time axis runs on to the outage's end");
+    assert.deepEqual(drawn.shaded, [[shade.start, shade.end]]);
+    // beside the windows, the maintenance history of what its jobs work on, each record linked
+    const card = page.locator(".replan");
+    const history = card.getByRole("region", { name: "Maintenance history" });
+    await history.getByRole("link", { name: "Mechanical seal leak on midline pump A" }).waitFor();
+    await history.getByRole("link", { name: "B1-P-2001A" }).waitFor();
+    await history.getByRole("link", { name: "40009001" }).waitFor();
+    await history.getByRole("link", { name: /Planned line shutdown for C1-XV-3001/ }).waitFor();
+    const windows = await card.getByRole("list", { name: "Windows" }).boundingBox();
+    const box = await history.boundingBox();
+    if (size === "desktop") assert.ok(box.x > windows.x + windows.width - 1 && box.y < windows.y + windows.height, "beside the windows");
+    else assert.ok(box.y >= windows.y + windows.height - 1, "under the windows on a phone");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}

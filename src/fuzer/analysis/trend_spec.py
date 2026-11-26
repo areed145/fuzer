@@ -24,7 +24,7 @@ which picks the template and reads the values, so the window, centre, limits and
 import re
 from datetime import datetime, timedelta
 
-from ..core import wording
+from ..core import clock, wording
 from . import trend_view, values
 
 VERSION = 1
@@ -138,11 +138,14 @@ def from_view(view: dict, focus: list[str] | None = None, marks: list[dict] | No
     panels = [{"key": g["key"], "label": g["label"], "show": bool(g["show"]), "axis": "auto",
                "series": [t["id"] for t in g["traces"]]} for g in groups if g["traces"]]
     template = view["template"]
+    # a page's window planned ahead of now (an outage on the plan, P5.22d) carries the time axis on past the values
+    now = clock.now().isoformat(timespec="minutes")
+    end = max([view["end"], *(m["end"][:16] for m in marks or [] if m.get("kind") == "window" and (m.get("end") or "") > now)])
     return {
         "version": VERSION, "subject": view.get("entity"), "unit": view["unit"], "unit_label": view.get("unit_label"),
         "title": " · ".join(x for x in (view.get("unit_label"), template["title"]) if x),
         "template": template, "provider": view["provider"], "step_minutes": view["step_minutes"],
-        "time": {"start": view["start"], "end": view["end"], "centre": view["centre"]},
+        "time": {"start": view["start"], "end": end, "centre": view["centre"]},
         "panels": panels, "series": series, "focus": _focus(series, focus),
         "events": [{"lane": k, "label": v, "show": True} for k, v in LANES.items()],
         "marks": [*_marks(view), *(marks or [])], "missing": view.get("missing", []), "errors": view.get("errors", []),

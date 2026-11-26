@@ -30,6 +30,7 @@ import { IncidentDetail, IncidentList } from "./Incidents";
 import { MeasurementsCard } from "../Trend";
 import { TrendView } from "../TrendView";
 import { MemoryCard } from "../Memory";
+import { DowntimeList, NotificationList } from "../Maintenance";
 import { WorkHere, readWork } from "../WorkHere";
 import { Beneath, Breadcrumb, useHierarchy } from "../Hierarchy";
 import { EntitySummary } from "../EntitySummary";
@@ -644,26 +645,7 @@ function MaintenanceCard({ id }: { id: string }) {
         </div>
         <div>
           <Heading level={3}>Recent</Heading>
-          <ul className="timeline">
-            {m.data.recent.slice(0, 8).map((n) => (
-              <li key={n.id}>
-                <span className="when">{n.created}</span>
-                <div className="what">
-                  {/* One line that wraps as text: a flex row put a long title under its code, alone (#1076). */}
-                  <div>
-                    {n.failure_mode && <><UIBadge tone="danger" title={`ISO 14224 ${n.failure_mode}`}>
-                      {n.failure_mode_name ?? n.failure_mode}</UIBadge>{" "}</>}
-                    <a href={entityHref(n.id)}>{n.text}</a>
-                  </div>
-                  {n.work_orders.map((w) => (
-                    <div key={w.id} className="muted small">
-                      WO <a href={entityHref(w.id)}>{w.label}</a> · {w.activity} · {w.start}
-                    </div>
-                  ))}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <NotificationList items={m.data.recent.slice(0, 8)} />
         </div>
       </div>
     </UICard>
@@ -675,23 +657,7 @@ function DowntimeCard({ id }: { id: string }) {
   if (!d.data?.events) return null;
   return (
     <UICard as="section" title="Downtime" detail={<>{count(Math.round(d.data.lost_oil_bbl))} bbl oil lost over {d.data.events} events</>}>
-      <ul className="timeline">
-        {d.data.recent.slice(0, 8).map((r) => (
-          <li key={r.id}>
-            <span className="when">{whenDay(r.start)}</span>
-            <div className="what">
-              <Line>
-                <UIBadge tone="danger">{r.reason ?? "downtime"}</UIBadge>
-                <a href={entityHref(r.id)}>{r.comment}</a>
-              </Line>
-              <Text as="div" small muted>
-                {r.duration_h} h · {count(Math.round(r.lost_oil_bbl ?? 0))} bbl
-                {r.reason_check && <ErrorText inline> · {r.reason_check}</ErrorText>}
-              </Text>
-            </div>
-          </li>
-        ))}
-      </ul>
+      <DowntimeList rows={d.data.recent.slice(0, 8)} />
     </UICard>
   );
 }

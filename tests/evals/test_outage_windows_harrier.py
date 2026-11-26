@@ -53,6 +53,41 @@ def test_an_outage_gets_three_proposed_windows_with_reasons_and_dollar_impact(c,
     assert p["moves"] and all(m["project"] == PIG for m in p["moves"])
 
 
+def test_the_outage_shows_the_lines_flow_and_pressure_with_its_window_shaded(c, asked):
+    """P5.22d: the outage's case trends the line where it takes it down, the origin station and the terminal's receipt,
+    opened on their flow and pressure: values up to now, the time axis on to the outage's end with the outage shaded."""
+    from fuzer.analysis import trend_spec
+    from fuzer.core import clock
+    from fuzer.ops import around
+
+    o = asked["proposal"]["outage"]
+    start, end = (clock.wall(o[k]).isoformat(timespec="minutes") for k in ("start", "end"))
+    got = around.context(c, asked["case"])
+    assert [u["label"] for u in got["units"]] == ["HRPT-A1", "HRPT-D1"]
+    assert got["window"]["start"] < clock.now().isoformat(timespec="minutes") < got["window"]["end"] == end
+    trend = around.trend(c, asked["case"])
+    [shade] = trend["marks"]
+    assert (shade["kind"], shade["start"], shade["end"]) == ("window", start, end)
+    assert shade["label"] == o["title"]
+    hours = int((clock.wall(o["end"]) - clock.now()).total_seconds() // 3600)
+    for unit, want in zip(got["units"], ({"Discharge pressure", "Process flow"}, {"Process pressure", "Process flow"})):
+        s = trend_spec.spec(c, unit["id"], clock.now().isoformat(timespec="minutes"), hours, hours,
+                            focus=trend["focus"], marks=trend["marks"])
+        assert {x["label"] for x in s["series"] if x["key"] in s["focus"]} == want
+        assert s["time"]["end"] == end and shade in s["marks"]
+        assert max(t for x in s["series"] for t, _ in x["values"]) <= clock.now().isoformat(timespec="minutes")
+
+
+def test_the_outage_shows_the_maintenance_history_of_what_its_jobs_work_on(c, asked):
+    """P5.22d: beside the windows, each asset the outage's jobs work on with its SAP notifications and work orders and
+    its downtime, as its own page lists them; an asset with none is left out."""
+    got = {x["label"]: x for x in asked["proposal"]["maintenance"]}
+    assert list(got) == ["B1-P-2001A", "D1-FT-4002", "C1-XV-3001"]
+    [seal] = got["B1-P-2001A"]["notifications"]
+    assert seal["text"] == "Mechanical seal leak on midline pump A" and seal["work_orders"][0]["activity"] == "Replace"
+    assert [d["label"] for d in got["C1-XV-3001"]["downtime"]] == ["HRDT-0001"]
+
+
 def test_another_window_is_picked_only_with_a_reason(c, asked):
     eid = asked["exception_id"]
     with pytest.raises(PlanError, match="say why window 2"):
