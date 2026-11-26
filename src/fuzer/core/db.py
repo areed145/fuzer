@@ -283,10 +283,30 @@ def init_schema(conn) -> None:
             wait = min(2 ** attempt, 30) * 0.5
             print(f"Schema update waited on live traffic ({type(e).__name__}); retry {attempt} in {wait:.0f}s",
                   flush=True)
+            if attempt >= SCHEMA_PATIENCE:
+                _end_long_transactions(conn)
             time.sleep(wait)
 
 
 SCHEMA_ATTEMPTS = 16  # about three minutes of backing off: the deploy of #1374 ran out at 8 while the old instance ticked
+SCHEMA_PATIENCE = 4  # backoffs before a transaction open longer than LONG_TRANSACTION is ended
+LONG_TRANSACTION = "2 minutes"
+
+
+def _end_long_transactions(conn) -> None:
+    """End the transactions on this database that have been open longer than LONG_TRANSACTION. Backing off never
+    finds a gap while the previous instance holds one transaction for many minutes (the fleet screen read every
+    machine's points in one, ~10 min, and the deploy of #1397 exited after sixteen tries): its locks keep the
+    migration out however long it waits. Ending it rolls that job back; its next run starts on the new schema."""
+    rows = conn.execute(
+        "select pid, pg_terminate_backend(pid) as ended, left(query, 80) as query from pg_stat_activity "
+        "where datname = current_database() and pid <> pg_backend_pid() and xact_start < now() - %s::interval",
+        (LONG_TRANSACTION,),
+    ).fetchall()
+    conn.commit()
+    for r in rows:
+        print(f"Schema update ended a transaction open over {LONG_TRANSACTION} (pid {r['pid']}: {r['query']})",
+              flush=True)
 SCHEMA_LOCK_TIMEOUT = "5s"  # each lock the migration waits for: a busy table makes it back off, not queue traffic
 
 

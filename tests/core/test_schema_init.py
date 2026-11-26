@@ -3,6 +3,7 @@ on a new schema take turns instead of deadlocking (#208 found four Dagster check
 
 import threading
 
+import psycopg
 import pytest
 
 from fuzer.core import db
@@ -126,3 +127,23 @@ def test_changed_schema_backs_off_from_live_traffic(url, monkeypatch, capsys):
             timer.cancel()
         assert deploy.execute("select hash from schema_version").fetchone()["hash"] == db.schema_hash()
     assert "retry 1" in capsys.readouterr().out  # it let go of its locks rather than queue behind traffic
+
+
+def test_changed_schema_ends_a_transaction_held_for_minutes(url, monkeypatch, capsys):
+    """Backing off finds no gap while the previous instance holds one transaction for many minutes (the fleet
+    screen read every machine's points in one, and the deploy of #1397 exited after sixteen tries). After a few
+    backoffs the migration ends a transaction open longer than LONG_TRANSACTION and goes ahead."""
+    monkeypatch.setattr(db, "SCHEMA_LOCK_TIMEOUT", "300ms")
+    monkeypatch.setattr(db, "SCHEMA_PATIENCE", 1)
+    monkeypatch.setattr(db, "LONG_TRANSACTION", "0 seconds")
+    monkeypatch.setattr(db.time, "sleep", lambda s: None)
+    with db.connect(url=url) as c:
+        c.execute("update schema_version set hash = 'old'")
+        c.commit()
+    with db.connect(url=url) as job, db.connect(url=url) as deploy:
+        job.execute("select count(*) from assertion").fetchone()  # held, never given back
+        db.init_schema(deploy)
+        assert deploy.execute("select hash from schema_version").fetchone()["hash"] == db.schema_hash()
+        with pytest.raises(psycopg.OperationalError):
+            job.execute("select 1")
+    assert "ended a transaction open over" in capsys.readouterr().out
