@@ -347,6 +347,51 @@ def test_the_picker_lists_each_thing_once(read):
     assert counted["total"] == len(once) and counted["hits"] == once[:12]
 
 
+def test_the_picker_lists_a_pump_once_as_its_tag(read):
+    """Tour F (C9): "Oil Export Pump" listed pump C twice, as "S/N 69001 · Equipment" (the scrapped pump JDE still
+    lists) and as the equipment installed at 10-P-1001C, while a vessel came as its tag. What work can be about is in
+    the plant, each thing once, by the tag it is installed at."""
+    conn, _ = read
+    from fuzer.graph import queries
+
+    pack = load_pack("okan")
+    hits = queries.search(conn, pack, "Oil Export Pump", "work", 12)
+    labels = [h["label"] for h in hits]
+    assert {"10-P-1001A", "10-P-1001B", "10-P-1001C"} <= set(labels), labels
+    assert not [h for h in hits if h["kind"] == "equipment"], hits  # each installed pump is its tag
+    assert "S/N 69001" not in labels and len(labels) == len(set(labels)), labels
+    assert queries.search(conn, pack, "10-P-1001C", "work", 12)[0]["kind"] == "tag"
+    # the plain search still finds the scrapped pump: only the picker for work leaves it out
+    assert "S/N 69001" in [h["label"] for h in queries.search(conn, pack, "Oil Export Pump", "equipment", 50)]
+
+
+def test_no_work_needed_closes_its_case_at_once_and_says_so(read):
+    """Tour F7: No work needed took 4 to 6 s and the case still said Open, with the data steward queue, until a reload.
+    The answer closes its own case without refreshing every other question, and answers with the case as it stands."""
+    conn, _ = read
+    from fuzer import api
+
+    demo = messages.receive(conn, load_pack("okan"), "user:demo", "Something squeaking by the laydown area")
+    conn.commit()
+    qid = demo["review_item_id"]
+    case = conn.execute("select item_id from exception_record where type = 'message_to_match' and key = %s",
+                        (f"message:{demo['id']}",)).fetchone()["item_id"]
+    others = conn.execute("select id, updated_at from exception_record where type = 'message_to_match' and state = "
+                          "'open' and item_id <> %s", (case,)).fetchall()
+    with TestClient(api.app) as client:
+        r = client.post(f"/review/{qid}", json={"decision": "reject", "by": "ana"})
+        assert r.status_code == 200, r.text
+        item = r.json()["item"]
+    assert item["id"] == case and item["state"] == "done" and item["closed_at"], item
+    assert conn.execute("select disposition from case_disposition where item_id = %s",
+                        (case,)).fetchone()["disposition"] == "no_work"
+    # the other open questions were not touched by this answer
+    for o in others:
+        assert conn.execute("select updated_at from exception_record where id = %s",
+                            (o["id"],)).fetchone()["updated_at"] == o["updated_at"]
+    conn.rollback()
+
+
 def test_a_steward_choice_kept_before_it_was_a_fact_reads_as_one(read):
     """Tour D8: cases a steward placed before #1383 kept "Matched by: chosen by user:demo", printed on the page as
     "Matched by chosen by user:demo". The schema rewrites them to the "Chosen by" fact every new case carries."""

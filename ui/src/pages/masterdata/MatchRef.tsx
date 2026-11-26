@@ -1,8 +1,9 @@
 /** Pick the entity a value meant (#476): search the register, tap the one it meant, and choose whether to remember it
  * (an alias, so the next record or exception with that value matches on its own). Where only some kinds will do (what
  * work can be about, P5.26f), the search offers only those, each with its kind, description and the place it sits in.
- * The rows are tapped, not picked from a dropdown, a single result comes picked, and the count says how many more the
- * search found than it shows (#1382). With `multiple`, several can be picked (a message about three drivers). */
+ * The rows are tapped, not picked from a dropdown, a single result is the pick (a line and Use it, no box to untick:
+ * tour F8), and the count says how many more the search found than it shows (#1382). With `multiple`, several can be
+ * picked (a message about three drivers). */
 import { useState } from "react";
 import { errorMessage } from "../../lib";
 import { api, type SearchHit } from "../../api";
@@ -64,9 +65,10 @@ export function MatchRef({ value, onPick, busy, remember: rememberDefault = true
       {found && hits.length === 0 && <Empty>Nothing in the register matches “{q}”. Try part of a tag or name.</Empty>}
       {hits.length > 0 && <>
         {found!.total > hits.length && <Text as="div" small>{hits.length} of {count(found!.total)}</Text>}
-        <List plain aria-label="Entities">{hits.map((h) => <li key={h.fuzer_id}>
+        {hits.length === 1 ? <Text as="p">{hitLine(hits[0])}</Text>
+          : <List plain aria-label="Entities">{hits.map((h) => <li key={h.fuzer_id}>
           <Checkbox checked={picked.includes(h.fuzer_id)} disabled={busy} onChange={(on) => tap(h.fuzer_id, on)}>
-            {hitLine(h)}</Checkbox></li>)}</List>
+            {hitLine(h)}</Checkbox></li>)}</List>}
       </>}
       <Line wrap>
         {canRemember && <Checkbox checked={remember} onChange={setRemember}>remember “{bare}” as a name for it</Checkbox>}

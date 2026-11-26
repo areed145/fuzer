@@ -1338,7 +1338,9 @@ export const workApi = {
     /** A message's case: one that only said what was done closes as log only. */ message?: boolean }>("GET", `/work/items/${id}/closeout`),
   answerRecheck: (id: number, by: string, held: boolean, note?: string) =>
     request<CaseCloseout>("POST", `/work/items/${id}/recheck`, undefined, { by, held, note }),
-  recordCaseCloseout: (id: number, body: CloseoutInput) => request<CaseCloseout>("POST", `/work/items/${id}/closeout`, undefined, body),
+  /** `item` is the case as the close-out left it (tour F12). */
+  recordCaseCloseout: (id: number, body: CloseoutInput) =>
+    request<CaseCloseout & { item?: CaseNow | null }>("POST", `/work/items/${id}/closeout`, undefined, body),
   closeoutMissing: () => request<{ id: number; title: string; type: string; closed_at: string }[]>("GET", "/closeout/missing"),
   workPerformance: () => request<WorkPerformance>("GET", "/work/performance"),
   detectorPerformance: () => request<DetectorPerformance>("GET", "/work/performance/detectors"),
@@ -1398,10 +1400,10 @@ export const workApi = {
   reviews: (kind: ReviewKind) => request<ReviewItem[]>("GET", "/review", { kind, limit: 500 }),
   /** One open question, as a list of one (none once it is answered). */
   review: (kind: ReviewKind, item: number) => request<ReviewItem[]>("GET", "/review", { kind, item }),
-  /** `case` is the case a message question's answer opened (P5.26a). */
-  /** A message's answer says the case it opened and what that case is about (#1382). */
+  /** A message's answer says the case it opened and what that case is about (#1382); `item` is the steward's case the
+   * answer closed, as it now stands (tour F7). */
   decide: (id: number, d: Decision) => request<{ decided: number; case?: number | null;
-    about?: { fuzer_id: string; label: string }[] }>("POST", `/review/${id}`, undefined, d),
+    about?: { fuzer_id: string; label: string }[]; item?: CaseNow | null }>("POST", `/review/${id}`, undefined, d),
   /** Change the entities a message case is about: a wrong match, redone on the case (#1382). */
   changeMessageEntities: (exceptionId: number, by: string, fuzerIds: string[]) =>
     request<{ case: number | null; about: { fuzer_id: string; label: string }[]; item: CaseNow | null }>(

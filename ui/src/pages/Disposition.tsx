@@ -3,7 +3,7 @@
  * suggestion, and the person confirms it. On a phone it is a handful of selects, one per line. */
 import { useRef, useState } from "react";
 import { when } from "../format";
-import { api, type CaseCloseout, type CloseoutVocabulary } from "../api";
+import { api, type CaseCloseout, type CaseNow, type CloseoutVocabulary } from "../api";
 import { Button, Card, Disclosure, Field, Input, Select, ErrorText, Line, Text, Notice } from "../ui";
 import { Status, useAsync, useAction } from "../lib";
 import { Actor } from "../work";
@@ -27,7 +27,8 @@ export function closeoutLine(r: CaseCloseout, v: CloseoutVocabulary): string {
 }
 
 export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload, startOpen = false, openItems = 0 }:
-  { itemId: number; person: string; closed: boolean; readOnly: boolean; reload: () => void; startOpen?: boolean;
+  { itemId: number; person: string; closed: boolean; readOnly: boolean; startOpen?: boolean;
+    /** Shows the case as the close-out left it, then reads it again. */ reload: (now?: CaseNow | null) => void;
     /** checklist items still open: finishing leaves them open in the record */ openItems?: number }) {
   const form = useAsync(() => api.caseCloseout(itemId), [itemId]);
   const [open, setOpen] = useState(startOpen && !closed);
@@ -56,12 +57,12 @@ export function CaseCloseoutCard({ itemId, person, closed, readOnly, reload, sta
   // Opened by a Close link (Back from the field), the page lands on the form, not a screen above it (P5.28f).
   return <div ref={(el) => { if (el && startOpen && !landed.current) { landed.current = true; el.scrollIntoView?.({ block: "start" }); } }}>
     <CloseoutForm itemId={itemId} person={person} data={form.data} missing={closed && !record} openItems={openItems}
-      onDone={() => { setOpen(false); form.reload(); reload(); }} onCancel={closed && !record ? undefined : () => setOpen(false)} /></div>;
+      onDone={(now) => { setOpen(false); form.reload(); reload(now); }} onCancel={closed && !record ? undefined : () => setOpen(false)} /></div>;
 }
 
 function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openItems = 0 }: {
   itemId: number; person: string; data: NonNullable<Awaited<ReturnType<typeof api.caseCloseout>>>; missing: boolean;
-  onDone: () => void; onCancel?: () => void; openItems?: number;
+  onDone: (now?: CaseNow | null) => void; onCancel?: () => void; openItems?: number;
 }) {
   const v = data.vocabulary;
   // asked work is done as asked or a duplicate; "done as asked" never fits a problem an exception raised; log only is
@@ -121,7 +122,7 @@ function CloseoutForm({ itemId, person, data, missing, onDone, onCancel, openIte
     duplicate_of: d.disposition === "duplicate" && d.duplicate_of ? Number(d.duplicate_of) : undefined,
     suggested: data.record ? undefined : s,
     follow_up_to: needsFollowUp ? followTo : undefined,
-  }), onDone);
+  }), (r) => onDone(r?.item));
   // The follow-up is sent from here, as a case of its own, unless one already went
   const followUp = needsFollowUp && <Field label="Send the follow-up to" width="full">
     <AssignPicker value={followTo} onChange={setFollowTo} label="Send the follow-up to" /></Field>;

@@ -276,7 +276,8 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   job (a `follow_up` event dispatched to them): a Field check on their list asking the close-out's note.
 - **A duplicate names its original.** The close-out offers the case it most likely duplicates (another case on the
   same equipment, open or closed within `exceptions.join_hours`) in **Duplicate of case**, its title beside it; closing
-  as a duplicate adds what the duplicate reported, and its case number as a link, to the original's history. The case page's **Send to someone else** says where it went and folds away. On a case still at To dispatch it dispatches the
+  as a duplicate adds what the duplicate reported, and its case number as a link, to the original's history. The case page's **Send to someone else** says where it went, and the send and the Options leave the page: the case
+  is theirs now. On a case still at To dispatch it dispatches the
   event (`ops.exceptions.send_case`), so the case gets a step for whoever it went to and leaves To dispatch; a case
   with no process says who holds it under Waiting on.
 - **Only what was chosen is saved.** An outcome belongs to a real problem: a false alarm, duplicate, data problem or
@@ -284,10 +285,10 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   so the form pre-fills False alarm, not "A real problem / Fixed". A case opened again as a repeat opens its event
   with it, so it has its Options again. A shelved case says **Shelved until** its date in place of Open and its due
   time.
-- **The page follows the action.** Dispatch, Choose who, Add to the visit, Escalate, Send to someone else and Change
-  the entity answer with the case as they left it (`item`, as `GET /work/items/{id}` reads its steps, holder and
-  subjects); the case page shows it with the confirmation, then reads the case again (first in the browser's queue)
-  for the rest. A field job shows On site as said as soon as the report is answered.
+- **The page follows the action.** Dispatch, Choose who, Add to the visit, Escalate, Send to someone else, Change
+  the entity, Close out and a steward's answer (No work needed) answer with the case as they left it (`item`, as
+  `GET /work/items/{id}` reads its steps, holder and subjects); the case page shows it with the confirmation, then
+  reads the case and its Options again for the rest. A closed case drops Waiting on, the send and the Options at once. A field job shows On site as said as soon as the report is answered.
   A field job card only offers to open a step in the operator's own roles.
 - **Picked, not typed.** Dispatch picks a person (shown with their roles) or a role's queue; a new exception type
   picks its queue from the person roles under Settings > Users, and the API refuses a queue that isn't one. Equipment

@@ -383,7 +383,8 @@ def case_closeout(item_id: int, conn=Depends(get_conn)):
 
 @router.post("/work/items/{item_id}/closeout")
 def case_closeout_record(item_id: int, c: Closeout, conn=Depends(get_conn)):
-    """Record what a case was and close it (P6.1a): a real problem needs failure mode, cause and action."""
+    """Record what a case was and close it (P6.1a): a real problem needs failure mode, cause and action. Answers with
+    the case as it now stands (`item`), so the page drops what a closed case doesn't offer at once (tour F12)."""
     from ..ops import disposition
     fields = c.model_dump(exclude={"by", "disposition"})
     try:
@@ -393,7 +394,7 @@ def case_closeout_record(item_id: int, c: Closeout, conn=Depends(get_conn)):
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     conn.commit()
-    return row
+    return {**row, "item": _case_now(conn, item_id)}
 
 
 class Recheck(BaseModel):

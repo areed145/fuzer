@@ -11557,10 +11557,9 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     await page.getByRole("button", { name: "Another entity…" }).click();
     await page.getByLabel("Search the register").fill("20-GT-2000A");
     await page.getByRole("button", { name: "Search", exact: true }).click();
-    // one result comes picked: nothing left to choose
-    const a = page.getByRole("checkbox", { name: /^20-GT-2000A/ });
-    await a.waitFor();
-    assert.equal(await a.isChecked(), true);
+    // one result is the pick: a line and Use it, nothing to tick or untick (tour F8)
+    await page.locator(".match-ref").getByText(/^20-GT-2000A/).waitFor();
+    assert.equal(await page.locator(".match-ref").getByRole("checkbox").count(), 0);
     await page.getByLabel("Search the register").fill("20-GT-");
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await page.getByText("12 of 40", { exact: true }).waitFor();
@@ -11601,11 +11600,180 @@ for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["deskto
     await card.getByRole("button", { name: "Change the entity…" }).click();
     await card.getByLabel("Search the register").fill("40-V-2002");
     await card.getByRole("button", { name: "Search", exact: true }).click();
-    await card.getByRole("checkbox", { name: /^40-V-2002/ }).waitFor();
+    await card.getByText(/^40-V-2002/).waitFor();
     assert.equal(searched.at(-1).get("kind"), "work");  // what work can be about, the server's one list
     await card.getByRole("button", { name: "Use it" }).click();
     await page.waitForFunction(() => document.querySelector(".case-message .match-ref") === null);
     assert.deepEqual(changed, [{ by: "ana", fuzer_ids: ["fz-tag-v2002-40"] }]);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+}
+
+// P5.30c (#1410, tour F): the case page follows every action. Options read again after Change the entity (E9); No work
+// needed and a close-out show the case closed from the action's own answer, with no reload (F7, F12); a case sent to
+// someone else drops its options and the send (E5); a single search result is a pick, not a box that unticks (F8).
+for (const [size, viewport] of [["phone", { width: 390, height: 844 }], ["desktop", { width: 1440, height: 900 }]]) {
+  test(`P5.30c Options name the new entity after Change the entity, and one result is a pick (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "ana", roles: ["data_steward", "ops_lead"] }] }));
+    let about = ["fz-tag-v2002-10"];
+    await page.route("**/work/items/1156", (route) => route.fulfill({ json: { id: 1156, title: "V-2002 level glass cracked",
+      type: "message_report", state: "open", subjects: about, created_by: "messages", created_at: "2026-11-25T16:30:00Z",
+      events: [], processes: [], payload: { exception_id: 77, message: { id: "MSG-0019", channel: "phone", channel_label: "Field note",
+        sender: "Ada Nwosu", subject: null, text: "V-2002 level glass cracked, isolated it.", received_at: "2026-11-25T10:00" } } } }));
+    const base = caseOptions({ exception_id: 77, item_id: 1156 });
+    // read for the new entity, the options take a while on a busy server
+    await page.route("**/work/items/1156/options", async (route) => {
+      if (about[0] === "fz-tag-v2002-10") return route.fulfill({ json: base });
+      await new Promise((r) => setTimeout(r, 2500));
+      return route.fulfill({ json: { ...base, loss: { ...base.loss, oil_bbld: 60000, usd_per_day: 4500000 } } }).catch(() => {});
+    });
+    await page.route("**/entities?*", (route) => route.fulfill({ json: { total: 1, hits: [{ fuzer_id: "fz-tag-v2002-40", kind: "tag",
+      label: "40-V-2002", description: "ST2 production separator", parent_label: "ST2" }] } }));
+    await page.route("**/exceptions/77/message/entities", (route) => { about = ["fz-tag-v2002-40"];
+      return route.fulfill({ json: { case: 1156, about: [{ fuzer_id: "fz-tag-v2002-40", label: "40-V-2002" }],
+        item: { id: 1156, title: "V-2002 level glass cracked", type: "message_report", state: "open", subjects: about,
+          created_by: "messages", created_at: "2026-11-25T16:30:00Z", events: [], processes: [] } } }); });
+    await page.goto(`${url}/#/cases/1156`);
+    const options = page.getByLabel("Options");
+    await options.getByText("Costing about 1,300 bbl/d", { exact: false }).waitFor();
+    const card = page.locator(".case-message");
+    await card.getByRole("button", { name: "Change the entity…" }).click();
+    await card.getByLabel("Search the register").fill("40-V-2002");
+    await card.getByRole("button", { name: "Search", exact: true }).click();
+    // one result: a line and Use it, no box to tap off
+    await card.getByText("40-V-2002 · Tag · ST2 production separator · ST2").waitFor();
+    assert.equal(await card.getByRole("checkbox").count(), 0);
+    const use = card.getByRole("button", { name: "Use it" });
+    assert.equal(await use.isDisabled(), false);
+    await use.click();
+    // the old entity's options leave at once, and the new entity's come without a reload
+    await page.getByText("Costing about 1,300 bbl/d", { exact: false }).waitFor({ state: "detached", timeout: 1000 });
+    await options.getByText("Costing about 60,000 bbl/d", { exact: false }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+
+  test(`P5.30c No work needed shows the case Done at once, from its answer (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "ana", roles: ["data_steward"] }] }));
+    const item = { id: 29811, kind: "message", subject: "MSG-0031", status: "open", label: null, payload: {
+      message: { id: "MSG-0031", channel: "phone", channel_label: "Field note", sender: "Demo account", subject: null,
+        text: "Train A third stage scrubber gauge glass is dirty, hard to read", received_at: "2026-11-26T08:02" },
+      why: "names no tag, well or alias in the register", question: "Which entity is this about?", candidates: [],
+      kinds: ["well", "pipeline", "pipeline_segment", "tag", "equipment"] } };
+    let answered = false;
+    await page.route("**/review?*", (route) => route.fulfill({ json: answered ? [] : [item] }));
+    const open = { id: 1265, title: "Train A third stage scrubber gauge glass is dirty, hard to read", type: "message_to_match",
+      state: "open", closed_at: null, subjects: [], role: "data_steward", assignee: null, created_by: "stewardship",
+      created_at: "2026-11-26T08:02:00Z", events: [], processes: [], payload: {},
+      sources: [{ id: 9, type: "message_to_match", key: "message:MSG-0031", title: "Which entity is this about?",
+        source: "stewardship", state: "open", first_seen: "2026-11-26T08:02:00Z", last_seen: "2026-11-26T08:02:00Z",
+        joined_to: null, subjects: [], label: "Message to match",
+        finding: finding("external", "Which entity is this about?", [{ label: "Answer", kind: "page",
+          value: "#/masterdata?tab=questions&kind=message&item=29811", text: "Answer it on Master data" }]) }] };
+    const done = { ...open, state: "done", closed_at: "2026-11-26T08:10:00Z", sources: undefined };
+    // the server's read after the answer is slow, as on a busy server: the page shows Done from the answer itself
+    let stall = false;
+    await page.route("**/work/items/1265", async (route) => {
+      if (stall) await new Promise((r) => setTimeout(r, 20_000));
+      return route.fulfill({ json: open }).catch(() => {});
+    });
+    await page.route("**/work/items/1265/options", (route) => route.fulfill({ json: { applies: false, why_not: "x", exception_id: 9, options: [] } }));
+    await page.route("**/work/items/1265/closeout", (route) => route.fulfill({ json: { item_id: 1265, repeats: [],
+      suggestion: { from: "words" }, record: null,
+      vocabulary: { dispositions: { no_work: "No work needed" }, outcomes: {}, failure_modes: {}, mechanisms: {}, causes: {}, activities: {} } } }));
+    await page.route("**/review/29811", (route) => { answered = true; stall = true;
+      return route.fulfill({ json: { decided: 29811, item: done } }); });
+    await page.goto(`${url}/#/cases/1265`);
+    await page.getByLabel("Next step").getByText("With data steward queue").waitFor();
+    await page.getByRole("button", { name: "No work needed" }).click();
+    await page.getByRole("button", { name: "Confirm decision" }).click();
+    await page.getByText("Done", { exact: true }).first().waitFor({ timeout: 3000 });
+    assert.equal(await page.getByLabel("Next step").count(), 0, "nothing waits on a closed case");
+    assert.equal(await page.getByText("Send to someone else").count(), 0);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+
+  test(`P5.30c a case sent to someone else drops its options and the send (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "riley", roles: ["ops_lead"] },
+      { name: "pat", roles: ["maintenance_planner"] }] }));
+    const open = { id: 21, title: "10-P-1001C coupling guard loose", type: "message_report", state: "open", closed_at: null,
+      subjects: [], created_by: "messages", created_at: "2026-11-26T07:00:00Z", events: [], processes: [], payload: { exception_id: 7 } };
+    let stall = false;
+    await page.route("**/work/items/21", async (route) => {
+      if (stall) await new Promise((r) => setTimeout(r, 20_000));
+      return route.fulfill({ json: open }).catch(() => {});
+    });
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: caseOptions() }));
+    await page.route("**/work/items/21/reassign", (route) => { stall = true;
+      return route.fulfill({ json: { item: { ...open, assignee: "pat" } } }); });
+    await page.goto(`${url}/#/cases/21`);
+    const options = page.getByLabel("Options");
+    await options.getByText("Recommended", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Send to someone else" }).click();
+    await page.locator(".case-actions select").selectOption("pat");
+    await page.locator(".case-actions").getByRole("button", { name: "Send", exact: true }).click();
+    await page.locator(".case-actions").getByRole("status").filter({ hasText: "Sent to pat." }).waitFor();
+    assert.equal(await page.getByLabel("Options").count(), 0, "the options leave once it is sent");
+    assert.equal(await page.getByRole("button", { name: "Send to someone else" }).count(), 0, "so does the send");
+    await page.getByLabel("Next step").getByText("With pat").waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+
+  test(`P5.30c a case closed out drops Waiting on and the send at once, from its answer (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "riley", roles: ["ops_lead"] }] }));
+    const open = { id: 21, title: "30-PT-2001 local gauge reads high", type: "message_report", state: "open", closed_at: null,
+      subjects: [], created_by: "messages", created_at: "2026-11-26T07:00:00Z", events: [], processes: [], payload: { exception_id: 7 } };
+    let stall = false;
+    await page.route("**/work/items/21", async (route) => {
+      if (stall) await new Promise((r) => setTimeout(r, 20_000));
+      return route.fulfill({ json: open }).catch(() => {});
+    });
+    await page.route("**/work/items/21/options", (route) => route.fulfill({ json: caseOptions() }));
+    const vocabulary = { dispositions: { real: "A real problem", false_alarm: "False alarm" }, outcomes: {}, failure_modes: {},
+      mechanisms: {}, causes: {}, activities: {} };
+    let record = null;
+    await page.route("**/work/items/21/closeout", (route) => {
+      if (route.request().method() === "POST") {
+        stall = true;
+        record = { item_id: 21, disposition: "false_alarm", by: "riley", at: "2026-11-26T07:47:00Z" };
+        return route.fulfill({ json: { ...record, item: { ...open, state: "done", closed_at: "2026-11-26T07:47:00Z" } } });
+      }
+      return route.fulfill({ json: { item_id: 21, record, vocabulary, repeats: [], equipment: false, suggestion: { from: "words" } } });
+    });
+    await page.goto(`${url}/#/cases/21`);
+    await page.getByRole("button", { name: "Send to someone else" }).waitFor();
+    await page.getByRole("button", { name: "Close out", exact: true }).click();
+    await page.locator(".closeout-form").getByLabel("What it was").selectOption("false_alarm");
+    await page.locator(".closeout-form").getByRole("button", { name: "Close the case" }).click();
+    await page.getByLabel("Next step").waitFor({ state: "detached", timeout: 3000 });
+    assert.equal(await page.getByRole("button", { name: "Send to someone else" }).count(), 0);
+    assert.equal(await page.getByLabel("Options").count(), 0);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  });
+
+  test(`P5.30c the list row's Send says what it needs (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    const row = { id: 7, type: "message_report", key: "MSG-0040", title: "Test separator area smells of gas near the drain",
+      source: "messages", state: "open", stage: "dispatch", priority: null, value_usd: null, subjects: [], unmatched: [],
+      case_state: "open", item_id: 21, role: null, assignee: null, raised_count: 1, first_seen: "2026-11-26T08:00:00Z",
+      last_seen: "2026-11-26T08:00:00Z" };
+    await page.route("**/exceptions?*", (route) => route.fulfill({ json: [row] }));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "sam", roles: ["operator"] }] }));
+    await page.goto(`${url}/#/list`);
+    await page.getByRole("button", { name: "Send to", exact: true }).click();
+    const send = page.locator(".dispatch-controls").getByRole("button", { name: "Send", exact: true });
+    assert.equal(await send.isDisabled(), false, "a tablet has no hover to read a greyed button by");
+    await send.click();
+    await page.locator(".dispatch-controls").getByText("Choose who it goes to first.").waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   });
 }
@@ -12072,7 +12240,7 @@ for (const [size, viewport] of PHONE_DESK) {
     await card.getByRole("button", { name: "Change the entity…" }).click();
     await card.getByLabel("Search the register").fill("10-P-1001B");
     await card.getByRole("button", { name: "Search", exact: true }).click();
-    await card.getByRole("checkbox", { name: /^10-P-1001B/ }).check();
+    await card.getByText(/^10-P-1001B/).waitFor();
     await card.getByRole("button", { name: "Use it" }).click();
     await head.getByRole("link", { name: "10-P-1001B" }).waitFor({ timeout: 1500 });
     assert.equal(await head.getByRole("link", { name: "10-P-1001A" }).count(), 0);

@@ -159,10 +159,14 @@ message. The phone's confirmation and the steward's answer link the case they op
 entities it is about too; answered on its case, the confirmation stays after the case closes. A message case matched
 to the wrong entity, by the reader or a steward, is redone on the case: **Change the entity** on the message card
 searches the same way and replaces what the case is about, and the case's history says what it was about before
-(`POST /exceptions/{id}/message/entities`), naming equipment by the tag it is installed at, never its serial number.
-The register search taps rows rather than a dropdown, comes picked when
-there is one result, says "12 of N" when it found more than it shows, and reads a trailing separator ("20-P-") as part
-of a tag still being typed. The reader's precision on Okan's recorded messages is in [eval results](eval-results.md#message-reader)
+(`POST /exceptions/{id}/message/entities`), naming equipment by the tag it is installed at, never its serial number;
+the case's Options are read again for the new entity, and the old entity's leave the page while they are.
+The register search taps rows rather than a dropdown; a single result is the pick (a line and **Use it**, no box to
+untick). It says "12 of N" when it found more than it shows, and reads a trailing separator ("20-P-") as part
+of a tag still being typed. Searching what work can be about lists each thing once, in the plant: an installed
+equipment as the tag it is installed at, and no equipment installed nowhere (a scrapped pump a second system still
+lists). An answer closes its own steward case at once and comes back with the case as it now stands, so **No work
+needed** answered on the case shows it Done without a reload. The reader's precision on Okan's recorded messages is in [eval results](eval-results.md#message-reader)
 (`fuzer eval --messages`).
 
 ## Regulatory and reporting
