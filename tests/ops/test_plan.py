@@ -45,6 +45,20 @@ def conn():
         yield c
 
 
+@pytest.fixture(autouse=True)
+def fresh(conn):
+    """Each test starts with no open exception and no open bar left by another. The workflow engine commits every
+    operation it runs (a dispatch, a role lookup), so a test's `conn.rollback()` does not take back what it raised
+    once a case was opened; a later test raising the same type and key then joined that one, with its case and the
+    field's reports, and Release sent nothing to its crew."""
+    yield
+    conn.rollback()
+    conn.execute("update plan_item set status = 'cancelled' where status in ('proposed', 'scheduled', 'in_progress') "
+                 "and exception_id in (select id from exception_record where state = 'open')")
+    conn.execute("update exception_record set state = 'closed', closed_at = now() where state = 'open'")
+    conn.commit()
+
+
 def test_items_are_matched_to_assets_and_their_area(conn):
     p = propose(conn, "inspection", "Inspect P-101", "ann", T, "2026-11-10T12:00:00+00:00", refs=["tag:P-101"])
     assert p["subjects"] == ["fz-pump-1"] and p["area_id"] == "fz-area-north" and p["status"] == "proposed"
