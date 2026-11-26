@@ -16,6 +16,10 @@ and `exceptions.around_after_hours` (never past now): a trip's vibration climbs 
 assets it is on" is read as the join reads them (`exceptions.anchors`), so what joins a case and what is shown
 around it agree, whatever the asset type. `units` are the units the case's subjects are read on (`values.unit_of`),
 so the case page can draw their trend over the same window (P5.13c).
+
+An event planned ahead of now (an outage on the plan, P5.22d) has no values yet: its window runs from as long before
+now as the event lasts to the event's end, its units are the areas its subjects are in, and its trend opens on their
+flow and pressure (`LINE`, by role) with the event shaded ahead of the values.
 """
 
 from datetime import datetime, timedelta
@@ -26,6 +30,7 @@ from .exceptions import anchor_map, anchors
 STEP = 5  # minutes between the historian values an alarm is read from
 MAX_ROWS = 25  # of each, the earliest first: what reads on one page
 MAX_UNITS = 4  # trends a case page offers
+LINE = ("flow", "pressure", "discharge_pressure")  # the roles a planned outage's trend opens on: what flows, how hard
 
 
 def _t(v) -> datetime | None:
@@ -58,6 +63,8 @@ def window(conn, item_id: int) -> tuple[datetime, datetime, list[str]] | None:
         if end and a.date() > datetime.fromisoformat(end[:10]).date():
             a = datetime.fromisoformat(end[:10])
             b = a + timedelta(days=1)
+    if a > clock.now():  # planned ahead: no values yet, so as long before now as it lasts, then on to its end
+        return clock.now() - (b - a), b, list(dict.fromkeys(s for r in rows for s in r["subjects"] or []))
     before = settings.get(conn, "exceptions.around_before_hours")
     after = settings.get(conn, "exceptions.around_after_hours")
     # widened after, but never past now on the plant's clock: an event this hour has no hours after it yet (#1350)
@@ -102,6 +109,14 @@ def log(conn, mine: set[str], a: datetime, b: datetime, limit: int = MAX_ROWS) -
             if any(stands.get(m, set()) & mine for m in r["mentions"])][:limit]
 
 
+def _places(conn, subjects: list[str]) -> list[str]:
+    """The area each subject is part of (itself, when it is one or is in none), in the subjects' order."""
+    up = {r["src"]: r["dst"] for r in conn.execute(
+        "select e.src, min(e.dst) as dst from edge e join entity x on x.fuzer_id = e.dst and x.kind = 'area' "
+        "where e.src = any(%s) and e.rel = 'part_of' and e.valid_to is null group by e.src", (subjects,))}
+    return list(dict.fromkeys(up.get(s, s) for s in subjects))
+
+
 def units(conn, subjects: list[str]) -> list[dict]:
     """The units the subjects' values are read on, in the subjects' order, each once, with their labels."""
     from ..analysis import values
@@ -124,7 +139,7 @@ def context(conn, item_id: int, src=None) -> dict:
     a, b, subjects = w
     mine = anchors(conn, subjects)
     return {"window": {"start": a.isoformat(timespec="minutes"), "end": b.isoformat(timespec="minutes")},
-            "units": units(conn, subjects), "alarms": alarms(conn, mine, a, b, src), "log": log(conn, mine, a, b),
+            "units": units(conn, _places(conn, subjects) if b > clock.now() else subjects), "alarms": alarms(conn, mine, a, b, src), "log": log(conn, mine, a, b),
             "basis": "Alarms on points of the assets this event is on, and operator log entries that mention them, "
                      "from the earliest finding on the case to the latest, widened by "
                      f"{settings.get(conn, 'exceptions.around_before_hours')} h before and "
@@ -145,6 +160,11 @@ def trend(conn, item_id: int, src=None) -> dict | None:
     if not rows or w is None:
         return None
     a, b, subjects = w
+    if b > clock.now():  # planned ahead: the line's flow and pressure on each place, the event shaded where it falls
+        start = min(_t(r["s"]) for r in rows if r["s"] and "T" in r["s"])
+        return {"focus": list(LINE), "marks": [{"kind": "window", "start": start.isoformat(timespec="minutes"),
+                                                 "end": b.isoformat(timespec="minutes"), "label": _what(rows[0]["title"].rsplit(": ", 1)[0]),
+                                                 "tone": "accent"}]}
     kinds = {r["fuzer_id"]: r["kind"] for r in conn.execute(
         "select fuzer_id, kind from entity where fuzer_id = any(%s)", (subjects,))}
     # The reported tag's own points first (#1384): a case about a thermocouple charts that thermocouple, not the

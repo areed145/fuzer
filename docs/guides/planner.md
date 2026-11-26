@@ -198,7 +198,8 @@ hits lose (an hour it shares with another outage on the same contract is lost on
 real against every crew and your rules; the first three that do not overlap, keep every crew within capacity and break
 no rule are proposed, the cheapest recommended. Each says why: how far from the plan it is, the outage it shares hours
 with, a contract not running then, a customer still hit more than once, the crews, when it is done. The case also
-lists similar past work: planned downtime on the same plant and how long it took.
+lists similar past work: planned downtime on the same plant and how long it took. Above the windows, the case's trend shows the line where the outage takes it down (the area
+of each unit it takes down) opened on its flow and pressure, up to now, with the outage shaded ahead.
 
 Pick another window and say why; a typed constraint works the windows out again. **Approve** moves the outage there
 (the schedule starts then and is levelled from there), queues SAP's schedule changes for you, drafts a notice to each
