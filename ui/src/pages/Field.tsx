@@ -119,6 +119,7 @@ export function ComingUp({ items, person, onChange }: { items: PlanItem[]; perso
           {c.status === "done" ? "Done" : "Started"} · waiting to send</Badge></span>)}
         {i.assets.length > 0 && <Text as="div" small>{i.assets.map((a) =>
           <a key={a.fuzer_id} href={entityHref(a.fuzer_id)}>{a.label ?? a.fuzer_id} </a>)}</Text>}
+        {i.moved_because && <Text as="div" small>Moved because {i.moved_because}</Text>}
         {i.notes && <Text as="div" small muted>{i.notes}</Text>}
         {new Date(i.start_at).getTime() <= soon && <div className="row field-actions">
           {i.status !== "in_progress" && <Button size="sm" disabled={!!busy} onClick={() => set(i, "in_progress")}>Started</Button>}
@@ -425,6 +426,7 @@ export function FieldJobCard({ job, person, onChange, onReported, onTaken }: {
         {waiting.length > 0 && <Badge tone="warn">{waiting.length === 1 ? `${SAID[(waiting[0].payload as { status: string }).status] ?? "Report"} waiting to send`
           : `${waiting.length} reports waiting to send`}</Badge>}
       </Line>
+      {job.moved_because && <Text as="p" small>Moved because {job.moved_because}</Text>}
       {job.sent?.reason && <p className="field-sent"><strong>{job.sent.reason}</strong>
         {job.sent.by && <Text small muted> · sent by {personName(job.sent.by)}{job.sent.at ? ` ${when(job.sent.at)}` : ""}</Text>}</p>}
       {!!job.warnings?.length && <ul className="plain small field-warnings" aria-label="Before you start">

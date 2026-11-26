@@ -2004,6 +2004,31 @@ def plan_change_constraint_remove(exception_id: int, n: int, by: str = "", conn=
     return _plan_call(conn, replan.remove_constraint, exception_id, n, by)
 
 
+class PlanChangeApprove(BaseModel):
+    by: str
+
+
+@router.post("/plan/changes/{exception_id}/approve")
+def plan_change_approve(exception_id: int, a: PlanChangeApprove, conn=Depends(get_conn)):
+    """A maintenance planner approves a plan change: the plan moves as proposed, each moved SAP order's new dates wait
+    in the write-back queue for that planner, and a notice is drafted for each crew, field operator and the unit
+    downstream."""
+    from ..ops import replan
+    return _plan_call(conn, replan.approve, exception_id, a.by)
+
+
+class PlanNotice(BaseModel):
+    by: str
+    text: str | None = None
+
+
+@router.post("/plan/changes/{exception_id}/notices/{n}/send")
+def plan_change_notice(exception_id: int, n: int, x: PlanNotice, conn=Depends(get_conn)):
+    """A person sends a drafted notice, as they edited it: it goes on the case of each moved job it is about."""
+    from ..ops import replan
+    return _plan_call(conn, replan.send_notice, exception_id, n, x.by, x.text)
+
+
 @router.post("/plan/resources/{code}/capacity")
 def plan_capacity_window(code: str, w: CapacityWindow, conn=Depends(get_conn)):
     """A different capacity for a while: leave, a crane's certification lapsing, a vessel in dock."""

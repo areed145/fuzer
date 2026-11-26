@@ -6,8 +6,13 @@
     watch(conn)                  the `plan_changes` detector: each disruption that hits planned work raised as
                                  `plan_change` (keyed by the disruption), its proposal worked out; cleared once
                                  nothing is hit any more
-    change(conn, id)             a plan change as the planner reads it: the proposal and the constraints typed
+    change(conn, id)             a plan change as the planner reads it: the proposal, the constraints typed, and once
+                                 approved the SAP changes and the notices
     add_constraint / remove_constraint   a constraint in words (`read`), and the proposal worked out again
+    approve(conn, id, by)        the plan moves, SAP's schedule change waits in the write-back queue for the planner
+                                 who approved, and a notice is drafted for each crew, field operator and the unit
+                                 downstream
+    send_notice(conn, id, n, by) a person sends a notice, edited: it goes on each moved job's case
 
 What each disruption holds, from the records, never the equipment type:
 
@@ -22,22 +27,23 @@ The proposal is Fuzer's own levelling, not a second model: the held jobs move (a
 its start no earlier than, and its schedule is levelled again with `schedule.apply`; other work slips), typed
 constraints become capacity windows and holds, and the result is read in a savepoint and rolled back: each move with
 the constraint behind it, and the finish, the deferred oil (`at_risk.windows`) and the overloads (`schedule.constraints`)
-before and after. Deterministic: no model is asked anything.
+before and after. Approve applies the same writes for good. Deterministic: no model is asked anything.
 """
 
 import re
+from collections import defaultdict
 from datetime import datetime, timedelta
 
 from psycopg.types.json import Jsonb
 
-from ..core import clock, detectors, gates, work
+from ..core import clock, detectors, events, gates, work
 from ..core.findings import DETERMINISTIC, Finding, at, fact
 from ..core.jsonsafe import plain
 from ..core.plan import PlanError
 from ..core.wording import plural
 from . import at_risk, materials, permits, schedule
 from .options import DOWN_TYPES
-from .plan import ACTIVE, BUNDLE_DAYS, SHUTDOWNS, _when
+from .plan import ACTIVE, BUNDLE_DAYS, SHUTDOWNS, _note, _when
 
 PLANNER = "maintenance_planner"
 PERMIT_HOURS = 24  # allowed for reissuing a lapsed permit before work under it goes on: a planning allowance
@@ -54,7 +60,8 @@ def _type():
         description="A trip, a late part or a lapsed permit has hit planned work. The plan is levelled again around "
                     "it: each job that moves and the constraint behind it, the work worth pulling forward, and the "
                     "finish, deferred oil and overloads before and after. Add a constraint in words and work it out "
-                    "again. It clears when nothing on the plan is hit any more.")
+                    "again, then approve: the plan moves, SAP's schedule change waits for approval, and the people "
+                    "affected get a notice to send. It clears when nothing on the plan is hit any more.")
 
 
 TYPE = _type().name
@@ -220,7 +227,7 @@ def read(conn, text: str, start: datetime) -> dict:
 
 def _apply(conn, d: dict, constraints: list[dict], by: str) -> dict:
     """Write the disruption and the typed constraints onto the plan and level each schedule they touch again. The
-    proposal runs this in a savepoint it rolls back."""
+    proposal runs this in a savepoint it rolls back; approve runs it for good."""
     holds: dict[int, tuple[datetime, str]] = {h["id"]: (d["until"], d["constraint"]) for h in hits(conn, d)}
     keeps = set()
     for c in constraints:
@@ -359,7 +366,7 @@ def _store(conn, d: dict, by: str) -> dict:
     from ..core.exceptions import raise_exception
 
     pc = conn.execute("select * from plan_change where key = %s", (d["key"],)).fetchone()
-    constraints = list(pc["constraints"]) if pc else []
+    constraints = list(pc["constraints"]) if pc and pc["state"] == "open" else []
     p = work_out(conn, d, constraints, by)
     n = len(p["moves"])
     title = f"{d['say'][:1].upper()}{d['say'][1:]}: {plural(n, 'planned job')} to move"
@@ -367,8 +374,10 @@ def _store(conn, d: dict, by: str) -> dict:
                         finding=_finding(d, p))
     conn.execute(
         """
-        insert into plan_change (key, exception_id, constraints, proposal) values (%s, %s, %s, %s)
+        insert into plan_change (key, exception_id, constraints, proposal, state) values (%s, %s, %s, %s, 'open')
         on conflict (key) do update set exception_id = excluded.exception_id, proposal = excluded.proposal,
+            constraints = case when plan_change.state = 'open' then plan_change.constraints else '[]' end,
+            state = 'open', approved_by = case when plan_change.state = 'open' then plan_change.approved_by end,
             updated_at = now()
         """, (d["key"], x["id"], Jsonb(plain(constraints)), Jsonb(plain(p))))
     return x
@@ -428,20 +437,25 @@ def _open(conn, exception_id: int) -> tuple[dict, dict]:
 
 def change(conn, exception_id: int) -> dict:
     """A plan change as the planner reads it: what happened and the constraint it puts on the work, the proposal
-    (moves, pull-forwards, KPIs before and after), the constraints typed and the forms Fuzer reads."""
+    (moves, pull-forwards, KPIs before and after), the constraints typed, the forms Fuzer reads and, once approved,
+    who approved it, the SAP changes queued and the notices."""
     pc, d = _open(conn, exception_id)
-    return {"exception_id": exception_id, "key": pc["key"], "say": d["say"], "constraint": d["constraint"],
-            "start": d["start"], "until": d["until"], "cause_case": d["case"],
+    wbs = conn.execute("select id, record, state, item_id, approver_role from writeback where id = any(%s) order by id",
+                       (list(pc["writebacks"]),)).fetchall()
+    return {"exception_id": exception_id, "key": pc["key"], "state": pc["state"], "say": d["say"],
+            "constraint": d["constraint"], "start": d["start"], "until": d["until"], "cause_case": d["case"],
             "constraints": [{"text": c["text"], "form": c["form"]} for c in pc["constraints"]], "forms": list(FORMS),
-            "proposal": pc["proposal"], "open": pc["exception_state"] == "open"}
+            "proposal": pc["proposal"], "approved_by": pc["approved_by"], "approved_at": pc["approved_at"],
+            "writebacks": wbs, "notices": pc["notices"],
+            "open": pc["state"] == "open" and pc["exception_state"] == "open"}
 
 
 def _editable(conn, exception_id: int, by: str) -> tuple[dict, dict]:
     if gates.machine(by):
         raise PlanError("a plan change is worked by a named person")
     pc, d = _open(conn, exception_id)
-    if pc["exception_state"] != "open":
-        raise PlanError(f"plan change {exception_id} is closed")
+    if pc["state"] != "open" or pc["exception_state"] != "open":
+        raise PlanError(f"plan change {exception_id} is {pc['state'] if pc['state'] != 'open' else 'closed'}")
     return pc, d
 
 
@@ -462,4 +476,116 @@ def remove_constraint(conn, exception_id: int, n: int, by: str) -> dict:
     conn.execute("update plan_change set constraints = constraints - %s, updated_at = now() where key = %s",
                  (n, pc["key"]))
     _store(conn, d, by)
+    return change(conn, exception_id)
+
+
+def _notices(conn, d: dict, moves: list[dict]) -> list[dict]:
+    """A notice for each crew whose work moved, each person or queue booked on a moved job (a field operator's says
+    why it moved on their job too) and, for a trip, the units downstream that lose their feed. Drafts: a person edits
+    and sends each."""
+    from ..core.wording import queue as queue_name
+    from .readiness import field_operator
+
+    def line(ms):
+        return "; ".join(f"{m['code'] or m['title']} from {_say(_when(m['before']['start']))} to "
+                         f"{_say(_when(m['after']['start']))}" for m in ms)
+
+    head = f"{d['say'][:1].upper()}{d['say'][1:]}."
+    out = []
+    by_crew: dict[tuple, list[int]] = defaultdict(list)
+    for r in conn.execute("select x.item_id, r.code, r.name from plan_demand_all x join plan_resource r on r.code = x.resource "
+                          "where x.item_id = any(%s) and r.kind = 'crew' order by r.code", ([m["item_id"] for m in moves],)):
+        by_crew[(r["code"], r["name"])].append(r["item_id"])
+    for (code, name), ids in by_crew.items():
+        ms = [m for m in moves if m["item_id"] in ids]
+        out.append({"audience": "crew", "to": code, "name": name, "jobs": ids,
+                    "text": f"{head} The plan moves your work: {line(ms)}."})
+    people: dict[str, list[dict]] = defaultdict(list)
+    for m in moves:
+        if m["crew"]:
+            people[m["crew"]].append(m)
+    for who, ms in people.items():
+        field = field_operator(conn, who)
+        out.append({"audience": "field" if field else "crew", "to": who,
+                    "name": queue_name(who.removeprefix("role:")) if who.startswith("role:") else who,
+                    "jobs": [m["item_id"] for m in ms],
+                    "text": f"{head} Your job{'s' if len(ms) > 1 else ''} moved: {line(ms)}."})
+    if d["type"] in DOWN_TYPES:
+        starved = {}
+        for s in d["subjects"]:
+            for u in at_risk.trip(conn, s)["starved"]:
+                starved.setdefault(u["id"], u["label"])
+        if starved:
+            out.append({"audience": "downstream", "to": "role:ops_lead", "name": ", ".join(sorted(starved.values())),
+                        "jobs": [m["item_id"] for m in moves],
+                        "text": f"{head} Downstream of it, {', '.join(sorted(starved.values()))} lose their feed until "
+                                f"{_say(d['until'])}. {plural(len(moves), 'planned job')} moved."})
+    return [{**x, "n": i, "sent_by": None, "sent_at": None} for i, x in enumerate(out)]
+
+
+def approve(conn, exception_id: int, by: str) -> dict:
+    """A maintenance planner approves the plan change: the plan moves as proposed (each moved job keeps why), each
+    moved SAP order's new dates are drafted through the write-back queue for this planner to approve, the notices are
+    drafted, and the plan change's case closes."""
+    from ..core.exceptions import clear_exception
+    from . import writeback
+
+    pc, d = _editable(conn, exception_id, by)
+    if PLANNER not in work.roles_of(conn, by):
+        raise PlanError(f"{by} isn't a maintenance planner: a planner approves a plan change")
+    p = work_out(conn, d, list(pc["constraints"]), by)
+    _apply(conn, d, list(pc["constraints"]), by)
+    for m in p["moves"]:
+        row = conn.execute("update plan_item set moved_because = %s, released_at = null, released_by = null, "
+                           "release_reason = null where id = %s returning *", (d["say"], m["item_id"])).fetchone()
+        if m["case"]:
+            _note(conn, row, by, f"Moved from {_say(m['before']['start'])} to {_say(m['after']['start'])} because "
+                                 f"{d['say']}" + (" It was released: release it again for the new dates."
+                                                  if m.get("released") else ""))
+    queued = []
+    for m in p["moves"]:
+        if not m["order"]:
+            continue
+        a = m["after"]
+        payload = {"action": "reschedule", "order": m["order"], "start": a["start"].isoformat(),
+                   "finish": a["end"].isoformat(), "was_start": m["before"]["start"].isoformat(),
+                   "was_finish": m["before"]["end"].isoformat(), "because": d["say"]}
+        try:
+            wb = writeback.propose(conn, "sap", "order", payload, by, record=m["order"], action="reschedule",
+                                   key=f"sap:order:{m['order']}:reschedule:{payload['start']}",
+                                   title=f"SAP order {m['order']}: move to {_say(a['start'], hour=False)}",
+                                   source_ref=f"plan_change:{exception_id}", approver_role=PLANNER, assignee=by)
+        except writeback.WritebackError:
+            continue  # SAP's pack takes no schedule changes: the plan moves, SAP is told by its planner
+        queued.append(wb["id"])
+    notices = _notices(conn, d, p["moves"])
+    conn.execute("update plan_change set state = 'approved', approved_by = %s, approved_at = now(), proposal = %s, "
+                 "writebacks = %s, notices = %s, updated_at = now() where key = %s",
+                 (by, Jsonb(plain(p)), queued, Jsonb(plain(notices)), pc["key"]))
+    clear_exception(conn, TYPE, pc["key"], by, reason=f"approved by {by}: {plural(len(p['moves']), 'job')} moved")
+    events.publish(conn, "plan.changed", f"plan_change:{pc['key']}",
+                   {"change": "plan change approved", "by": by, "moved": [m["item_id"] for m in p["moves"]],
+                    "because": d["say"]})
+    return change(conn, exception_id)
+
+
+def send_notice(conn, exception_id: int, n: int, by: str, text: str | None = None) -> dict:
+    """A person sends a drafted notice, as they edited it: it goes on the case of each moved job it is about, so
+    whoever holds the job reads it there, and the plan change records who sent it."""
+    if gates.machine(by):
+        raise PlanError("a notice is sent by a named person")
+    pc, _ = _open(conn, exception_id)
+    notices = list(pc["notices"])
+    if not 0 <= n < len(notices):
+        raise PlanError(f"plan change {exception_id} has no notice {n + 1}")
+    x = notices[n]
+    if x.get("sent_at"):
+        raise PlanError(f"that notice was sent by {x['sent_by']}")
+    x = {**x, "text": (text or "").strip() or x["text"], "sent_by": by, "sent_at": clock.aware(clock.now()).isoformat()}
+    for r in conn.execute("select distinct item_id from plan_item where id = any(%s) and item_id is not null",
+                          (x["jobs"],)):
+        work.comment(conn, r["item_id"], by, x["text"])
+    notices[n] = x
+    conn.execute("update plan_change set notices = %s, updated_at = now() where key = %s", (Jsonb(notices), pc["key"]))
+    events.publish(conn, "plan.notice", f"plan_change:{pc['key']}", {"to": x["to"], "by": by, "text": x["text"]})
     return change(conn, exception_id)

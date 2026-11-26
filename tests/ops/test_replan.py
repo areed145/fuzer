@@ -165,3 +165,72 @@ def test_a_constraint_typed_in_words_changes_the_proposal(c):
     clear_exception(c, materials.TYPE, part["key"], "tests", reason="covered")
     replan.watch(c)
     c.commit()
+
+
+def test_approving_moves_the_plan_queues_sap_for_the_planner_and_drafts_notices(c):
+    """The planner approves 20-K-2200B's plan change: the job moves for good and says why, SAP's new dates wait in
+    the write-back queue on that planner's own work, and a notice is drafted for the field operator booked on it; a
+    person edits it and sends it, and it lands on the moved job's case. The tests run in any order, so the job is put
+    back as it was at the end."""
+    from fuzer.core import work
+
+    work.add_person(c, "pat", ["maintenance_planner"], "test")
+    work.add_person(c, "sam", ["operator"], "test")
+    job = c.execute("select * from plan_item where source = 'sap' and source_key = '50000303'").fetchone()
+    case = work.open_case(c, "maintenance", job["title"], "tests", assignee="sam")
+    c.execute("update plan_item set crew = 'sam', item_id = %s where id = %s", (case["id"], job["id"]))
+    c.commit()
+    trip = _trip(c, "20-K-2200B", "2025-10-24T12:00")
+    try:
+        _approve(c, trip, job, case)
+    finally:
+        c.rollback()
+        clear_exception(c, trips.TYPE, trip["key"], "tests", reason="restarted")
+        c.execute("update plan_item set start_at = %s, end_at = %s, crew = %s, item_id = %s, moved_by = %s, "
+                  "moved_because = null where id = %s",
+                  (job["start_at"], job["end_at"], job["crew"], job["item_id"], job["moved_by"], job["id"]))
+        replan.watch(c)
+        c.commit()
+
+
+def _approve(c, trip, job, case):
+    from fuzer.ops.exceptions import field_jobs
+
+    replan.watch(c)
+    pid = _change(c, trip)["exception_id"]
+    with pytest.raises(PlanError, match="isn't a maintenance planner"):
+        replan.approve(c, pid, "sam")
+    c.rollback()
+
+    p = replan.approve(c, pid, "pat")
+    c.commit()
+    assert p["state"] == "approved" and p["approved_by"] == "pat" and not p["open"]
+    row = c.execute("select * from plan_item where id = %s", (job["id"],)).fetchone()
+    assert _when(row["start_at"]) == _when("2025-10-25T12:00") and row["moved_because"] == "20-K-2200B tripped"
+    # what a field operator reads on the job, on Coming up and on their field jobs
+    [shown] = [i for i in plan.items(c, _when("2025-10-20T00:00"), _when("2025-11-01T00:00")) if i["id"] == job["id"]]
+    assert shown["moved_because"] == "20-K-2200B tripped"
+    field_jobs(c, "sam")
+    # SAP's schedule change waits for this planner, on their own work
+    [wb] = p["writebacks"]
+    assert wb["record"] == "50000303" and wb["state"] == "awaiting_approval" and wb["approver_role"] == "maintenance_planner"
+    w = c.execute("select payload from writeback where id = %s", (wb["id"],)).fetchone()["payload"]
+    assert w["action"] == "reschedule" and _when(w["start"]) == _when("2025-10-25T12:00")
+    assert c.execute("select assignee from work_item where id = %s", (wb["item_id"],)).fetchone()["assignee"] == "pat"
+    # the field operator's notice, edited and sent by a person, goes on the job's case
+    [n] = [x for x in p["notices"] if x["to"] == "sam"]
+    assert n["audience"] == "field" and n["text"].startswith("20-K-2200B tripped. Your job moved: ")
+    with pytest.raises(PlanError, match="named person"):
+        replan.send_notice(c, pid, n["n"], "agent:planner")
+    c.rollback()
+    sent = replan.send_notice(c, pid, n["n"], "pat", "20-K-2200B tripped: your PM moves to Saturday noon.")
+    c.commit()
+    assert sent["notices"][n["n"]]["sent_by"] == "pat"
+    said = c.execute("select data from work_event where item_id = %s and kind = 'commented' order by id desc limit 1",
+                     (case["id"],)).fetchone()
+    assert said and "Saturday noon" in str(said["data"])
+    # the plan change's case is done, and it is not raised again: nothing is held any more
+    e = c.execute("select state from exception_record where id = %s", (pid,)).fetchone()
+    assert e["state"] != "open"
+    replan.watch(c)
+    assert c.execute("select state from exception_record where id = %s", (pid,)).fetchone()["state"] != "open"

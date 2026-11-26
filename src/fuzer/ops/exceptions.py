@@ -1073,6 +1073,9 @@ def field_jobs(conn, person: str, brief: bool = False) -> list[dict]:
         select e.*, w.state as case_state, w.assignee, w.role, coalesce(t.due_at, w.due) as due,
                e.raised_count + coalesce((select sum(j.raised_count) from exception_record j where j.joined_to = e.id), 0)::int as reports,
                t.id as task_id, t.name as task_name, t.role as task_role, p.data->>'field_ask' as ask,
+               -- a planned job a plan change moved says why (P5.21c): "20-K-2200B tripped"
+               (select j.moved_because from plan_item j where j.item_id = w.id and j.moved_because is not null
+                order by j.updated_at desc limit 1) as moved_because,
                not (coalesce(t.assignee = %(p)s, false) or (t.id is null and coalesce(w.assignee = %(p)s, false)))
                  as queued
         from exception_record e join work_item w on w.id = e.item_id

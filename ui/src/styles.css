@@ -491,3 +491,7 @@ dl.perf-hours dd { margin: 0; font-variant-numeric: tabular-nums; }
 .plan-load .plan-load-track { height: 1.6rem; }
 .plan-load-day { position: absolute; bottom: 0; background: color-mix(in srgb, var(--accent, #2563eb) 70%, transparent); border-radius: 1px 1px 0 0; }
 .plan-load-day.over { background: var(--danger, #b91c1c); }
+
+/* A plan change's notice (P5.21c): who it is for, the text to edit, and Send. */
+.replan-notice { padding: 0.5rem 0; border-top: 1px solid var(--line); }
+.replan-notice textarea { display: block; width: 100%; box-sizing: border-box; margin: 0.25rem 0; }

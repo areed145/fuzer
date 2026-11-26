@@ -171,6 +171,17 @@ constraint and choose **Work it out again**; the proposal is levelled again with
 
 Anything else is not guessed at: Fuzer says which forms it reads and the proposal stays as it was.
 
+**Approve** (a maintenance planner) moves the plan as proposed and closes the case:
+
+- Each moved job keeps why it moved; a field operator booked on it reads **Moved because 20-K-2200B tripped** on
+  Coming up and on the job. A job that was released goes back to unreleased, with a note on its case to release it
+  again for the new dates.
+- Each moved SAP order's new start and finish is drafted as a schedule change in the write-back queue, on your own
+  work, for you to approve before SAP is written (see below). The plan change links each one.
+- A notice is drafted for each crew whose work moved, each person or queue booked on a moved job and, for a trip,
+  the units downstream that lose their feed (to the ops lead). Edit one and choose **Send**: it goes on the case of
+  each moved job it is about, and the plan change keeps who sent it.
+
 ## Approve the update that goes back to SAP
 
 When the field reports Done or Could not do on work SAP raised, the update for SAP is drafted and lands in the

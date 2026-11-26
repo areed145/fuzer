@@ -1,8 +1,9 @@
 import { useState, type CSSProperties } from "react";
-import { Button, Card as UICard, ErrorText, Input, Line, List, Table, Text } from "../ui";
+import { Button, Card as UICard, ErrorText, Input, Line, List, Table, Text, Textarea, confirmDialog } from "../ui";
 import { quantity, when } from "../format";
-import { api, type PlanChange, type PlanKpis, type PlanMove } from "../api";
+import { api, type PlanChange, type PlanKpis, type PlanMove, type PlanNotice } from "../api";
 import { Status, useAction, useAsync } from "../lib";
+import { Actor } from "../work";
 import { caseHref } from "./workflows/shared";
 
 /** A bar's place on the diff's track, as a share of its span (CSS percentages, not a reading). */
@@ -44,6 +45,12 @@ function PlanChangeCard({ c, person, readOnly, put }:
         <li key={`${n}-${k.text}`}>{k.text}{edit && <> <Button size="sm" variant="secondary" disabled={!!a.busy || !person}
           onClick={() => a.run("remove", () => api.planConstraintRemove(c.exception_id, person, n), put)}>Remove</Button></>}</li>
       ))}</List>}
+      {edit && p && <Line wrap>
+        <Button variant="primary" disabled={!!a.busy || !person} onClick={async () => (await confirmDialog(
+          `Move ${p.moves.length === 1 ? "this job" : `these ${p.moves.length} jobs`} on the plan, queue SAP's schedule change for you to approve and draft the notices?`,
+          { confirm: "Approve" })) && a.run("approve", () => api.planChangeApprove(c.exception_id, person), put)}>Approve</Button>
+      </Line>}
+      {c.state === "approved" && <Approved c={c} person={person} readOnly={readOnly} put={put} />}
       {edit && <form onSubmit={(e) => { e.preventDefault(); a.run("constraint", () => api.planConstraint(c.exception_id, person, text),
         (x) => { put(x); setText(""); }); }}>
         <Line wrap>
@@ -94,5 +101,36 @@ function Diff({ moves }: { moves: PlanMove[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Once approved: who approved it, each SAP schedule change waiting in the write-back queue, and the notices to send. */
+function Approved({ c, person, readOnly, put }: { c: PlanChange; person: string; readOnly: boolean; put: (c: PlanChange) => void }) {
+  return <>
+    <Text as="p">Approved by <Actor who={c.approved_by ?? ""} /> {when(c.approved_at)}.</Text>
+    {c.writebacks.length > 0 && <List small aria-label="SAP changes">{c.writebacks.map((w) => <li key={w.id}>
+      {w.item_id ? <a href={caseHref(w.item_id)}>SAP order {w.record}</a> : <>SAP order {w.record}</>}: {w.state.replace(/_/g, " ")}</li>)}
+    </List>}
+    {c.notices.map((x) => <Notice key={x.n} id={c.exception_id} x={x} person={person} readOnly={readOnly} put={put} />)}
+  </>;
+}
+
+const AUDIENCE: Record<PlanNotice["audience"], string> = { crew: "Crew", field: "Field operator", downstream: "Downstream" };
+
+function Notice({ id, x, person, readOnly, put }:
+  { id: number; x: PlanNotice; person: string; readOnly: boolean; put: (c: PlanChange) => void }) {
+  const [text, setText] = useState(x.text);
+  const a = useAction();
+  const sent = !!x.sent_at;
+  return (
+    <div className="replan-notice">
+      <Line wrap small><strong>{AUDIENCE[x.audience]}: {x.name}</strong>
+        {sent && <Text muted>sent by <Actor who={x.sent_by ?? ""} /> {when(x.sent_at)}</Text>}</Line>
+      <Textarea rows={3} aria-label={`Notice to ${x.name}`} disabled={sent || readOnly} value={text}
+        onChange={(e) => setText(e.target.value)} />
+      {!sent && !readOnly && <Button size="sm" variant="primary" disabled={!!a.busy || !person || !text.trim()}
+        onClick={() => a.run("send", () => api.planNoticeSend(id, x.n, person, text), put)}>Send</Button>}
+      <ErrorText>{a.error}</ErrorText>
+    </div>
   );
 }

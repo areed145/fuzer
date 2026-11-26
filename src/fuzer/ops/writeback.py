@@ -181,9 +181,11 @@ def _log(conn, wid: int, state: str, by: str, note: str | None = None) -> None:
 
 def propose(conn, system: str, kind: str, payload: dict, by: str, *, record: str | None = None,
             action: str = "update", key: str | None = None, item_id: int | None = None, title: str | None = None,
-            subjects: list[str] | None = None, source_ref: str | None = None, approver_role: str | None = None) -> dict:
-    """Draft a change to `system` and put it in its approver's queue. An agent or a person may draft; only a
-    person approves. `key` makes it idempotent: proposing the same key again returns the one already there."""
+            subjects: list[str] | None = None, source_ref: str | None = None, approver_role: str | None = None,
+            assignee: str | None = None) -> dict:
+    """Draft a change to `system` and put it in its approver's queue, or with `assignee` on that named approver's
+    own work. An agent or a person may draft; only a person approves. `key` makes it idempotent: proposing the same
+    key again returns the one already there."""
     p = policy(conn, system)
     if kind not in p["kinds"]:
         raise WritebackError(f"{system} doesn't take {kind} write-backs (it takes {', '.join(p['kinds']) or 'none'})")
@@ -203,7 +205,7 @@ def propose(conn, system: str, kind: str, payload: dict, by: str, *, record: str
         from . import routing
 
         case = routing.open_task(conn, CASE_TYPE, title, by, f"writeback:{row['id']}", role=f"role:{role}",
-                                 data={"writeback_id": row["id"], "system": system, "kind": kind},
+                                 assignee=assignee, data={"writeback_id": row["id"], "system": system, "kind": kind},
                                  subjects=subjects or [], source=system)
         row["item_id"] = case["id"]
     row = dict(conn.execute("update writeback set state = 'awaiting_approval', item_id = %s where id = %s returning *",
