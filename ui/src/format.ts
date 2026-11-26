@@ -77,6 +77,9 @@ export const when = (at: At, missing = "", seconds = false): string => shape(at,
 /** The day alone, in the same format: "Nov 14", or "Dec 30, 2025" in another year. */
 export const whenDay = (at: At, missing = ""): string => shape(at, missing, false, false);
 
+/** The hour of an instant on the viewer's clock, for a day's time axis: "6 AM". */
+export const whenHour = (at: number | Date): string => new Date(at).toLocaleTimeString("en-US", { hour: "numeric" });
+
 /** How long ago or how soon, within a week: "3 min ago", "in 2 h". Beyond that, and for plant-clock values, `when`. */
 export function ago(at: At, missing = ""): string {
   const t = read(at);

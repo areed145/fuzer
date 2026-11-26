@@ -2,11 +2,12 @@
  * turnaround work, inspections and the exceptions the IOC chose to plan sit side by side, so two jobs on one asset,
  * a person booked twice, and work that could ride along with a shutdown all show before they happen. */
 import { acronyms, say } from "../wording";
-import { money, whenDay, estimate } from "../format";
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
+import { money, whenDay, whenHour, estimate } from "../format";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { api, type AtRisk, type PlanItem, type ResourceLoad } from "../api";
 import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field, confirmDialog, promptDialog } from "../ui";
 import { Status, entityHref, errorMessage, href, useAsync, useAction } from "../lib";
+import { AssignPicker } from "./workflows/shared";
 import { TurnaroundPanel } from "./Turnaround";
 import { SchedulePage } from "./Schedule";
 import { ResourcesPage } from "./Resources";
@@ -17,10 +18,43 @@ import { usePerson } from "../work";
 import { useEntityNames } from "../useEntityNames";
 import { commonName } from "../entityRefs";
 
-const DAY = 86_400_000;
+const HOUR = 3_600_000, DAY = 24 * HOUR;
+// What Plan can show from From: a planner's day first, the longer ranges as choices.
+const SPANS: [number, string][] = [[1, "1 day"], [7, "1 week"], [14, "2 weeks"], [28, "4 weeks"], [56, "8 weeks"], [84, "12 weeks"],
+                                   [182, "26 weeks"]];
 const STATUSES = ["proposed", "scheduled", "in_progress", "done", "cancelled"];
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const short = (at: string) => whenDay(at);
+
+/** An area's rows, with the exceptions about one piece of equipment together: an item alone, or a list of two or more
+ * exceptions on the same equipment where the first of them would be (the field raises one per condition, so a machine
+ * that needs action four ways made four rows saying so). */
+function byEquipment(list: PlanItem[]): (PlanItem | PlanItem[])[] {
+  const on = (i: PlanItem) => (i.kind === "exception" && i.subjects.length ? i.subjects[0] : null);
+  const same = new Map<string, PlanItem[]>();
+  for (const i of list) { const k = on(i); if (k) same.set(k, [...(same.get(k) ?? []), i]); }
+  const out: (PlanItem | PlanItem[])[] = [];
+  for (const i of list) {
+    const k = on(i), all = k ? same.get(k)! : [i];
+    if (all.length < 2) out.push(i);
+    else if (all[0] === i) out.push(all);
+  }
+  return out;
+}
+
+/** The axis labels that fit a track `width` px wide: a label is left out where it would run into the one before it, off
+ * the track's right end, or under the Today mark, so no two read as one ("Jan 4, 2027Jan 11, 2027"). */
+function fitLabels(ticks: { at: number; text: string }[], width: number, today: { at: number; text: string } | null): string[] {
+  const wide = (text: string) => text.length * 6.5 + 10;  // the 11px axis font, with a gap either side
+  let right = 0;
+  return ticks.map(({ at, text }) => {
+    const x = (at / 100) * width, half = wide(text) / 2;
+    if (!width || x - half < right || x + half > width
+        || (today && Math.abs(x - (today.at / 100) * width) < half + wide(today.text) / 2)) return "";
+    right = x + half;
+    return text;
+  });
+}
 
 export function PlanPage({ query }: { query: URLSearchParams }) {
   const [person] = usePerson();
@@ -49,10 +83,21 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
   const scope = useAsync(() => (within ? Promise.resolve(undefined) : api.turnaround(revision || undefined)), [revision, within]);
   const turnaround = revision !== null ? scope.data : undefined;
   const pick = (r: string) => { location.hash = r ? `#/plan?revision=${encodeURIComponent(r)}` : "#/plan"; };
-  // `?item=12&from=…` comes from a work item's "planned" link: its bar opens, in a window that holds it.
-  const [from, setFrom] = useState(() => query.get("from") ?? day(new Date(Date.now() - 7 * DAY)));
-  const [weeks, setWeeks] = useState(8);
-  const to = day(new Date(new Date(from).getTime() + weeks * 7 * DAY));
+  // Plan opens on today's day; `?item=12&from=…` comes from a case's "planned" link: its bar opens, on its first day.
+  const [from, setFrom] = useState(() => query.get("from") ?? day(new Date()));
+  const [days, setDays] = useState(1);
+  const to = day(new Date(new Date(from).getTime() + days * DAY));
+  // The axis is labelled to fit the track's width, which only the browser knows.
+  const [axisWidth, setAxisWidth] = useState(0);
+  const measure = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return;
+    const read = () => setAxisWidth(Math.round(el.getBoundingClientRect().width));
+    read();
+    const seen = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(read);
+    seen?.observe(el);
+    return () => seen?.disconnect();
+  }, []);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const plan = useAsync(() => api.plan({ start: from, end: to, within }), [from, to, within]);
   const { busy, error, run } = useAction();
   const [open, setOpen] = useState<number | null>(() => Number(query.get("item")) || null);
@@ -88,23 +133,47 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
   const bundles = plan.data.filter((i) => i.clashes.some((c) => c.kind === "bundle")).length;
   const waiting = plan.data.filter((i) => i.parts_short?.length).length;
   const today = pos(new Date().toISOString());
-  // Week lines on every track and a date axis above them: Mondays inside the window (#1078).
-  const mondays: number[] = [];
-  for (let t = t0 + ((8 - new Date(t0).getUTCDay()) % 7) * DAY; t < t1; t += 7 * DAY) mondays.push(t);
+  // Lines on every track and a time axis above them (#1078): every three hours on a day, every day over two weeks or
+  // less, every Monday beyond.
+  const step = days === 1 ? 3 * HOUR : days <= 14 ? DAY : 7 * DAY;
+  const ticks: number[] = [];
+  for (let t = step === 7 * DAY ? t0 + ((8 - new Date(t0).getUTCDay()) % 7) * DAY : t0 + step; t < t1; t += step) ticks.push(t);
   const weekAt = (t: number) => ((t - t0) / (t1 - t0)) * 100;
-  // Today and the week lines, set once for every track: one tile a week wide, placed so a line falls on each Monday.
-  const week = (7 * DAY * 100) / (t1 - t0);
+  // Today and the lines, set once for every track: one tile a step wide, placed so a line falls on each tick.
+  const week = (step * 100) / (t1 - t0);
   const lines = { "--today": `${today}%`, "--week": `${week}%`,
-                  "--week-at": `${week < 100 && mondays.length ? (100 * weekAt(mondays[0])) / (100 - week) : 0}%` } as CSSProperties;
+                  "--week-at": `${week < 100 && ticks.length ? (100 * weekAt(ticks[0])) / (100 - week) : 0}%` } as CSSProperties;
+  const nowMark = today > 0 && today < 100 ? { at: today, text: days === 1 ? "Now" : "Today" } : null;
+  const labels = fitLabels(ticks.map((t) => ({ at: weekAt(t), text: days === 1 ? whenHour(t) : short(new Date(t).toISOString()) })),
+                           axisWidth, nowMark);
   const taWindow = turnaround?.window ? { left: pos(turnaround.window.start), right: pos(turnaround.window.end) } : null;
   const changed = () => { plan.reload(); scope.reload(); };
+  const bar = (i: PlanItem) => <span key={i.id} className={`plan-bar kind-${i.kind}${i.needs_shutdown ? " shutdown" : ""}`}
+    style={{ left: `${pos(i.start_at)}%`, width: `${Math.max(0.8, pos(i.end_at) - pos(i.start_at))}%` }} />;
+  const row = (i: PlanItem) => <li key={i.id} id={`plan-item-${i.id}`} className={`plan-row status-${i.status}`}>
+    <button type="button" className="plan-label" aria-expanded={open === i.id} onClick={() => setOpen(open === i.id ? null : i.id)}>
+      <strong>{acronyms(i.title)}</strong>
+      <Text small muted> {i.kind.replace(/_/g, " ")} · {short(i.start_at)}–{short(i.end_at)}{i.crew ? ` · ${i.crew}` : ""}</Text>
+      {i.clashes.filter((c) => c.kind !== "bundle").length > 0 && <Badge tone="danger">clash</Badge>}
+      {i.clashes.some((c) => c.kind === "bundle") && <Badge tone="ok">bundle</Badge>}
+      {i.needs_shutdown && <Badge tone="warn">shutdown</Badge>}
+      {i.place === "desk" && <Badge>desk</Badge>}
+      {i.stage === "released" && <Badge tone="ok">released</Badge>}
+      {!!i.parts_short?.length && <Badge tone="warn">parts short</Badge>}
+    </button>
+    <div className="plan-track" aria-hidden="true">
+      {taWindow && <span className="plan-window" style={{ left: `${taWindow.left}%`, width: `${Math.max(0.8, taWindow.right - taWindow.left)}%` }} />}
+      {today > 0 && today < 100 && <span className="plan-today" />}
+      {bar(i)}
+    </div>
+    {open === i.id && <Detail item={i} person={person} onChange={changed} />}
+  </li>;
   const axis = (
     <div className="plan-row plan-axis" aria-hidden="true">
       <span />
-      <div className="plan-axis-track">
-        {mondays.map((t, n) => <span key={t} className="plan-axis-week" style={{ left: `${weekAt(t)}%` }}>
-          {n % Math.ceil(mondays.length / 9) === 0 && Math.abs(weekAt(t) - today) > 4 ? short(new Date(t).toISOString()) : ""}</span>)}
-        {today > 0 && today < 100 && <span className="plan-axis-today">Today</span>}
+      <div className="plan-axis-track" ref={measure}>
+        {ticks.map((t, n) => <span key={t} className="plan-axis-week" style={{ left: `${weekAt(t)}%` }}>{labels[n]}</span>)}
+        {nowMark && <span className="plan-axis-today">{nowMark.text}</span>}
       </div>
     </div>
   );
@@ -115,8 +184,8 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
         Plan</PageHeader>}
       <Line>
         <Field inline label="From"><Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></Field>
-        <Field inline label="Showing"><Select aria-label="Weeks shown" value={String(weeks)} onChange={(e) => setWeeks(Number(e.target.value))}>
-          {[2, 4, 8, 12, 26].map((w) => <option key={w} value={w}>{w} weeks</option>)}
+        <Field inline label="Showing"><Select aria-label="Showing" value={String(days)} onChange={(e) => setDays(Number(e.target.value))}>
+          {SPANS.map(([n, label]) => <option key={n} value={n}>{label}</option>)}
         </Select></Field>
         {!within && !!scope.data?.revisions?.length && <Field inline label="Turnaround"><Select aria-label="Turnaround" value={turnaround?.revision ?? ""} onChange={(e) => pick(e.target.value)}>
           <option value="">None shown</option>
@@ -133,32 +202,32 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
       <div>
       {/* The number a manager wants comes first: production at risk from the planned shutdowns (#1078). */}
       {!within && <AtRiskCard from={from} />}
-      {!within && <CrewLoadCard from={from} days={weeks * 7} pos={pos} lines={lines} axis={axis} />}
-      {!plan.data.length && <Empty>Nothing planned in these weeks.</Empty>}
+      {!within && <CrewLoadCard from={from} days={days} pos={pos} lines={lines} axis={axis} />}
+      {!plan.data.length && <Empty>Nothing planned on these dates.</Empty>}
       {groups.map(([area, list]) => (
         <Card key={area} title={areaTitle(area, list)} className="plan-area">
           {/* Each area's timeline carries its own date axis, so a row is read against dates, not a bare track (#1078). */}
           <div className="plan-timeline" style={lines}>
           {axis}
-          <ul className="plan-rows">{list.map((i) => <li key={i.id} id={`plan-item-${i.id}`} className={`plan-row status-${i.status}`}>
-            <button type="button" className="plan-label" aria-expanded={open === i.id} onClick={() => setOpen(open === i.id ? null : i.id)}>
-              <strong>{acronyms(i.title)}</strong>
-              <Text small muted> {i.kind.replace(/_/g, " ")} · {short(i.start_at)}–{short(i.end_at)}{i.crew ? ` · ${i.crew}` : ""}</Text>
-              {i.clashes.filter((c) => c.kind !== "bundle").length > 0 && <Badge tone="danger">clash</Badge>}
-              {i.clashes.some((c) => c.kind === "bundle") && <Badge tone="ok">bundle</Badge>}
-              {i.needs_shutdown && <Badge tone="warn">shutdown</Badge>}
-              {i.place === "desk" && <Badge>desk</Badge>}
-              {i.stage === "released" && <Badge tone="ok">released</Badge>}
-              {!!i.parts_short?.length && <Badge tone="warn">parts short</Badge>}
-            </button>
-            <div className="plan-track" aria-hidden="true">
-              {taWindow && <span className="plan-window" style={{ left: `${taWindow.left}%`, width: `${Math.max(0.8, taWindow.right - taWindow.left)}%` }} />}
-              {today > 0 && today < 100 && <span className="plan-today" />}
-              <span className={`plan-bar kind-${i.kind}${i.needs_shutdown ? " shutdown" : ""}`}
-                style={{ left: `${pos(i.start_at)}%`, width: `${Math.max(0.8, pos(i.end_at) - pos(i.start_at))}%` }} />
-            </div>
-            {open === i.id && <Detail item={i} person={person} onChange={changed} />}
-          </li>)}</ul>
+          <ul className="plan-rows">{byEquipment(list).map((entry) => {
+            if (!Array.isArray(entry)) return row(entry);
+            // Field exceptions on one piece of equipment are one row; it opens to each of them.
+            const [first] = entry, key = `${area} ${first.subjects[0]}`;
+            const shown = openGroup === key || entry.some((i) => i.id === open);
+            const ends = entry.map((i) => i.end_at).sort();
+            return [<li key={key} className="plan-row plan-group">
+              <Button variant="link" className="plan-label" aria-expanded={shown} onClick={() => setOpenGroup(shown ? null : key)}>
+                <strong>{first.assets[0]?.label ?? acronyms(first.title)}</strong>
+                <Text small muted> {entry.length} exceptions · {short(first.start_at)}–{short(ends[ends.length - 1])}</Text>
+                {entry.some((i) => i.clashes.some((c) => c.kind !== "bundle")) && <Badge tone="danger">clash</Badge>}
+                {entry.some((i) => i.parts_short?.length) && <Badge tone="warn">parts short</Badge>}
+              </Button>
+              <div className="plan-track" aria-hidden="true">
+                {today > 0 && today < 100 && <span className="plan-today" />}
+                {entry.map(bar)}
+              </div>
+            </li>, ...(shown ? entry.map(row) : [])];
+          })}</ul>
           </div>
         </Card>
       ))}
@@ -237,7 +306,8 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
       {person ? <Line>
         <Field inline label="Start"><Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
         <Field inline label="End"><Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
-        <Field inline label="Crew"><Input value={crew} placeholder="person or role:…" onChange={(e) => setCrew(e.target.value)} /></Field>
+        {/* who goes, from the roster: a person or a role's queue, never typed as "role:…" (P5.28g) */}
+        <Field inline label="Who"><AssignPicker value={crew} onChange={setCrew} label="Who" /></Field>
         <Field inline label="Done"><Select aria-label="Where it is done" value={item.place ?? "field"} disabled={!!busy}
           onChange={(e) => change({ place: e.target.value === "desk" ? "desk" : "field" })}>
           <option value="field">in the field</option><option value="desk">at a desk</option>
@@ -245,7 +315,7 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
         <Button size="sm" disabled={!!busy} onClick={reschedule}>Reschedule</Button>
         {fieldJob && !item.released_at && <Button size="sm" variant="primary" disabled={!!busy} onClick={release}>Release</Button>}
         {crews.length > 0 && <>
-          <Field inline label="Book on"><Select aria-label="Crew to book" value={resource} onChange={(e) => setResource(e.target.value)}>
+          <Field inline label="Crew"><Select aria-label="Crew" value={resource} onChange={(e) => setResource(e.target.value)}>
             <option value="">choose a crew</option>
             {crews.map((r) => <option key={r.code} value={r.code}>{r.name} ({r.capacity})</option>)}
           </Select></Field>
@@ -314,8 +384,8 @@ function CrewLoadCard({ from, days, pos, lines, axis }: { from: string; days: nu
             </li>;
           })}</ul>
         </div>
-        {!!idle.length && <Text as="p" small>Not used in these weeks: {idle.map((r) => r.name).join(", ")}.</Text>}
-      </> : <Empty>No shared crew or resource is used in these weeks.</Empty>)}
+        {!!idle.length && <Text as="p" small>Not used on these dates: {idle.map((r) => r.name).join(", ")}.</Text>}
+      </> : <Empty>No shared crew or resource is used on these dates.</Empty>)}
     </Card>
   );
 }

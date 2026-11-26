@@ -4854,6 +4854,8 @@ test("the integrated plan shows clashes and bundling by area and reschedules an 
   const changes = [];
   await page.route("**/plan?*", (route) => route.fulfill({ json: items }));
   await page.route("**/plan/1", (route) => { changes.push(route.request().postDataJSON()); return route.fulfill({ json: items[0] }); });
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
+  await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "operator", kind: "person" }] }));
   await page.goto(`${url}/#/plan`);
   await page.getByRole("heading", { name: "North", exact: true }).waitFor();
   await page.getByText("1 with a clash").waitFor();
@@ -4863,7 +4865,7 @@ test("the integrated plan shows clashes and bundling by area and reschedules an 
   await page.getByText(/Bundle: could be done during/).waitFor();
   await page.getByText("1 waiting on parts").waitFor();
   await page.getByText(/no stock on record.*10001 seal kit \(Mechanical seal\)/).waitFor();
-  await page.getByLabel("Crew").fill("fred");
+  await page.getByRole("combobox", { name: "Who" }).selectOption("fred");
   await page.getByRole("button", { name: "Reschedule" }).click();
   await expectReports(changes, 1);
   assert.equal(changes[0].crew, "fred");
@@ -4892,7 +4894,8 @@ test("#25 Plan shows each crew's load day by day on the plan's own dates, overlo
     res("MECH", "Mechanical fitters", "crew", 6, (n) => (n === 9 ? 8 : n === 10 ? 4 : 0)),
     res("SCAF", "Scaffolders", "crew", 4, () => 0)] } }));
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto(`${url}/#/plan`);
+  await page.goto(`${url}/#/plan?from=${from}`);
+  await page.getByRole("combobox", { name: "Showing" }).selectOption("56");
   const card = page.locator(".plan-load");
   await card.getByText("1 of 1 over capacity on some days.", { exact: false }).waitFor();
   const row = card.getByRole("link", { name: /Mechanical fitters/ });
@@ -4900,13 +4903,77 @@ test("#25 Plan shows each crew's load day by day on the plan's own dates, overlo
   await row.getByText("over on 1 day").waitFor();
   assert.equal(await card.locator(".plan-load-day").count(), 2);
   assert.equal(await card.locator(".plan-load-day.over").count(), 1);
-  await card.getByText("Not used in these weeks: Scaffolders.").waitFor();
+  await card.getByText("Not used on these dates: Scaffolders.").waitFor();
   // The day's column sits on the same dates as the rows: day 9 of a window that starts at From.
   const [track, over] = await Promise.all([card.locator(".plan-load-track").boundingBox(), card.locator(".plan-load-day.over").boundingBox()]);
   const expected = track.x + (9 / 56) * track.width;
   assert.ok(Math.abs(over.x - expected) < 2, `overloaded day at ${over.x}, expected ${expected}`);
   await page.setViewportSize({ width: 390, height: 900 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+});
+
+// P5.28g (#1395): the planner's day. Plan opens on today with a day view, the longer ranges kept as choices; a machine's
+// field exceptions are one row; a job has one crew field and lists a part once; the axis labels never run together.
+test("P5.28g Plan opens on the planner's day, one row per machine's exceptions, one crew field, labels apart", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const hour = (h) => new Date(Date.now() + h * 3_600_000).toISOString();
+  const today = new Date().toISOString().slice(0, 10);
+  const base = { source: "exceptions", area_id: "fz-area-0123456789ab", area_label: "North", crew: null, crew_hours: null,
+    deferment_usd: null, notes: null, status: "scheduled", needs_shutdown: false, clashes: [], parts_short: [] };
+  const machine = { subjects: ["fz-equipment-k101"], assets: [{ fuzer_id: "fz-equipment-k101", label: "K-101" }] };
+  const items = [
+    ...[1, 2, 3, 4].map((n) => ({ ...base, ...machine, id: n, kind: "exception", exception_id: 10 + n, source_key: String(10 + n),
+      title: `K-101 needs action: flag ${n}`, start_at: hour(-2 + n * 0.1), end_at: hour(2 + n) })),
+    { ...base, id: 5, kind: "maintenance", exception_id: null, source: "sap", source_key: "4000005", title: "Replace P-101 seal",
+      subjects: ["fz-equipment-p101"], assets: [{ fuzer_id: "fz-equipment-p101", label: "P-101" }], start_at: hour(1), end_at: hour(5),
+      parts_short: [{ id: "fz-material-1", label: "MAT-1", description: "Bearing set", mpn: null, bin: null, for: "fz-equipment-p101" }] },
+  ];
+  const asked = [];
+  await page.route("**/plan?*", (route) => { asked.push(Object.fromEntries(new URL(route.request().url()).searchParams)); return route.fulfill({ json: items }); });
+  await page.route("**/plan/resources/load*", (route) => route.fulfill({ json: { start: today, end: today, days: 1, resources: [] } }));
+  await page.route("**/plan/resources", (route) => route.fulfill({ json: [{ code: "MECH", name: "Mechanical fitters", kind: "crew", capacity: 6 }] }));
+  await page.route("**/plan/*/prerequisites", (route) => route.fulfill({ json: { item_id: 5, ready: true, released_at: null, released_by: null, prerequisites: [] } }));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "fred", roles: ["operator"] }] }));
+  await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "operator", kind: "person" }] }));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${url}/#/plan`);
+  await page.getByRole("heading", { name: "North", exact: true }).waitFor();
+  // today, one day, the longer ranges still there
+  assert.equal(await page.getByLabel("From").inputValue(), today);
+  const showing = page.getByRole("combobox", { name: "Showing" });
+  assert.equal(await showing.locator("option:checked").textContent(), "1 day");
+  assert.deepEqual(await showing.locator("option").allTextContents(), ["1 day", "1 week", "2 weeks", "4 weeks", "8 weeks", "12 weeks", "26 weeks"]);
+  assert.equal(asked.at(-1).start, today);
+  assert.equal(asked.at(-1).end, new Date(new Date(today).getTime() + 86_400_000).toISOString().slice(0, 10));
+  await page.locator(".plan-axis-today", { hasText: "Now" }).first().waitFor();
+  // four exceptions on K-101 are one row that opens to each of them
+  const group = page.getByRole("button", { name: /K-101.*4 exceptions/ });
+  await group.waitFor();
+  assert.equal(await page.getByRole("button", { name: /K-101 needs action/ }).count(), 0);
+  await group.click();
+  assert.equal(await page.getByRole("button", { name: /K-101 needs action/ }).count(), 4);
+  // a job: one crew field, who goes from the roster, a part once
+  await page.getByRole("button", { name: /Replace P-101 seal/ }).click();
+  await page.getByRole("combobox", { name: "Crew" }).waitFor();
+  await page.getByRole("combobox", { name: "Who" }).waitFor();
+  assert.equal(await page.getByLabel("Book on").count(), 0);
+  assert.equal(await page.getByPlaceholder(/person or role/).count(), 0);
+  assert.equal(await page.getByText(/MAT-1 \(Bearing set\)/).count(), 1);
+  // the axis labels never touch each other or the Today mark, on iPad portrait, a phone and a desktop
+  await showing.selectOption("56");
+  await page.getByLabel("From").fill(new Date(Date.now() - 4 * 86_400_000).toISOString().slice(0, 10));
+  for (const width of [834, 390, 1280]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.locator(".plan-axis-today", { hasText: "Today" }).first().waitFor();
+    await page.waitForTimeout(100);
+    const boxes = await page.locator(".plan-area").last().evaluate((card) => [...card.querySelectorAll(".plan-axis-week, .plan-axis-today")]
+      .filter((el) => el.textContent.trim()).map((el) => { const r = el.getBoundingClientRect(); return { text: el.textContent, left: r.left, right: r.right }; })
+      .sort((a, b) => a.left - b.left));
+    assert.ok(boxes.length >= 3, `at ${width}px: ${JSON.stringify(boxes)}`);
+    for (let n = 1; n < boxes.length; n++)
+      assert.ok(boxes[n].left >= boxes[n - 1].right, `at ${width}px "${boxes[n - 1].text}" runs into "${boxes[n].text}"`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  }
 });
 
 test("a cold open shows the last answers at once, says how old they are, then swaps in the fresh ones", async () => {

@@ -222,8 +222,9 @@ def job_stage(row: dict) -> str:
 
 def _parts_short(conn, rows: list[dict], now: datetime) -> dict[int, list[dict]]:
     """For active items starting within READY_DAYS (and not yet over): the spare parts of their assets whose
-    recorded stock is zero, by item id. A part with no stock record is not reported (unknown is not short), and
-    a stock count is not a reservation: this says what to check with stores, not what is booked."""
+    recorded stock is zero, by item id, each part once (a tag and the equipment installed at it share their parts).
+    A part with no stock record is not reported (unknown is not short), and a stock count is not a reservation: this
+    says what to check with stores, not what is booked."""
     from ..graph import queries
     by_asset: dict[str, list[dict]] = {}
     out: dict[int, list[dict]] = {}
@@ -235,7 +236,8 @@ def _parts_short(conn, rows: list[dict], now: datetime) -> dict[int, list[dict]]
                 by_asset[s] = [{"id": p["fuzer_id"], "label": p["label"], "description": p["description"],
                                 "mpn": p["mpn"], "bin": p["bin"], "for": s} for p in queries.spares(conn, s)
                                if p["stock"] is not None and p["stock"] <= 0]
-            out.setdefault(r["id"], []).extend(by_asset[s])
+            have = out.setdefault(r["id"], [])
+            have.extend(p for p in by_asset[s] if all(p["id"] != h["id"] for h in have))
     return out
 
 
