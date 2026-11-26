@@ -17,6 +17,7 @@ from .definitions import (
     _event,
     _op,
     acting_roles,
+    assigned_roles,
     form,
     is_agent,
     roles_of,
@@ -285,10 +286,12 @@ def _agent_failed(conn, token_id, worker, error, now, max_attempts, backoff) -> 
 NOT_SHELVED = ("not exists (select 1 from exception_record x where x.item_id = i.id and x.state = 'open' "
                "and x.shelved_until > %(now)s)")
 
+# A row's `handed_reason` is what a person said when they sent it on. The engine's own moves are left out: every row
+# put back in its queue repeated "Back to its own queue: overdue work stays with its team, marked escalated" (tour E10).
 _TASKS = """
     select t.id as task_id, t.element, t.name, t.kind, t.role, t.assignee, t.requires_human, t.due_at, t.escalated_at,
            t.error, t.created_at, t.due_at < %(now)s as overdue, t.claimed_by, t.lease_until,
-           (select data->>'reason' from work_event h where h.token_id = t.id and h.kind = 'handed_off'
+           (select data->>'reason' from work_event h where h.token_id = t.id and h.kind = 'handed_off' and h.actor <> 'system'
             order by h.id desc limit 1) as handed_reason,
            i.id as item_id, i.type, i.title, i.priority, i.subjects, p.id as process_id, p.process_key, p.definition_id,
            {checklist}
@@ -302,7 +305,7 @@ _ITEMS = """
            false as requires_human, i.due as due_at, null::timestamptz as escalated_at, null as error, i.created_at,
            i.due < %(now)s as overdue, null as claimed_by, null::timestamptz as lease_until,
            (select data->>'reason' from work_event h where h.item_id = i.id and h.token_id is null
-            and h.kind = 'handed_off' order by h.id desc limit 1) as handed_reason, i.id as item_id, i.type, i.title, i.priority, i.subjects,
+            and h.kind = 'handed_off' and h.actor <> 'system' order by h.id desc limit 1) as handed_reason, i.id as item_id, i.type, i.title, i.priority, i.subjects,
            null::bigint as process_id, null as process_key, null::bigint as definition_id, {checklist}
     from work_item i
     where i.closed_at is null and {who} and not exists (select 1 from work_process p where p.item_id = i.id)
@@ -458,7 +461,11 @@ def bulk_complete(conn, token_ids: list[int], by: str, action: str, reason: str 
 def work_across(person: str, allowed: list[str] | None = None) -> list[dict]:
     """A person's Inbox in every project they hold a role in (#497): one entry per project with their roles there,
     their steps and their roles' unclaimed queue. `allowed` limits it to the projects they may open (None: any);
-    holding a routing role somewhere never opens a project they aren't granted."""
+    holding a routing role somewhere never opens a project they aren't granted.
+
+    Only roles they were given count (assigned_roles): an owner or the demo account may act as anyone everywhere, and
+    its My work listed every other site's ops lead queue, "and 84 at other sites" (tour D15). What is assigned to them
+    by name at another site is still theirs."""
     from ..core import db, projects
 
     with db.connect() as conn:
@@ -469,11 +476,13 @@ def work_across(person: str, allowed: list[str] | None = None) -> list[dict]:
     out = []
     for name in names:
         with db.connect() as conn, projects.use(conn, name), db.connect() as scoped:
-            acting = acting_roles(scoped, person) or here
-            roles = [r for r in roles_of(scoped, person) if acting is None or r in acting]
-            if not roles:
+            if not roles_of(scoped, person):  # a disabled account holds nothing
                 continue
+            acting = acting_roles(scoped, person) or here
+            roles = [r for r in assigned_roles(scoped, person) if acting is None or r in acting]
             w = my_work(scoped, person, roles, acting=acting)
+            if not roles and not w["mine"]:
+                continue
             out.append({"project": name, "roles": roles, "mine": w["mine"], "queue": w["queue"],
                         "counts": w["counts"]})
     return out

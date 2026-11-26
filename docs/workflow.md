@@ -101,8 +101,10 @@ the published version, and running cases stay on their original version.
   and monitoring desks whose work cuts across fields are **overarching** (`fuzer.work_person_cover`, shared by the
   instance): their roles count in every field they cover (all fields, or the ones named), on top of any roles a
   field's own roster gives them. Their My work lists their work at their other sites too (**At your other sites**, `/work/inbox/fields`), only
-  for fields the viewer may open: covering a field is routing, never an access grant. Set on Users, workflow
-  assignments (`PUT /work/people/{name}/cover`).
+  for fields the viewer may open: covering a field is routing, never an access grant. Another site's queues are listed
+  only for roles a person was given there (its roster or a cover), never the every-role span of an owner or the demo
+  account; what is assigned to them by name is listed wherever it is. Set on Users, workflow assignments
+  (`PUT /work/people/{name}/cover`).
 
 API: `/work/inbox`, `/work/items` (cases) and `/work/items/{id}/set|reassign|transition`, `/work/tasks/{id}/...`,
 `/work/stats`, `/work/instances`, `/work/definitions/{id}/routing`, `/work/roles/catalog`, `/work/roles/{name}`,
@@ -324,7 +326,10 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
   (`POST /handovers/{id}/acknowledge`), which goes on the case history with who and when and closes the case. Past
   handovers are listed (`GET /handovers`) and readable, each with its status: in progress, acknowledged or not
   acknowledged. Notes change nothing else; only acknowledging hands a shift over. The rest of the open work is on All
-  work, which the page links. **Draft the handover** refreshes an unacknowledged one from live work.
+  work, which the page links. **Draft the handover** writes the running shift's handover when there is none yet; while
+  the shift runs its lines are read from live work each time it is opened (nothing is stored by reading). A handover
+  that was acknowledged, or that a later shift's handover replaced, is kept as it was: it takes no notes and no
+  acknowledgement.
 
 ### The installed app on a phone
 

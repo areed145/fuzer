@@ -155,8 +155,8 @@ is a deliberate, metered call.
 At each shift change (06:00 and 18:00 by default, in the project's time zone) a handover is drafted from live work.
 Before you leave, open it from the banner on **Waiting on me** (or **Shift handover** in the List's preset picker), add **outgoing notes**
 for what the lines do not say (plans, risks, asks), and **Save notes**; both sit at the top, above what changed this
-shift. **Draft the handover** brings it up to date from live work if the shift has moved on since it was drafted. The
-incoming lead acknowledges it. The rest of the open work is on **All work**.
+shift. While the shift runs, its lines are the work as it stands when you open it; **Draft the handover** starts one
+if none is drafted yet. The incoming lead acknowledges it; an older handover stays readable, as it was. The rest of the open work is on **All work**.
 
 ## Good to know
 

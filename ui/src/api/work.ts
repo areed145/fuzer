@@ -776,6 +776,8 @@ export interface Handover {
     unknown?: Record<string, string>; links?: Record<string, string> };
   item_id: number | null; drafted_at: string; notes: string | null; notes_by: string | null; notes_at: string | null;
   acknowledged_by: string | null; acknowledged_at: string | null; acknowledged_note: string | null;
+  /** Acknowledged, or a later shift's handover replaced it: kept as it was, with no notes or acknowledgement (E12). */
+  read_only?: boolean;
 }
 /** Where a handover stands, in the page's words (fuzer.ops.handover.status). */
 export type HandoverStatus = "in progress" | "acknowledged" | "not acknowledged";

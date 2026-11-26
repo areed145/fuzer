@@ -52,6 +52,8 @@ test("a signed-in account reads as its name, never its actor id", () => {
   assert.equal(person(id), "Adam Reeder");
   assert.equal(person("user:demo"), "Demo account");
   assert.equal(person("system"), "Fuzer");
+  // a hyphen in an agent's name kept it raw: "agent:maintenance-integrity wrote the specialist brief" (tour C8)
+  assert.equal(person("agent:maintenance-integrity"), "Maintenance integrity agent");
   assert.equal(say(`handed over by ${id}`), "handed over by Adam Reeder");
 });
 

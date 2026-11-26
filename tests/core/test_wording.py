@@ -98,3 +98,9 @@ def test_a_source_reads_as_words_as_the_pages_say_it():
         ["Demo crew", "Permit to work", "Alarm performance", "SAP", "an unknown source"]
     assert wording.say("Weeping flange (field report from sample crew, open)") == \
         "Weeping flange (field report from Demo crew, open)"
+    # tour E (C8): a handover drafted with the kind's and the source's keys reads in words when it is opened
+    old = "20-GT-2000A needs action: lube oil pressure below its alarm (machine health from rotating_screen, closed)"
+    assert wording.say(old).endswith("(Machine health from Rotating screen, closed)")
+    assert wording.say("PTW-30015 lapsed (permit lapsed from ptw, open)").endswith(
+        "(Permit lapsed from Permit to work, open)")
+    assert wording.say(wording.say(old)) == wording.say(old)

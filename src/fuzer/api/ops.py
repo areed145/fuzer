@@ -1358,8 +1358,9 @@ def handover_get(handover_id: int, conn=Depends(get_conn)):
 
 @router.post("/handovers/draft")
 def handover_draft(d: HandoverDraft, conn=Depends(get_conn)):
-    """Draft the handover for the shift in progress (or bring it up to date), so the outgoing lead writes it before
-    they go. At the shift change it opens for the incoming lead; a handover whose shift ended is not redrafted."""
+    """Draft the handover for the shift in progress, so the outgoing lead writes it before they go (reading it shows
+    its lines from live work while the shift runs). At the shift change it opens for the incoming lead; a handover
+    whose shift ended is not redrafted."""
     from ..ops import handover
     out = _exception_call(conn, handover.draft, d.by, force=d.refresh, current=True)
     if out is None:

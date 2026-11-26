@@ -112,6 +112,7 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
   // works in the field, the evidence and history fold under Full case.
   const roles = (people.data ?? []).find((p) => p.name === person)?.roles ?? [];
   const fieldOnly = !demo && roles.length > 0 && roles.every((r) => r === "operator");
+  const openedByPerson = !!it.created_by?.startsWith("user:") || (people.data ?? []).some((p) => p.name === it.created_by);
   // A steward's question is answered here, on its case (#1131): its finding names the question on Master data. Once
   // answered it is still a question about records, with no event to trend.
   const question = questionOf(it.sources);
@@ -172,7 +173,9 @@ export function CasePage({ id, demo = false, closing = false }: { id: number; de
               <EntityLinks ids={it.subjects} />
               {dataset && <> source dataset <a href={href("/sources", { view: "dataset", name: dataset })}>{dataset}</a></>}
             </span>}
-            {!message && <span className="case-opened"><Text muted>opened by</Text> <Actor who={it.created_by} /> <Text muted>{when(it.created_at)}</Text></span>}
+            {/* who opened it, when a person did: a job's key ("opened by stewardship") or an agent says nothing the
+                kind doesn't (tour C8) */}
+            {!message && openedByPerson && <span className="case-opened"><Text muted>opened by</Text> <Actor who={it.created_by} /> <Text muted>{when(it.created_at)}</Text></span>}
             {!demo && <WatchButton target={`case:${it.id}`} label="case" />}
             {!demo && canAsk && <AskOpsIq about={{ case: String(it.id) }} what="case" />}
           </Line>

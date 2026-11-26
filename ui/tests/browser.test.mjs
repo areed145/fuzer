@@ -4973,6 +4973,8 @@ test("the integrated plan shows clashes and bundling by area and reschedules an 
   await back.waitFor();
   assert.equal(await back.getAttribute("href"), "#/list?q=North+train+overhaul");
   assert.equal(await page.getByRole("button", { name: /North train overhaul/ }).getAttribute("aria-expanded"), "true");
+  // a job made from work says so by its link, never as the row it came from: "Exceptions 1074" (P5.29e, tour C8)
+  assert.doesNotMatch(await page.locator("main").innerText(), /Exceptions 9\b/);
   assert.equal(await page.getByLabel("From").inputValue(), at(3).slice(0, 10));
 });
 
@@ -5535,6 +5537,55 @@ test("a handover's notes and acknowledge are in the first screen on a phone and 
       assert.ok(box && box.y >= 0 && box.y + box.height <= viewport.height, `${what} below the first ${viewport.width} px screen: ${JSON.stringify(box)}`);
     }
     assert.equal(await page.evaluate(() => window.scrollY), 0);
+  }
+});
+
+// P5.29e (#1404, tour E12): a past handover offered "Draft the handover" and Save notes; it is read as it was. The
+// running shift's lines are read live, so it says no "drafted" time and offers no redraft.
+test("P5.29e a past handover is read only and the running one offers no redraft", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ann"));
+  const running = { id: 21, shift_start: "2099-11-25T18:00:00Z", shift_end: "2099-11-26T06:00:00Z", state: "draft",
+    status: "in progress", acknowledged_by: null, acknowledged_at: null, item_id: null, lines: 1, notes_by: null };
+  const past = { id: 20, shift_start: "2026-11-20T06:00:00Z", shift_end: "2026-11-20T18:00:00Z", state: "draft",
+    status: "not acknowledged", acknowledged_by: null, acknowledged_at: null, item_id: 44, lines: 1, notes_by: "bo" };
+  await page.route("**/handovers", (route) => route.fulfill({ json: [running, past] }));
+  const facts = { sections: { Closed: [{ text: "PT-2001 reading erratic: done {at}", cites: ["case:5"], at: "2026-11-20T08:00:00Z" }] } };
+  await page.route("**/handovers/20", (route) => route.fulfill({ json: { ...past, facts, read_only: true,
+    drafted_at: "2026-11-20T18:02:00Z", notes: "Watch K-201", notes_at: "2026-11-20T17:50:00Z", acknowledged_note: null } }));
+  await page.route("**/handovers/21", (route) => route.fulfill({ json: { ...running, facts, read_only: false,
+    drafted_at: "2099-11-26T03:00:00Z", notes: null, notes_at: null, acknowledged_note: null } }));
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${url}/#/handover?id=20`);
+    await page.getByText("PT-2001 reading erratic", { exact: false }).waitFor();
+    await page.getByText("Watch K-201", { exact: false }).waitFor();  // its notes are read, not edited
+    for (const gone of ["Draft the handover", "Save notes", "I have read it: acknowledge"])
+      assert.equal(await page.getByRole("button", { name: gone }).count(), 0, `${gone} on a past handover`);
+    assert.equal(await page.getByRole("textbox", { name: "Outgoing notes" }).count(), 0);
+    await page.getByText("drafted Nov 20", { exact: false }).waitFor();
+    await page.goto(`${url}/#/handover`);  // the running shift: notes, but nothing to redraft
+    await page.getByRole("textbox", { name: "Outgoing notes" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Draft the handover" }).count(), 0);
+    assert.doesNotMatch(await page.locator("main .ui-card").first().innerText(), /drafted/);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  }
+});
+
+// P5.29e (#1404, tour C8): "agent:maintenance-integrity wrote the specialist brief" and "opened by stewardship" on a case.
+test("P5.29e a case names a hyphenated agent in words and says opened by only for a person", async () => {
+  await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+  await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "ana", roles: ["data_steward"] }] }));
+  await page.route("**/work/items/7", (route) => route.fulfill({ json: { ...demoCase(), created_by: "stewardship",
+    created_at: "2026-11-26T04:16:00Z", events: [
+      { id: 1, kind: "created", actor: "stewardship", element: null, at: "2026-11-26T04:16:00Z", data: {} },
+      { id: 2, kind: "commented", actor: "agent:maintenance-integrity", element: null, at: "2026-11-26T04:20:00Z",
+        data: { text: "Lube oil pressure trending down" } }] } }));
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${url}/#/cases/7`);
+    await page.getByText("Maintenance integrity agent").first().waitFor();
+    assert.doesNotMatch(await page.locator("main").innerText(), /agent:|maintenance-integrity/);
+    assert.doesNotMatch(await page.locator(".case-head").innerText(), /opened by|stewardship/, "a job's key is not who opened it");
   }
 });
 

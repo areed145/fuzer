@@ -308,8 +308,10 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
       {item.assets.length > 0 && <Text as="p" small><EntityLinks ids={item.assets.map((a) => a.fuzer_id)} /></Text>}
       {item.item_id != null ? <Text as="p" small><a href={href(`/cases/${item.item_id}`)}>Open its case</a></Text>
         : item.exception_id != null && <Text as="p" small><a href={href("/list", { q: item.title })}>Open this work in All work</a></Text>}
-      <Text as="p" small muted>{item.source ? detectorName(item.source) : ""}{item.source_key ? ` ${item.source_key}` : ""}{item.notes ? ` · ${item.notes}` : ""}
-        {item.deferment_usd != null ? ` · ${money(item.deferment_usd)} at risk` : ""}</Text>
+      {/* where it came from when that is another system ("SAP 10023456"); a job made from a case says so by its link,
+          never as the row it was made from ("Exceptions 1074", tour C8) */}
+      <Text as="p" small muted>{[item.exception_id == null && item.source && `${detectorName(item.source)}${item.source_key ? ` ${item.source_key}` : ""}`,
+        item.notes, item.deferment_usd != null && `${money(item.deferment_usd)} at risk`].filter(Boolean).join(" · ")}</Text>
       {person ? <Line>
         <Field inline label="Start"><Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
         <Field inline label="End"><Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>

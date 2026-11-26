@@ -233,6 +233,12 @@ def test_a_field_operators_note_from_the_phone_becomes_routed_work(read):
     ex = conn.execute("select * from exception_record where id = %s", (note["exception_id"],)).fetchone()
     assert ex["subjects"] == [_id(conn, "tag:20-K-2100C")] and ex["item_id"]
     assert ex["evidence"]["message"]["channel_label"] == "Field note"
+    # tour E (C8): the steward's question names who sent it, never "Field note from user:demo"
+    demo = messages.receive(conn, load_pack("okan"), "user:demo", "Something dripping by the stairs")
+    asked = conn.execute("select * from exception_record where type = 'message_to_match' and key = %s",
+                         (f"message:{demo['id']}",)).fetchone()
+    assert asked["title"].startswith("Which entity is this about? Field note from Demo account:"), asked["title"]
+    assert "user:" not in asked["title"]
     conn.rollback()
 
 
@@ -309,6 +315,36 @@ def test_the_picker_search_counts_what_it_does_not_show_and_takes_a_trailing_hyp
     bare = queries.search(conn, pack, "20-P", "tag,equipment", 12, total=True)
     assert typed == bare and len(bare["hits"]) == 12 and bare["total"] > 12
     assert queries.search(conn, pack, "-", None, 5)  # nothing but a separator is still a search
+
+
+def test_the_picker_lists_each_thing_once(read):
+    """Tour E (C9): one vessel was listed three ways in Change the entity: its tag, the equipment installed at it, and
+    a second system's record of that equipment the matcher left for a steward. What work can be about lists it once."""
+    conn, _ = read
+    from fuzer.graph import queries
+
+    pack = load_pack("okan")
+    every = queries.search(conn, pack, "suction scrubber", "tag,equipment", 500)
+    once = queries.search(conn, pack, "suction scrubber", "work", 500)
+    ids = {h["fuzer_id"] for h in once}
+    installed = conn.execute("select src, dst from edge where rel = 'installed_at' and valid_to is null "
+                             "and src = any(%s) and dst = any(%s)",
+                             ([h["fuzer_id"] for h in every], [h["fuzer_id"] for h in every])).fetchall()
+    assert installed, "the register has a scrubber listed as its tag and as its equipment"
+    assert not any(r["src"] in ids and r["dst"] in ids for r in installed)
+    for r in installed:  # one of the two stays
+        assert r["src"] in ids or r["dst"] in ids
+    assert len(once) < len(every)
+    paired = conn.execute(
+        """
+        select array_agg(distinct c.fuzer_id) as ids from review_item i
+        cross join lateral unnest(string_to_array(i.subject, '|')) r
+        join crosswalk c on c.source || ':' || c.record_type || ':' || c.source_key = r
+        where i.kind = 'match' and i.status = 'open' group by i.id
+        """).fetchall()
+    assert not any(len(set(p["ids"]) & ids) > 1 for p in paired)
+    counted = queries.search(conn, pack, "suction scrubber", "work", 12, total=True)
+    assert counted["total"] == len(once) and counted["hits"] == once[:12]
 
 
 def test_a_steward_choice_kept_before_it_was_a_fact_reads_as_one(read):

@@ -257,8 +257,9 @@ def _same(a: dict, b: dict) -> bool:
 
 
 # Kept on a case for the engine and the gap reports, never something anyone did on it: a process moved onto the
-# current version of its workflow, and what the options could not determine (the Options card says it) (#1383).
-BOOKKEEPING = frozenset({"migrated", "undetermined"})
+# current version of its workflow, what the options could not determine (the Options card says it) (#1383), and a
+# case put onto a process with whoever held it still holding it: "now runs as the queue_item process" (tour C8).
+BOOKKEEPING = frozenset({"migrated", "undetermined", "adopted"})
 
 
 def history(events: list[dict]) -> list[dict]:

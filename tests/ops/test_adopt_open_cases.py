@@ -65,6 +65,10 @@ def test_open_plain_cases_move_onto_their_process(conn, monkeypatch):
         assert not conn.execute("select 1 from work_process where item_id = %s", (plain,)).fetchone()
     kinds = [r["kind"] for r in conn.execute("select kind from work_event where item_id = %s order by id", (queued,))]
     assert "adopted" in kinds
+    # kept for the engine, never read on the case: "now runs as the queue_item process" (tour C8)
+    from fuzer.workflow import engine
+
+    assert "adopted" not in {e["kind"] for e in engine.item(conn, queued)["events"]}
 
     assert routing.adopt_open_cases(conn)["moved"] == {}  # once
     # and the moved case still closes as a plain one did

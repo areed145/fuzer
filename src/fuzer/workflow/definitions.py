@@ -451,6 +451,12 @@ def roles_of(conn, name: str) -> list[str]:
             return list(picked)
         if account:
             return [r["name"] for r in conn.execute("select name from work_role where kind = 'person' order by name")]
+    return assigned_roles(conn, name)
+
+
+def assigned_roles(conn, name: str) -> list[str]:
+    """The roles `name` was given here: on this project's roster, or as an overarching person who covers it (#497).
+    Not the roles an owner or the demo account spans because it may act as anyone (roles_of)."""
     row = conn.execute("select roles from work_person where name = %s", (name,)).fetchone()
     own = list(row["roles"]) if row else []
     for c in _covers(conn, name):  # an overarching person's roles count here too (#497)

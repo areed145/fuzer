@@ -64,12 +64,54 @@ def search(conn, pack: Pack, q: str = "", kind: str | None = None, limit: int = 
     if total:
         hits = search(conn, pack, q, kind, TOTAL_PROBE)
         return {"hits": hits[:limit], "total": len(hits)}
+    kinds = [k for k in (kind or "").split(",") if k] or None
+    if kinds == ["work"] or (kinds and set(kinds) == set(WORK_KINDS)):
+        # what work can be about (a message case's entity, #1382): the one list, held there, each thing once
+        return _once(conn, _search(conn, pack, q, list(WORK_KINDS), limit))
+    return _search(conn, pack, q, kinds, limit)
+
+
+def _once(conn, rows: list[dict]) -> list[dict]:
+    """Each real thing listed once where work is pinned to it (C9): a vessel was listed three ways, as its tag, the
+    equipment installed at that tag, and a second system's record of the same equipment the matcher left for a steward
+    to confirm. Of an equipment and the tag it is installed at, or two entities an open possible match pairs, the one
+    listed first stays."""
+    ids = [r["fuzer_id"] for r in rows]
+    if len(ids) < 2:
+        return rows
+    pairs = conn.execute(
+        """
+        select src as a, dst as b from edge where rel = 'installed_at' and valid_to is null
+          and src = any(%(ids)s) and dst = any(%(ids)s)
+        union all
+        select min(c.fuzer_id), max(c.fuzer_id) from review_item i
+        cross join lateral unnest(string_to_array(i.subject, '|')) r
+        join crosswalk c on c.source || ':' || c.record_type || ':' || c.source_key = r
+        where i.kind = 'match' and i.status = 'open' and c.fuzer_id = any(%(ids)s)
+        group by i.id having count(distinct c.fuzer_id) = 2
+        """, {"ids": ids}).fetchall()
+    group = {i: i for i in ids}  # one group per real thing, joined through each pair
+
+    def top(i: str) -> str:
+        while group[i] != i:
+            i = group[i]
+        return i
+
+    for p in pairs:
+        group[top(p["a"])] = top(p["b"])
+    seen: set[str] = set()
+    out = []
+    for r in rows:
+        if (g := top(r["fuzer_id"])) not in seen:
+            seen.add(g)
+            out.append(r)
+    return out
+
+
+def _search(conn, pack: Pack, q: str, kinds: list[str] | None, limit: int):
     q = q.strip()
     q = q.rstrip("-_./: ") or q
-    kinds = [k for k in (kind or "").split(",") if k] or None
-    if kinds == ["work"]:  # what work can be about (a message case's entity, #1382): the one list, held there
-        kinds = list(WORK_KINDS)
-    params = {"kinds": kinds, "limit": limit, "order": KIND_ORDER, "last": LAST_KINDS, "rels": list(CONTAINMENT)}
+    params ={"kinds": kinds, "limit": limit, "order": KIND_ORDER, "last": LAST_KINDS, "rels": list(CONTAINMENT)}
     if not q:
         return conn.execute(
             """
