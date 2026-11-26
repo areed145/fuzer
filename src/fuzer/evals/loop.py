@@ -299,8 +299,10 @@ def _bring(conn, how: dict) -> str:
         [ref] = _assets(conn, 1)
         subjects = [r["fuzer_id"] for r in conn.execute(
             "select fuzer_id from entity_key where kind || ':' || key = %s", (ref,))]
-        case = work.open_case(conn, "manual", f"Loop eval: weep on {ref.removeprefix('tag:')}, clamped", IOC,
-                              subjects=subjects)["id"]
+        from ..ops import routing
+
+        case = routing.open_task(conn, "manual", f"Loop eval: weep on {ref.removeprefix('tag:')}, clamped", IOC,
+                                 key=f"loop-closeout:{ref}", subjects=subjects)["id"]
         disposition.record(conn, pack, case, IOC, "real", failure_mode="OTH", cause="3", activity="6",
                            outcome="contained", note="Fit a new gasket at the next opportunity (loop eval).",
                            follow_up_to=f"role:{FIELD_ROLE}")

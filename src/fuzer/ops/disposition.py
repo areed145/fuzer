@@ -23,7 +23,7 @@ import re
 
 from psycopg.types.json import Jsonb
 
-from ..core import settings, work
+from ..core import findings, settings, work
 from ..core.exceptions import exception_type
 from ..core.pack import Pack
 from ..core.taxonomy import failure_modes_in, load_standard
@@ -321,7 +321,9 @@ def _send_to_field(conn, item: dict, by: str, to: str, note: str | None) -> int:
 
     case = conn.execute("select subjects, priority from work_item where id = %s", (item["id"],)).fetchone()
     e = exceptions.raise_(conn, FIELD_FOLLOW_UP, f"follow-up:{item['id']}", f"Follow-up: {item['title']}", by,
-                          refs=list(case["subjects"] or []), priority=case["priority"])
+                          refs=list(case["subjects"] or []), priority=case["priority"],
+                          finding=findings.external(by, {"follows up": f"case {item['id']}",
+                                                         **({"left to do": note} if note else {})}))
     row = exceptions.dispatch(conn, e["id"], by, to, note or f"Follow up case {item['id']}: {item['title']}")
     conn.execute("update work_item set payload = coalesce(payload, '{}'::jsonb) || %s where id = %s",
                  (Jsonb({FOLLOW_UP: item["id"]}), row["item_id"]))

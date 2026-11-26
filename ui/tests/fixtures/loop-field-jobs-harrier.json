@@ -3,7 +3,7 @@
   "ask": "Fit a new gasket at the next opportunity (loop eval).",
   "assets": [
    {
-    "fuzer_id": "fz-tag-9049933e302e",
+    "fuzer_id": "fz-tag-76735edb5afb",
     "kind": "tag",
     "label": "A1-F-1007",
     "lat": 47.62,
@@ -16,13 +16,27 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-26T17:54:25.634762+00:00",
+  "due": "2026-11-26T18:26:32.012935+00:00",
   "evidence": {
    "finding": {
     "detector": "loop-ioc",
+    "items": [
+     {
+      "kind": "text",
+      "label": "Follows up",
+      "value": "case 32"
+     },
+     {
+      "kind": "text",
+      "label": "Left to do",
+      "value": "Fit a new gasket at the next opportunity (loop eval)."
+     }
+    ],
     "origin": "external",
     "v": 1
-   }
+   },
+   "follows up": "case 32",
+   "left to do": "Fit a new gasket at the next opportunity (loop eval)."
   },
   "field": [],
   "finding": {
@@ -30,22 +44,33 @@
    "confidence": null,
    "detector": "loop-ioc",
    "end": null,
-   "items": [],
+   "items": [
+    {
+     "kind": "text",
+     "label": "Follows up",
+     "value": "case 32"
+    },
+    {
+     "kind": "text",
+     "label": "Left to do",
+     "value": "Fit a new gasket at the next opportunity (loop eval)."
+    }
+   ],
    "method": null,
    "origin": "external",
    "origin_label": "Reported by",
    "standard": null,
    "start": null,
    "subjects": [
-    "fz-tag-9049933e302e"
+    "fz-tag-76735edb5afb"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-26T09:54:25.622758+00:00",
+  "first_seen": "2026-11-26T10:26:32.001042+00:00",
   "handover": null,
   "history": [
    {
-    "first_seen": "2026-11-26T09:54:18.086813+00:00",
+    "first_seen": "2026-11-26T10:26:23.768233+00:00",
     "id": 20,
     "state": "closed",
     "title": "Loop eval: Datasheet curve to confirm"
@@ -56,7 +81,7 @@
   "joined_to": null,
   "key": "follow-up:32",
   "label": "Follow-up",
-  "last_seen": "2026-11-26T09:54:25.622758+00:00",
+  "last_seen": "2026-11-26T10:26:32.001042+00:00",
   "need": "condition",
   "own_step": true,
   "permit": {
@@ -89,7 +114,7 @@
   "reports": 1,
   "role": "operator",
   "sent": {
-   "at": "2026-11-26T09:54:25.634762+00:00",
+   "at": "2026-11-26T10:26:32.012935+00:00",
    "by": "loop-ioc",
    "reason": "Fit a new gasket at the next opportunity (loop eval)."
   },
@@ -101,7 +126,7 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-9049933e302e"
+   "fz-tag-76735edb5afb"
   ],
   "task_id": 64,
   "task_name": "Field check",
@@ -109,7 +134,7 @@
   "title": "Follow-up: Loop eval: weep on A1-F-1007, clamped",
   "type": "follow_up",
   "unmatched": [],
-  "updated_at": "2026-11-26T09:54:25.642032+00:00",
+  "updated_at": "2026-11-26T10:26:32.019990+00:00",
   "value_usd": null,
   "warnings": []
  },
@@ -117,7 +142,7 @@
   "ask": null,
   "assets": [
    {
-    "fuzer_id": "fz-timeseries-83b05615528b",
+    "fuzer_id": "fz-timeseries-c3bceaecd8fd",
     "kind": "timeseries",
     "label": "HRPT:E1.PT5003.PV",
     "lat": null,
@@ -126,7 +151,7 @@
     "site": null
    },
    {
-    "fuzer_id": "fz-tag-b1a20157f4d2",
+    "fuzer_id": "fz-tag-f9197152083b",
     "kind": "tag",
     "label": "E1-T-5001A",
     "lat": 47.311,
@@ -139,7 +164,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-26T13:54:25.893855+00:00",
+  "due": "2026-11-26T14:26:32.267180+00:00",
   "evidence": {
    "allowed_minutes": 60.0,
    "breaches": 1,
@@ -164,12 +189,12 @@
      {
       "kind": "asset",
       "label": "Measured on",
-      "value": "fz-timeseries-83b05615528b"
+      "value": "fz-timeseries-c3bceaecd8fd"
      },
      {
       "kind": "asset",
       "label": "Unit",
-      "value": "fz-tag-b1a20157f4d2"
+      "value": "fz-tag-f9197152083b"
      },
      {
       "kind": "text",
@@ -234,10 +259,10 @@
    "note": "IOW-HR-003 rev A, Tank vapour header pressure: Floating roof seal and vent overpressure, vapour release. Response: Start the VRU or line up the thermal oxidiser",
    "peak": 7.3855,
    "point": "HRPT:E1.PT5003.PV",
-   "point_id": "fz-timeseries-83b05615528b",
+   "point_id": "fz-timeseries-c3bceaecd8fd",
    "record": "iow:window:IOW-HR-003>A",
    "side": "hi",
-   "unit_id": "fz-tag-b1a20157f4d2"
+   "unit_id": "fz-tag-f9197152083b"
   },
   "field": [],
   "finding": {
@@ -255,13 +280,13 @@
      "kind": "asset",
      "label": "Measured on",
      "text": "HRPT:E1.PT5003.PV",
-     "value": "fz-timeseries-83b05615528b"
+     "value": "fz-timeseries-c3bceaecd8fd"
     },
     {
      "kind": "asset",
      "label": "Unit",
      "text": "E1-T-5001A",
-     "value": "fz-tag-b1a20157f4d2"
+     "value": "fz-tag-f9197152083b"
     },
     {
      "kind": "text",
@@ -319,25 +344,25 @@
    "standard": "API RP 584",
    "start": "2026-11-25T03:10",
    "subjects": [
-    "fz-timeseries-83b05615528b",
-    "fz-tag-b1a20157f4d2"
+    "fz-timeseries-c3bceaecd8fd",
+    "fz-tag-f9197152083b"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-26T09:54:25.740418+00:00",
+  "first_seen": "2026-11-26T10:26:32.113904+00:00",
   "handover": null,
   "history": [
    {
-    "first_seen": "2026-11-26T09:54:23.304252+00:00",
+    "first_seen": "2026-11-26T10:26:29.168148+00:00",
     "id": 28,
     "state": "closed",
     "title": "Loop eval: steps on HRPT:E1.LT5001A.PV"
    },
    {
-    "first_seen": "2026-11-26T09:54:18.013385+00:00",
+    "first_seen": "2026-11-26T10:26:23.661524+00:00",
     "id": 19,
     "state": "closed",
-    "title": "Crude tank A high-high level shutdown on E1-T-5001A still bypassed, 9.9 h past its expiry"
+    "title": "Crude tank A high-high level shutdown on E1-T-5001A still bypassed, 10.4 h past its expiry"
    }
   ],
   "id": 34,
@@ -345,7 +370,7 @@
   "joined_to": null,
   "key": "IOW-HR-003",
   "label": "IOW breach",
-  "last_seen": "2026-11-26T09:54:25.740418+00:00",
+  "last_seen": "2026-11-26T10:26:32.113904+00:00",
   "need": "condition",
   "own_step": false,
   "permit": {
@@ -360,7 +385,7 @@
   "reports": 1,
   "role": "engineer",
   "sent": {
-   "at": "2026-11-26T09:54:25.912439+00:00",
+   "at": "2026-11-26T10:26:32.286117+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -372,8 +397,8 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-timeseries-83b05615528b",
-   "fz-tag-b1a20157f4d2"
+   "fz-timeseries-c3bceaecd8fd",
+   "fz-tag-f9197152083b"
   ],
   "task_id": 73,
   "task_name": "Review IOW breach",
@@ -381,7 +406,7 @@
   "title": "IOW IOW-HR-003 standard breach on HRPT:E1.PT5003.PV: above 6, 1 time past the allowed 1 h",
   "type": "iow_breach",
   "unmatched": [],
-  "updated_at": "2026-11-26T09:54:25.740418+00:00",
+  "updated_at": "2026-11-26T10:26:32.113904+00:00",
   "value_usd": null,
   "warnings": []
  },
@@ -389,7 +414,7 @@
   "ask": "Loop eval: check it on site",
   "assets": [
    {
-    "fuzer_id": "fz-tag-9102964d6f9a",
+    "fuzer_id": "fz-tag-bca11891a294",
     "kind": "tag",
     "label": "G1-K-7001",
     "lat": 47.312,
@@ -402,7 +427,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-26T17:54:26.987911+00:00",
+  "due": "2026-11-26T18:26:33.400365+00:00",
   "evidence": {
    "at": null,
    "finding": {
@@ -473,22 +498,22 @@
    "standard": "ISO 14224 (rotating classes); each check that applies cites its own standard",
    "start": null,
    "subjects": [
-    "fz-tag-9102964d6f9a"
+    "fz-tag-bca11891a294"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-26T09:54:26.227931+00:00",
+  "first_seen": "2026-11-26T10:26:32.666604+00:00",
   "handover": null,
   "history": [
    {
-    "first_seen": "2026-11-26T09:54:23.276102+00:00",
+    "first_seen": "2026-11-26T10:26:29.135371+00:00",
     "id": 24,
     "state": "closed",
     "title": "Loop eval: steps on HRPT:G1.TT7021.PV"
    },
    {
-    "first_seen": "2026-11-26T09:54:23.262255+00:00",
-    "id": 22,
+    "first_seen": "2026-11-26T10:26:29.100883+00:00",
+    "id": 21,
     "state": "closed",
     "title": "Loop eval: steps on HRPT:G1.PT7010.PV"
    }
@@ -498,7 +523,7 @@
   "joined_to": null,
   "key": "G1-K-7001",
   "label": "Machine health",
-  "last_seen": "2026-11-26T09:54:26.227931+00:00",
+  "last_seen": "2026-11-26T10:26:32.666604+00:00",
   "need": "condition",
   "own_step": true,
   "permit": {
@@ -513,7 +538,7 @@
   "reports": 1,
   "role": "operator",
   "sent": {
-   "at": "2026-11-26T09:54:26.987911+00:00",
+   "at": "2026-11-26T10:26:33.400365+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -525,7 +550,7 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-9102964d6f9a"
+   "fz-tag-bca11891a294"
   ],
   "task_id": 83,
   "task_name": "Field check",
@@ -533,7 +558,7 @@
   "title": "G1-K-7001 to watch: a leaking cylinder valve",
   "type": "machine_health",
   "unmatched": [],
-  "updated_at": "2026-11-26T09:54:26.227931+00:00",
+  "updated_at": "2026-11-26T10:26:32.666604+00:00",
   "value_usd": null,
   "warnings": []
  },
@@ -541,7 +566,7 @@
   "ask": "Loop eval: check it on site",
   "assets": [
    {
-    "fuzer_id": "fz-tag-9102964d6f9a",
+    "fuzer_id": "fz-tag-bca11891a294",
     "kind": "tag",
     "label": "G1-K-7001",
     "lat": 47.312,
@@ -559,7 +584,7 @@
    "Trip 2 on this train in 45 days (last 2026-10-16, no precursor): ask reliability to review it."
   ],
   "closed_at": null,
-  "due": "2026-11-26T17:54:27.282203+00:00",
+  "due": "2026-11-26T18:26:33.837130+00:00",
   "evidence": {
    "finding": {
     "checks": [
@@ -583,7 +608,7 @@
      {
       "kind": "asset",
       "label": "Likely source",
-      "value": "fz-tag-9102964d6f9a"
+      "value": "fz-tag-bca11891a294"
      },
      {
       "kind": "text",
@@ -628,13 +653,13 @@
      "direction": "up",
      "family": "discharge_temperature",
      "from": 148.007,
-     "id": "fz-timeseries-eac2611ddeb5",
+     "id": "fz-timeseries-7fb41e8981d9",
      "lead_minutes": 25,
      "measures": "Vapour Recovery Compressor Discharge Temperature",
      "point": "HRPT:G1.TT7006.PV",
      "to": 204.714,
      "unit": "G1-K-7001",
-     "unit_id": "fz-tag-9102964d6f9a",
+     "unit_id": "fz-tag-bca11891a294",
      "unit_of_measure": "degF"
     }
    ],
@@ -667,7 +692,7 @@
      "kind": "asset",
      "label": "Likely source",
      "text": "G1-K-7001",
-     "value": "fz-tag-9102964d6f9a"
+     "value": "fz-tag-bca11891a294"
     },
     {
      "kind": "text",
@@ -707,28 +732,28 @@
    "standard": "ISO 13379-1 (symptom to cause)",
    "start": "2026-11-25T02:45",
    "subjects": [
-    "fz-tag-9102964d6f9a"
+    "fz-tag-bca11891a294"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-26T09:54:27.040274+00:00",
+  "first_seen": "2026-11-26T10:26:33.464816+00:00",
   "handover": null,
   "history": [
    {
-    "first_seen": "2026-11-26T09:54:26.227931+00:00",
+    "first_seen": "2026-11-26T10:26:32.666604+00:00",
     "id": 36,
     "state": "closed",
     "title": "G1-K-7001 to watch: a leaking cylinder valve"
    },
    {
-    "first_seen": "2026-11-26T09:54:23.276102+00:00",
+    "first_seen": "2026-11-26T10:26:29.135371+00:00",
     "id": 24,
     "state": "closed",
     "title": "Loop eval: steps on HRPT:G1.TT7021.PV"
    },
    {
-    "first_seen": "2026-11-26T09:54:23.262255+00:00",
-    "id": 22,
+    "first_seen": "2026-11-26T10:26:29.100883+00:00",
+    "id": 21,
     "state": "closed",
     "title": "Loop eval: steps on HRPT:G1.PT7010.PV"
    }
@@ -738,7 +763,7 @@
   "joined_to": null,
   "key": "HRPT-G1:G1-V-7002@2026-11-25T02:45",
   "label": "Compressor trip",
-  "last_seen": "2026-11-26T09:54:27.040274+00:00",
+  "last_seen": "2026-11-26T10:26:33.464816+00:00",
   "need": "condition",
   "own_step": true,
   "permit": {
@@ -753,7 +778,7 @@
   "reports": 1,
   "role": "operator",
   "sent": {
-   "at": "2026-11-26T09:54:27.282203+00:00",
+   "at": "2026-11-26T10:26:33.837130+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -765,7 +790,7 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-9102964d6f9a"
+   "fz-tag-bca11891a294"
   ],
   "task_id": 90,
   "task_name": "Field check",
@@ -773,7 +798,7 @@
   "title": "Train from G1-V-7002 (HRPT-G1) tripped 2026-11-25 02:45: high discharge temperature on G1-K-7001, HRPT:G1.TT7006.PV moved 25 min before. Restart after checks; reliability to review",
   "type": "machine_trip",
   "unmatched": [],
-  "updated_at": "2026-11-26T09:54:27.040274+00:00",
+  "updated_at": "2026-11-26T10:26:33.464816+00:00",
   "value_usd": null,
   "warnings": []
  },
@@ -781,7 +806,7 @@
   "ask": "Loop eval: check it on site",
   "assets": [
    {
-    "fuzer_id": "fz-tag-1a3cc6d912e0",
+    "fuzer_id": "fz-tag-56217d91d887",
     "kind": "tag",
     "label": "H1-G-8004",
     "lat": 47.309,
@@ -790,7 +815,7 @@
     "site": "Area H1 utilities and thermal oxidiser"
    },
    {
-    "fuzer_id": "fz-isolation-0431a07e3121",
+    "fuzer_id": "fz-isolation-c10ac28481c9",
     "kind": "isolation",
     "label": "ISO-31105-1",
     "lat": null,
@@ -799,7 +824,7 @@
     "site": null
    },
    {
-    "fuzer_id": "fz-permit-e83955b3f09f",
+    "fuzer_id": "fz-permit-38c9b45134ee",
     "kind": "permit",
     "label": "PTW-31105",
     "lat": null,
@@ -812,7 +837,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-26T17:54:27.359121+00:00",
+  "due": "2026-11-26T18:26:33.922935+00:00",
   "evidence": {
    "finding": {
     "detector": "permits.permit_lapsed",
@@ -913,13 +938,13 @@
    "standard": null,
    "start": "2026-11-17 18:00",
    "subjects": [
-    "fz-tag-1a3cc6d912e0",
-    "fz-isolation-0431a07e3121",
-    "fz-permit-e83955b3f09f"
+    "fz-tag-56217d91d887",
+    "fz-isolation-c10ac28481c9",
+    "fz-permit-38c9b45134ee"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-26T09:54:27.337926+00:00",
+  "first_seen": "2026-11-26T10:26:33.905572+00:00",
   "handover": null,
   "history": [],
   "id": 38,
@@ -927,7 +952,7 @@
   "joined_to": null,
   "key": "PTW-31105",
   "label": "Permit lapsed with plant still isolated",
-  "last_seen": "2026-11-26T09:54:27.337926+00:00",
+  "last_seen": "2026-11-26T10:26:33.905572+00:00",
   "need": "condition",
   "own_step": true,
   "permit": {
@@ -960,7 +985,7 @@
   "reports": 1,
   "role": "operator",
   "sent": {
-   "at": "2026-11-26T09:54:27.359121+00:00",
+   "at": "2026-11-26T10:26:33.922935+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -972,9 +997,9 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-1a3cc6d912e0",
-   "fz-isolation-0431a07e3121",
-   "fz-permit-e83955b3f09f"
+   "fz-tag-56217d91d887",
+   "fz-isolation-c10ac28481c9",
+   "fz-permit-38c9b45134ee"
   ],
   "task_id": 99,
   "task_name": "Field check",
@@ -982,7 +1007,7 @@
   "title": "Permit PTW-31105 lapsed with 1 isolation still in place on H1-G-8004",
   "type": "permit_lapsed",
   "unmatched": [],
-  "updated_at": "2026-11-26T09:54:27.337926+00:00",
+  "updated_at": "2026-11-26T10:26:33.905572+00:00",
   "value_usd": null,
   "warnings": []
  },
@@ -990,7 +1015,7 @@
   "ask": "Loop eval: check it on site",
   "assets": [
    {
-    "fuzer_id": "fz-tag-9102964d6f9a",
+    "fuzer_id": "fz-tag-bca11891a294",
     "kind": "tag",
     "label": "G1-K-7001",
     "lat": 47.312,
@@ -1003,7 +1028,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-26T17:54:37.249993+00:00",
+  "due": "2026-11-26T18:26:45.365710+00:00",
   "evidence": {
    "finding": {
     "detector": "rounds.reading",
@@ -1047,17 +1072,17 @@
      {
       "kind": "time",
       "label": "Taken",
-      "value": "2026-11-26T09:54+00:00"
+      "value": "2026-11-26T10:26+00:00"
      },
      {
       "kind": "asset",
       "label": "On",
-      "value": "fz-tag-9102964d6f9a"
+      "value": "fz-tag-bca11891a294"
      }
     ],
     "method": "A round reading outside its limits",
     "origin": "deterministic",
-    "start": "2026-11-26T09:54+00:00",
+    "start": "2026-11-26T10:26+00:00",
     "v": 1
    },
    "point": "R-G1-02",
@@ -1110,54 +1135,54 @@
     {
      "kind": "time",
      "label": "Taken",
-     "value": "2026-11-26T09:54+00:00"
+     "value": "2026-11-26T10:26+00:00"
     },
     {
      "kind": "asset",
      "label": "On",
      "text": "G1-K-7001",
-     "value": "fz-tag-9102964d6f9a"
+     "value": "fz-tag-bca11891a294"
     }
    ],
    "method": "A round reading outside its limits",
    "origin": "deterministic",
    "origin_label": "Rule",
    "standard": null,
-   "start": "2026-11-26T09:54+00:00",
+   "start": "2026-11-26T10:26+00:00",
    "subjects": [
-    "fz-tag-9102964d6f9a"
+    "fz-tag-bca11891a294"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-26T09:54:37.218010+00:00",
+  "first_seen": "2026-11-26T10:26:45.323536+00:00",
   "handover": null,
   "history": [
    {
-    "first_seen": "2026-11-26T09:54:36.823041+00:00",
+    "first_seen": "2026-11-26T10:26:44.855528+00:00",
     "id": 128,
     "state": "cleared",
     "title": "Does A1-T-1001 pipe to G1-K-7001 on HRPT-A1-PID-001?"
    },
    {
-    "first_seen": "2026-11-26T09:54:36.096817+00:00",
+    "first_seen": "2026-11-26T10:26:43.853908+00:00",
     "id": 115,
     "state": "cleared",
     "title": "Does A1-T-1001 pipe to G1-K-7001 on HRPT-A1-PID-001?"
    },
    {
-    "first_seen": "2026-11-26T09:54:35.536626+00:00",
+    "first_seen": "2026-11-26T10:26:43.379092+00:00",
     "id": 107,
     "state": "cleared",
     "title": "Does A1-T-1001 pipe to G1-K-7001 on HRPT-A1-PID-001?"
    },
    {
-    "first_seen": "2026-11-26T09:54:35.054244+00:00",
+    "first_seen": "2026-11-26T10:26:42.863004+00:00",
     "id": 94,
     "state": "cleared",
     "title": "Does A1-T-1001 pipe to G1-K-7001 on HRPT-A1-PID-001?"
    },
    {
-    "first_seen": "2026-11-26T09:54:34.406190+00:00",
+    "first_seen": "2026-11-26T10:26:42.014797+00:00",
     "id": 81,
     "state": "cleared",
     "title": "Does A1-T-1001 pipe to G1-K-7001 on HRPT-A1-PID-001?"
@@ -1168,7 +1193,7 @@
   "joined_to": null,
   "key": "R-G1-02",
   "label": "Round finding",
-  "last_seen": "2026-11-26T09:54:37.218010+00:00",
+  "last_seen": "2026-11-26T10:26:45.323536+00:00",
   "need": "condition",
   "own_step": true,
   "permit": {
@@ -1183,7 +1208,7 @@
   "reports": 1,
   "role": "operator",
   "sent": {
-   "at": "2026-11-26T09:54:37.249993+00:00",
+   "at": "2026-11-26T10:26:45.365710+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -1195,7 +1220,7 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-9102964d6f9a"
+   "fz-tag-bca11891a294"
   ],
   "task_id": 357,
   "task_name": "Field check",
@@ -1203,7 +1228,7 @@
   "title": "Frame vibration on G1-K-7001: 0.36 in/s, limits 0 to 0.28 in/s",
   "type": "round_finding",
   "unmatched": [],
-  "updated_at": "2026-11-26T09:54:37.218010+00:00",
+  "updated_at": "2026-11-26T10:26:45.323536+00:00",
   "value_usd": null,
   "warnings": []
  },
@@ -1211,7 +1236,7 @@
   "ask": "Loop eval: check it on site",
   "assets": [
    {
-    "fuzer_id": "fz-equipment-82425fe72fa4",
+    "fuzer_id": "fz-equipment-5238209f7e99",
     "kind": "equipment",
     "label": "G1-K-7001 Vapour Recovery Compressor",
     "lat": null,
@@ -1220,7 +1245,7 @@
     "site": null
    },
    {
-    "fuzer_id": "fz-tag-9102964d6f9a",
+    "fuzer_id": "fz-tag-bca11891a294",
     "kind": "tag",
     "label": "G1-K-7001",
     "lat": 47.312,
@@ -1233,7 +1258,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-12-10T09:54:27.634217+00:00",
+  "due": "2026-12-10T10:26:34.242830+00:00",
   "evidence": {
    "cause_code": "CA-WEAR",
    "created": "2026-11-21",
@@ -1338,40 +1363,40 @@
    "standard": null,
    "start": "2026-11-21",
    "subjects": [
-    "fz-equipment-82425fe72fa4",
-    "fz-tag-9102964d6f9a"
+    "fz-equipment-5238209f7e99",
+    "fz-tag-bca11891a294"
    ],
    "value_usd": null
   },
-  "first_seen": "2026-11-26T09:54:27.634217+00:00",
+  "first_seen": "2026-11-26T10:26:34.242830+00:00",
   "handover": null,
   "history": [
    {
-    "first_seen": "2026-11-26T09:54:27.602264+00:00",
+    "first_seen": "2026-11-26T10:26:34.191235+00:00",
     "id": 50,
     "state": "closed",
     "title": "VRU compressor high discharge temperature trip on G1-K-7001 demanded 2 times in 365 days, designed for 0.1"
    },
    {
-    "first_seen": "2026-11-26T09:54:27.506160+00:00",
-    "id": 44,
+    "first_seen": "2026-11-26T10:26:34.111929+00:00",
+    "id": 48,
     "state": "cleared",
     "title": "4000-hour service, VRU compressor (due 12 Mar)"
    },
    {
-    "first_seen": "2026-11-26T09:54:27.040274+00:00",
+    "first_seen": "2026-11-26T10:26:33.464816+00:00",
     "id": 37,
     "state": "closed",
     "title": "Train from G1-V-7002 (HRPT-G1) tripped 2026-11-25 02:45: high discharge temperature on G1-K-7001, HRPT:G1.TT7006.PV moved 25 min before. Restart after checks; reliability to review"
    },
    {
-    "first_seen": "2026-11-26T09:54:26.227931+00:00",
+    "first_seen": "2026-11-26T10:26:32.666604+00:00",
     "id": 36,
     "state": "closed",
     "title": "G1-K-7001 to watch: a leaking cylinder valve"
    },
    {
-    "first_seen": "2026-11-26T09:54:23.276102+00:00",
+    "first_seen": "2026-11-26T10:26:29.135371+00:00",
     "id": 24,
     "state": "closed",
     "title": "Loop eval: steps on HRPT:G1.TT7021.PV"
@@ -1382,7 +1407,7 @@
   "joined_to": null,
   "key": "10007002",
   "label": "SAP notification",
-  "last_seen": "2026-11-26T09:54:27.634217+00:00",
+  "last_seen": "2026-11-26T10:26:34.242830+00:00",
   "need": "condition",
   "own_step": true,
   "permit": {
@@ -1397,7 +1422,7 @@
   "reports": 2,
   "role": "operator",
   "sent": {
-   "at": "2026-11-26T09:54:27.650596+00:00",
+   "at": "2026-11-26T10:26:34.264070+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -1456,22 +1481,22 @@
      "standard": null,
      "start": "2026-11-21",
      "subjects": [
-      "fz-equipment-82425fe72fa4",
-      "fz-tag-9102964d6f9a"
+      "fz-equipment-5238209f7e99",
+      "fz-tag-bca11891a294"
      ],
      "value_usd": null
     },
-    "first_seen": "2026-11-26T09:54:27.634217+00:00",
+    "first_seen": "2026-11-26T10:26:34.242830+00:00",
     "id": 53,
     "joined_to": null,
     "key": "10007002",
     "label": "SAP notification",
-    "last_seen": "2026-11-26T09:54:27.634217+00:00",
+    "last_seen": "2026-11-26T10:26:34.242830+00:00",
     "source": "sap",
     "state": "open",
     "subjects": [
-     "fz-equipment-82425fe72fa4",
-     "fz-tag-9102964d6f9a"
+     "fz-equipment-5238209f7e99",
+     "fz-tag-bca11891a294"
     ],
     "title": "Cylinder 2 discharge running hot; check 2nd stage valves (notification 10007002)",
     "type": "sap_notification",
@@ -1526,22 +1551,22 @@
      "standard": null,
      "start": "2026-11-25",
      "subjects": [
-      "fz-equipment-82425fe72fa4",
-      "fz-tag-9102964d6f9a"
+      "fz-equipment-5238209f7e99",
+      "fz-tag-bca11891a294"
      ],
      "value_usd": null
     },
-    "first_seen": "2026-11-26T09:54:27.622253+00:00",
+    "first_seen": "2026-11-26T10:26:34.229030+00:00",
     "id": 51,
     "joined_to": 53,
     "key": "10007001",
     "label": "SAP notification",
-    "last_seen": "2026-11-26T09:54:27.622253+00:00",
+    "last_seen": "2026-11-26T10:26:34.229030+00:00",
     "source": "sap",
     "state": "open",
     "subjects": [
-     "fz-equipment-82425fe72fa4",
-     "fz-tag-9102964d6f9a"
+     "fz-equipment-5238209f7e99",
+     "fz-tag-bca11891a294"
     ],
     "title": "VRU compressor tripped on high discharge temperature (notification 10007001)",
     "type": "sap_notification",
@@ -1550,8 +1575,8 @@
   ],
   "state": "open",
   "subjects": [
-   "fz-equipment-82425fe72fa4",
-   "fz-tag-9102964d6f9a"
+   "fz-equipment-5238209f7e99",
+   "fz-tag-bca11891a294"
   ],
   "task_id": 140,
   "task_name": "Field check",
@@ -1559,7 +1584,7 @@
   "title": "Cylinder 2 discharge running hot; check 2nd stage valves (notification 10007002)",
   "type": "sap_notification",
   "unmatched": [],
-  "updated_at": "2026-11-26T09:54:27.657749+00:00",
+  "updated_at": "2026-11-26T10:26:34.274389+00:00",
   "value_usd": null,
   "warnings": []
  },
@@ -1567,7 +1592,7 @@
   "ask": "Loop eval: check it on site",
   "assets": [
    {
-    "fuzer_id": "fz-tag-9102964d6f9a",
+    "fuzer_id": "fz-tag-bca11891a294",
     "kind": "tag",
     "label": "G1-K-7001",
     "lat": 47.312,
@@ -1576,7 +1601,7 @@
     "site": "Area G1 vapour recovery"
    },
    {
-    "fuzer_id": "fz-timeseries-883523070e58",
+    "fuzer_id": "fz-timeseries-aa0eca474817",
     "kind": "timeseries",
     "label": "HRPT:G1.TT7021.PV",
     "lat": null,
@@ -1589,7 +1614,7 @@
   "case_state": "open",
   "checklist": [],
   "closed_at": null,
-  "due": "2026-11-26T17:54:31.614040+00:00",
+  "due": "2026-11-26T18:26:38.599376+00:00",
   "evidence": {
    "detections": 12,
    "finding": {
@@ -1598,12 +1623,12 @@
      {
       "kind": "asset",
       "label": "First seen on",
-      "value": "fz-timeseries-883523070e58"
+      "value": "fz-timeseries-aa0eca474817"
      },
      {
       "kind": "asset",
       "label": "Started at",
-      "value": "fz-tag-9102964d6f9a"
+      "value": "fz-tag-bca11891a294"
      },
      {
       "kind": "time",
@@ -1723,13 +1748,13 @@
      "kind": "asset",
      "label": "First seen on",
      "text": "HRPT:G1.TT7021.PV",
-     "value": "fz-timeseries-883523070e58"
+     "value": "fz-timeseries-aa0eca474817"
     },
     {
      "kind": "asset",
      "label": "Started at",
      "text": "G1-K-7001",
-     "value": "fz-tag-9102964d6f9a"
+     "value": "fz-tag-bca11891a294"
     },
     {
      "kind": "time",
@@ -1769,40 +1794,40 @@
    "standard": null,
    "start": "2026-11-25T00:00",
    "subjects": [
-    "fz-tag-9102964d6f9a",
-    "fz-timeseries-883523070e58"
+    "fz-tag-bca11891a294",
+    "fz-timeseries-aa0eca474817"
    ],
    "value_usd": 24658.0
   },
-  "first_seen": "2026-11-26T09:54:31.561270+00:00",
+  "first_seen": "2026-11-26T10:26:38.540753+00:00",
   "handover": null,
   "history": [
    {
-    "first_seen": "2026-11-26T09:54:27.634217+00:00",
+    "first_seen": "2026-11-26T10:26:34.242830+00:00",
     "id": 53,
     "state": "closed",
     "title": "Cylinder 2 discharge running hot; check 2nd stage valves (notification 10007002)"
    },
    {
-    "first_seen": "2026-11-26T09:54:27.622253+00:00",
+    "first_seen": "2026-11-26T10:26:34.229030+00:00",
     "id": 51,
     "state": "closed",
     "title": "VRU compressor tripped on high discharge temperature (notification 10007001)"
    },
    {
-    "first_seen": "2026-11-26T09:54:27.602264+00:00",
+    "first_seen": "2026-11-26T10:26:34.191235+00:00",
     "id": 50,
     "state": "closed",
     "title": "VRU compressor high discharge temperature trip on G1-K-7001 demanded 2 times in 365 days, designed for 0.1"
    },
    {
-    "first_seen": "2026-11-26T09:54:27.506160+00:00",
-    "id": 44,
+    "first_seen": "2026-11-26T10:26:34.111929+00:00",
+    "id": 48,
     "state": "cleared",
     "title": "4000-hour service, VRU compressor (due 12 Mar)"
    },
    {
-    "first_seen": "2026-11-26T09:54:27.040274+00:00",
+    "first_seen": "2026-11-26T10:26:33.464816+00:00",
     "id": 37,
     "state": "closed",
     "title": "Train from G1-V-7002 (HRPT-G1) tripped 2026-11-25 02:45: high discharge temperature on G1-K-7001, HRPT:G1.TT7006.PV moved 25 min before. Restart after checks; reliability to review"
@@ -1813,7 +1838,7 @@
   "joined_to": null,
   "key": "upset:6",
   "label": "Process upset",
-  "last_seen": "2026-11-26T09:54:31.561270+00:00",
+  "last_seen": "2026-11-26T10:26:38.540753+00:00",
   "need": "condition",
   "own_step": true,
   "permit": {
@@ -1828,7 +1853,7 @@
   "reports": 1,
   "role": "operator",
   "sent": {
-   "at": "2026-11-26T09:54:31.614040+00:00",
+   "at": "2026-11-26T10:26:38.599376+00:00",
    "by": "loop-ioc",
    "reason": "Loop eval: check it on site"
   },
@@ -1840,8 +1865,8 @@
   "sources": [],
   "state": "open",
   "subjects": [
-   "fz-tag-9102964d6f9a",
-   "fz-timeseries-883523070e58"
+   "fz-tag-bca11891a294",
+   "fz-timeseries-aa0eca474817"
   ],
   "task_id": 159,
   "task_name": "Field check",
@@ -1849,7 +1874,7 @@
   "title": "High alarm on G1-K-7001 (peak 614.5 degF) from 2026-11-25 00:00, across 4 assets",
   "type": "upset",
   "unmatched": [],
-  "updated_at": "2026-11-26T09:54:31.561270+00:00",
+  "updated_at": "2026-11-26T10:26:38.540753+00:00",
   "value_usd": 24658.0,
   "warnings": []
  }
