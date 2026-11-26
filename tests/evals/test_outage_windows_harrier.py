@@ -78,6 +78,16 @@ def test_the_outage_shows_the_lines_flow_and_pressure_with_its_window_shaded(c, 
         assert max(t for x in s["series"] for t, _ in x["values"]) <= clock.now().isoformat(timespec="minutes")
 
 
+def test_the_outage_shows_the_maintenance_history_of_what_its_jobs_work_on(c, asked):
+    """P5.22d: beside the windows, each asset the outage's jobs work on with its SAP notifications and work orders and
+    its downtime, as its own page lists them; an asset with none is left out."""
+    got = {x["label"]: x for x in asked["proposal"]["maintenance"]}
+    assert list(got) == ["B1-P-2001A", "D1-FT-4002", "C1-XV-3001"]
+    [seal] = got["B1-P-2001A"]["notifications"]
+    assert seal["text"] == "Mechanical seal leak on midline pump A" and seal["work_orders"][0]["activity"] == "Replace"
+    assert [d["label"] for d in got["C1-XV-3001"]["downtime"]] == ["HRDT-0001"]
+
+
 def test_another_window_is_picked_only_with_a_reason(c, asked):
     eid = asked["exception_id"]
     with pytest.raises(PlanError, match="say why window 2"):

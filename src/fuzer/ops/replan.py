@@ -1096,7 +1096,7 @@ def work_windows(conn, d: dict, typed: list[dict], picks: dict) -> dict:
             "recommend": (f"Costs the customers least ({money(windows[0]['usd'])})"
                           + (f": it shares its hours with {', '.join(windows[0]['alongside'])}" if windows[0]["alongside"] else "")
                           if windows else "No window keeps every crew within capacity and every rule: add a constraint"),
-            "past": hist,
+            "past": hist, "maintenance": outages.maintenance(conn, found),
             "basis": f"its jobs moved as one to each start from {NOTICE_DAYS} to {SEARCH_DAYS} days ahead, ranked by what "
                      f"the customers it hits lose (each contract's daily volume and rate for the hours it is hit, hours "
                      f"shared with another outage lost once); the {tried} cheapest levelled against every crew and the "

@@ -1,8 +1,9 @@
 import { useState, type CSSProperties } from "react";
-import { Badge, Button, Card as UICard, ErrorText, Input, Line, List, Select, Table, Text, Textarea, confirmDialog, promptDialog } from "../ui";
+import { Badge, Button, Card as UICard, ErrorText, Heading, Input, Line, List, Select, Table, Text, Textarea, confirmDialog, promptDialog } from "../ui";
 import { count, money, quantity, when, whenDay } from "../format";
 import { api, type OutageWindow, type PlanAssign, type PlanChange, type PlanChanged, type PlanKpis, type PlanMove, type PlanNotice } from "../api";
-import { Status, useAction, useAsync } from "../lib";
+import { entityHref, Status, useAction, useAsync } from "../lib";
+import { DowntimeList, NotificationList } from "../Maintenance";
 import { Actor } from "../work";
 import { caseHref } from "./workflows/shared";
 
@@ -147,7 +148,8 @@ function Assign({ c, lines, edit, person, put }:
 }
 
 /** An outage's windows (P5.22c): three proposed, each with what it costs the customers it hits and its reasons, the
- * cheapest recommended. The planner picks another while it is open, saying why. */
+ * cheapest recommended. The planner picks another while it is open, saying why. Beside them, the maintenance history
+ * of what its jobs work on (P5.22d). */
 function Windows({ c, windows, edit, person, put }:
   { c: PlanChange; windows: OutageWindow[]; edit: boolean; person: string; put: (c: PlanChange) => void }) {
   const a = useAction();
@@ -157,7 +159,7 @@ function Windows({ c, windows, edit, person, put }:
       : await promptDialog(`Why window ${w.n + 1} rather than the recommended window ${(p.recommended ?? 0) + 1}?`, { confirm: "Pick" });
     if (w.n === p.recommended || why) a.run("pick", () => api.planWindowPick(c.exception_id, person, w.n, why), put);
   };
-  return <>
+  return <div className="replan-outage"><div>
     {!windows.length && <Text as="p">{p.recommend}</Text>}
     <List plain aria-label="Windows">{windows.map((w) => <li key={w.n} className="replan-window">
       <Line wrap>
@@ -173,7 +175,16 @@ function Windows({ c, windows, edit, person, put }:
     {!!p.past?.length && <Text as="p" small>Similar past work: {p.past.map((x) =>
       `${x.key}, ${x.hours} h from ${whenDay(x.start)}${x.comment ? ` (${x.comment})` : ""}`).join("; ")}.</Text>}
     <ErrorText>{a.error}</ErrorText>
-  </>;
+  </div>
+    {!!p.maintenance?.length && <section aria-label="Maintenance history">
+      <Heading level={3}>Maintenance history</Heading>
+      {p.maintenance.map((x) => <div key={x.id}>
+        <Text as="p" small><a href={entityHref(x.id)}>{x.label}</a></Text>
+        {x.notifications.length > 0 && <NotificationList items={x.notifications} />}
+        {x.downtime.length > 0 && <DowntimeList rows={x.downtime} />}
+      </div>)}
+    </section>}
+  </div>;
 }
 
 /** Each thing done to the plan change, oldest first: Fuzer working it out, what a person typed or picked, the

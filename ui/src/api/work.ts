@@ -1,6 +1,7 @@
 import { request, requestText } from "./transport";
 
 import type { SourceValue } from "./explore";
+import type { DowntimeRow, Maintenance } from "./investigate";
 
 export interface MatchSide {
   ref: string;
@@ -1030,6 +1031,8 @@ export interface PlanChange {
     /** An outage's windows (P5.22c): three proposed, the one recommended and why, the one picked, similar past work. */
     windows?: OutageWindow[]; recommended?: number; picked?: number; recommend?: string;
     past?: { key: string; start: string; end: string; hours: number; comment: string | null }[];
+    /** What its jobs work on, each with its notifications and work orders and its downtime (P5.22d). */
+    maintenance?: { id: string; label: string; kind: string; notifications: Maintenance["recent"]; downtime: DowntimeRow[] }[];
   } | null;
 }
 export interface OutageWindow {
