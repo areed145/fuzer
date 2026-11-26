@@ -279,7 +279,7 @@ def test_not_fixed_names_who_the_follow_up_goes_to_as_contained_does(conn):
 def test_a_follow_up_to_an_operator_is_a_field_check_with_the_note_as_its_ask(conn):
     """Tour F, F16: the follow-up of 989 sent to sam (1252) was a desk Task due in 4 h. To a field operator, or the
     operator queue, it is a field job: a Field check on their list that asks the close-out's note."""
-    from fuzer.ops import exceptions
+    from fuzer.ops import exceptions as ops_exceptions
     from fuzer.workflow import engine
 
     engine.set_person(conn, "sam", ["operator"])
@@ -291,7 +291,7 @@ def test_a_follow_up_to_an_operator_is_a_field_check_with_the_note_as_its_ask(co
     steps = conn.execute("select element, role, assignee from work_token where item_id = %s and kind = 'user' "
                          "and state in ('ready', 'waiting')", (after,)).fetchall()
     assert [(s["element"], s["assignee"]) for s in steps] == [("field_check", "sam")], steps
-    job = next(j for j in exceptions.field_jobs(conn, "sam") if j["item_id"] == after)
+    job = next(j for j in ops_exceptions.field_jobs(conn, "sam") if j["item_id"] == after)
     assert job["sent"]["reason"] == "Re-torque the flange bolts", job["sent"]
     assert disposition.follow_up(conn, case) == after
     conn.commit()
