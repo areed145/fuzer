@@ -809,6 +809,22 @@ def dispatch(conn, exception_id: int, by: str, to: str, reason: str | None = Non
     return row
 
 
+def send_case(conn, item_id: int, by: str, to: str, reason: str | None = None) -> dict:
+    """A case's Send to someone else. A case still waiting at To dispatch goes out as its event's dispatch, so it
+    leaves To dispatch with a step for whoever it went to (P5.29d, #1403): handed over as a bare case, 1203 stayed at
+    To dispatch with "No step is open" and its options, and nothing on the page said who had it. Any other case hands
+    everything open on it to them."""
+    from . import routing
+
+    if not to.startswith("agent:") and routing.waiting_case(conn, item_id):
+        row = conn.execute("select id from exception_record where item_id = %s and state = %s and joined_to is null "
+                           "order by id limit 1", (item_id, OPEN)).fetchone()
+        if row:
+            dispatch(conn, row["id"], by, to, reason)
+            return {"item_id": item_id, "to": to}
+    return work.reassign(conn, item_id, by, to, reason)
+
+
 PHOTO_TYPES = ("image/jpeg", "image/png", "image/webp")
 PHOTO_MAX = 2_000_000  # bytes, after the phone resized it
 PHOTOS_MAX = 4

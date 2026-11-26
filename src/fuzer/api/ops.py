@@ -814,10 +814,19 @@ def _viewer_roles(conn) -> list[str] | None:
 
 @router.post("/exceptions/{exception_id}/options/choose")
 def exception_option_choose(exception_id: int, c: OptionChoice, conn=Depends(get_conn)):
-    """Carry out one of an event's options and record the choice, the recommendation and the reason (P5.20)."""
+    """Carry out one of an event's options and record the choice, the recommendation and the reason (P5.20). Answers
+    with its case as it now stands (`item`), which the page shows at once (P5.29d)."""
     from ..ops import options
-    return _exception_call(conn, options.choose, exception_id, c.by, c.option, c.reason, to=c.to, ask=c.ask,
-                           due=c.due, priority=c.priority, override=c.override)
+    out = _exception_call(conn, options.choose, exception_id, c.by, c.option, c.reason, to=c.to, ask=c.ask,
+                          due=c.due, priority=c.priority, override=c.override)
+    return {**out, "item": _case_now(conn, out["event"]["item_id"])}
+
+
+def _case_now(conn, item_id: int | None) -> dict | None:
+    """The case an action changed, as GET /work/items reads its processes, steps, holder and subjects (P5.29d): a page
+    shows the action's result with its confirmation, not after reading everything again on a busy server."""
+    from ..workflow import engine
+    return engine.item(conn, item_id) if item_id else None
 
 
 @router.get("/options/acceptance")
@@ -934,7 +943,7 @@ class MessageEntities(BaseModel):
 @router.post("/exceptions/{exception_id}/message/entities")
 def message_entities(exception_id: int, m: MessageEntities, conn=Depends(get_conn)):
     """Change the entities a message case is about (#1382): a wrong match, by the reader or a steward, redone on the
-    case. Returns the case and what it is about now."""
+    case. Returns the case, what it is about now, and the case as it now stands (`item`, P5.29d)."""
     from ..ops import messages
     _loaded_types()
     try:
@@ -943,7 +952,7 @@ def message_entities(exception_id: int, m: MessageEntities, conn=Depends(get_con
         conn.rollback()
         raise HTTPException(404 if str(e).startswith("no message case") else 400, str(e)) from e
     conn.commit()
-    return out
+    return {**out, "item": _case_now(conn, out["case"])}
 
 
 @router.get("/exceptions/{exception_id}/photos/{photo_id}")

@@ -19,7 +19,9 @@ must not introduce a second implementation of domain policy.
 
 A route's database connection commits before its answer is sent (`AuthenticatedRoute`, P5.28d): FastAPI closes a
 `yield` dependency only after the response, so a page that read again at once after an action saw the state from
-before it.
+before it. A case action's answer also carries the case as it left it (`item`, P5.29d), presentation-only shaping
+read through `workflow.engine.item`: on the one-CPU server the read made after the action waited behind every other
+read on the page, and the case looked unchanged for seconds.
 
 ## Shared operations
 

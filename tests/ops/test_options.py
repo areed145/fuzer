@@ -593,3 +593,66 @@ def test_a_case_never_clashes_with_itself_or_the_visit_it_rides_along_with(conn,
     assert not [c for c in rows[v["id"]]["clashes"] if c["with"] == bar["id"]], rows[v["id"]]["clashes"]
     clash = next(p for p in plan.prerequisites(conn, bar["id"])["prerequisites"] if p["kind"] == "clash")
     assert clash["satisfied"], clash
+
+
+def _api(conn):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from fuzer.api import ops as ops_api
+    from fuzer.api import workflow as workflow_api
+
+    app = FastAPI()
+    app.include_router(ops_api.router)
+    app.include_router(workflow_api.router)
+    app.dependency_overrides[ops_api.get_conn] = lambda: conn
+    return TestClient(app)
+
+
+def _waiting_on(item: dict) -> list[tuple]:
+    return [(s["name"], s["role"], s["assignee"]) for p in item["processes"] for s in p["open"] if s["kind"] == "user"]
+
+
+def test_an_action_answers_with_the_case_as_it_left_it(conn, report_type):
+    """#1403 (B-N15): after Choose who, Send to someone else and Dispatch the case still said "With ops lead queue"
+    until a reload. The action's answer carries the case, which the page shows with the confirmation."""
+    from fuzer.core import exceptions as port
+
+    e = port.raise_exception(conn, "walkdown_check", "answer 1", "Loose guard on 20-TT-2250B", "olga",
+                             refs=["tag:20-TT-2250B"], priority=0.3, role="role:ops_lead")
+    conn.commit()
+    client = _api(conn)
+    before = client.get(f"/work/items/{e['item_id']}").json()
+    assert [(r, a) for _, r, a in _waiting_on(before)] == [("ops_lead", None)], _waiting_on(before)
+    r = client.post(f"/exceptions/{e['id']}/options/choose", json={"by": "riley", "option": "dispatch", "to": "sam"})
+    assert r.status_code == 200, r.text
+    now = r.json()["item"]
+    assert now["id"] == e["item_id"] and _waiting_on(now) == _waiting_on(client.get(f"/work/items/{e['item_id']}").json())
+    assert [a for _, _, a in _waiting_on(now)] == ["sam"], _waiting_on(now)
+
+
+def test_send_to_someone_else_sends_a_case_waiting_at_to_dispatch(conn, report_type):
+    """#1403 (E5): Send to someone else on message case 1203 set the case's queue only. It stayed at To dispatch with
+    "No step is open" and its options, and nothing said who had it. It goes out as the event's dispatch now: a step in
+    the planner's queue, off To dispatch."""
+    from fuzer.core import work
+    from fuzer.ops import routing
+
+    work.add_person(conn, "pat", ["maintenance_planner"], "test")
+    e = raise_report(conn, "puddle", "20-TT-2250B lube oil console has a small oil puddle", ["tag:20-TT-2250B"])
+    message(conn, e["id"], "Small oil puddle under the filter of the lube oil console by 20-TT-2250B")
+    item = conn.execute("select item_id from exception_record where id = %s", (e["id"],)).fetchone()["item_id"]
+    assert routing.waiting_case(conn, item) and options.for_case(conn, item)["stage"] == "dispatch"
+    conn.commit()
+    r = _api(conn).post(f"/work/items/{item}/reassign", json={"by": "riley", "to": "role:maintenance_planner",
+                                                             "reason": "planner to book it"})
+    assert r.status_code == 200, r.text
+    assert _waiting_on(r.json()["item"]) == [("Work the case", "maintenance_planner", None)], r.json()["item"]
+    assert not routing.waiting_case(conn, item)
+    assert options.for_case(conn, item)["stage"] == "desk"
+    sent = conn.execute("select data->>'reason' as r from work_event where item_id = %s and kind = 'handed_off' "
+                        "order by id desc limit 1", (item,)).fetchone()["r"]
+    assert sent == "planner to book it"
+    # a case already sent is handed on as before
+    r = _api(conn).post(f"/work/items/{item}/reassign", json={"by": "riley", "to": "pat"})
+    assert r.status_code == 200 and [a for _, _, a in _waiting_on(r.json()["item"])] == ["pat"], r.text

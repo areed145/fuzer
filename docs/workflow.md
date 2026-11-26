@@ -263,12 +263,18 @@ role's queue with the role's SLA and escalation (#509); the rest wait for the IO
 - **A follow-up planned is sent.** Closing out a real problem as **Contained, follow-up planned** asks **Send the
   follow-up to** a person or a role's queue, and doesn't close until one is picked: the follow-up opens as a case of
   its own, linked from the closed case. Sent to a person, it runs in a queue of theirs with its step handed to them,
-  so it shows as theirs under Waiting on. The case page's **Send to someone else** says where it went and folds away.
+  so it shows as theirs under Waiting on. The case page's **Send to someone else** says where it went and folds away. On a case still at To dispatch it dispatches the
+  event (`ops.exceptions.send_case`), so the case gets a step for whoever it went to and leaves To dispatch; a case
+  with no process says who holds it under Waiting on.
 - **Only what was chosen is saved.** An outcome belongs to a real problem: a false alarm, duplicate, data problem or
   log only saves none, whatever the hidden Outcome held. The field's "no leak or damage found" reads as nothing found,
   so the form pre-fills False alarm, not "A real problem / Fixed". A case opened again as a repeat opens its event
   with it, so it has its Options again. A shelved case says **Shelved until** its date in place of Open and its due
   time.
+- **The page follows the action.** Dispatch, Choose who, Add to the visit, Escalate, Send to someone else and Change
+  the entity answer with the case as they left it (`item`, as `GET /work/items/{id}` reads its steps, holder and
+  subjects); the case page shows it with the confirmation, then reads the case again (first in the browser's queue)
+  for the rest. A field job shows On site as said as soon as the report is answered.
   A field job card only offers to open a step in the operator's own roles.
 - **Picked, not typed.** Dispatch picks a person (shown with their roles) or a role's queue; a new exception type
   picks its queue from the person roles under Settings > Users, and the API refuses a queue that isn't one. Equipment

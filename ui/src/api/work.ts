@@ -682,6 +682,10 @@ export interface WorkItem {
   parent?: { id: number; title: string; state: string; closed_at: string | null } | null;
 }
 
+/** A case as an action left it (P5.29d): GET /work/items/{id} without what the action doesn't change (its findings,
+ * brief and spend), so the page shows the new holder, steps and subjects with the action's confirmation. */
+export type CaseNow = Omit<WorkItem, "agents_configured" | "agent_spend" | "brief" | "sources">;
+
 export interface BulkAction {
   label: string;
   data: Record<string, unknown>;
@@ -1258,11 +1262,13 @@ export const workApi = {
   caseOptions: (itemId: number) => request<CaseOptions>("GET", `/work/items/${itemId}/options`),
   chooseOption: (id: number, by: string, option: CaseOption["key"], c: { reason?: string; to?: string; ask?: string;
     due?: string; priority?: number; override?: string } = {}) =>
-    request<{ choice: OptionDecision; event: { id: number; item_id: number | null; stage: string; state: string } }>(
-      "POST", `/exceptions/${id}/options/choose`, undefined, { by, option, ...c }),
+    request<{ choice: OptionDecision; event: { id: number; item_id: number | null; stage: string; state: string };
+      item: CaseNow | null }>("POST", `/exceptions/${id}/options/choose`, undefined, { by, option, ...c }),
   optionAcceptance: (days = 90) => request<OptionAcceptance>("GET", "/options/acceptance", { days: String(days) }),
   workTask: (id: number) => request<WorkTaskView>("GET", `/work/tasks/${id}`),
-  workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`),
+  // A case goes ahead of the reads waiting (P5.29d): after an action every view on the page reads again, the case's
+  // own (its parent's effect runs after its children's) asked last, so it waited behind the rest.
+  workItem: (id: number) => request<WorkItem>("GET", `/work/items/${id}`, undefined, undefined, undefined, true),
   workItemGates: (id: number) => request<GateDecision[]>("GET", `/work/items/${id}/gates`),
   workItemAround: (id: number) => request<CaseAround>("GET", `/work/items/${id}/around`),
   workItemSafeguards: (id: number) => request<CaseSafeguards>("GET", `/work/items/${id}/safeguards`),
@@ -1356,7 +1362,7 @@ export const workApi = {
   setCase: (id: number, by: string, values: { priority?: number; due?: string; reason?: string }) =>
     request<unknown>("POST", `/work/items/${id}/set`, undefined, { by, ...values }),
   reassignCase: (id: number, by: string, to: string, reason?: string) =>
-    request<unknown>("POST", `/work/items/${id}/reassign`, undefined, { by, to, reason }),
+    request<{ item: CaseNow }>("POST", `/work/items/${id}/reassign`, undefined, { by, to, reason }),
   transitionCase: (id: number, by: string, state: string, reason?: string) =>
     request<unknown>("POST", `/work/items/${id}/transition`, undefined, { by, state, reason }),
   cancelProcess: (id: number, by: string, reason?: string) =>
@@ -1386,7 +1392,7 @@ export const workApi = {
     about?: { fuzer_id: string; label: string }[] }>("POST", `/review/${id}`, undefined, d),
   /** Change the entities a message case is about: a wrong match, redone on the case (#1382). */
   changeMessageEntities: (exceptionId: number, by: string, fuzerIds: string[]) =>
-    request<{ case: number | null; about: { fuzer_id: string; label: string }[] }>(
+    request<{ case: number | null; about: { fuzer_id: string; label: string }[]; item: CaseNow | null }>(
       "POST", `/exceptions/${exceptionId}/message/entities`, undefined, { by, fuzer_ids: fuzerIds }),
   reviewGroups: (kind: ReviewKind) => request<ReviewGroup[]>("GET", "/review/groups", { kind }),
   decideGroup: (body: { key: string; decision: Decision["decision"]; source?: string; value?: unknown; standing: boolean; by: string }) =>

@@ -262,8 +262,11 @@ def test_a_wrong_match_is_changed_on_the_message_case(read):
         right = [_id(conn, "tag:20-K-2100B"), _id(conn, "tag:20-K-2100A")]
         r = client.post(f"/exceptions/{note['exception_id']}/message/entities", json={"by": "ana", "fuzer_ids": right})
         assert r.status_code == 200, r.text
-        assert r.json() == {"case": note["item_id"], "about": [{"fuzer_id": right[0], "label": "20-K-2100B"},
-                                                               {"fuzer_id": right[1], "label": "20-K-2100A"}]}
+        out = r.json()
+        # the case as it now stands comes with the answer, so the page names the new entities at once (#1403)
+        assert out.pop("item")["subjects"] == right
+        assert out == {"case": note["item_id"], "about": [{"fuzer_id": right[0], "label": "20-K-2100B"},
+                                                          {"fuzer_id": right[1], "label": "20-K-2100A"}]}
         record = conn.execute("select fuzer_id from entity where kind = 'work_order' limit 1").fetchone()
         if record:
             bad = client.post(f"/exceptions/{note['exception_id']}/message/entities",

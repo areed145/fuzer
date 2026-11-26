@@ -347,7 +347,10 @@ export const exploreApi = {
   entityTabs: (id: string) => request<EntityTabCounts>("GET", `/entities/${encodeURIComponent(id)}/tabs`),
   hierarchy: (id: string) => request<Hierarchy>("GET", `/entities/${encodeURIComponent(id)}/hierarchy`),
   stats: () => request<Stats>("GET", "/stats"),
-  entityNames: (ids: string[]) => request<EntityNames>("GET", `/entities/names?${new URLSearchParams(ids.map((id) => ["id", id]))}`),
+  // Names go ahead of the reads waiting (P5.29d): a link draws nothing until its name is in, and after "Use it" the
+  // case read "about" with nothing after while its lookup waited behind the page's other reads.
+  entityNames: (ids: string[]) => request<EntityNames>("GET", `/entities/names?${new URLSearchParams(ids.map((id) => ["id", id]))}`,
+    undefined, undefined, undefined, true),
   search: (q: string, kind?: string, limit = 200) => request<SearchHit[]>("GET", "/entities", { q, kind, limit }),
   /** The first `limit` matches and how many there are, for a picker that says "12 of N" (#1382). */
   searchCounted: (q: string, kind?: string, limit = 12) =>

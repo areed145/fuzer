@@ -11588,3 +11588,126 @@ test("P5.28f on a phone the List card's attention stripe has room before its tit
   const [r, t] = [await row.boundingBox(), await title.boundingBox()];
   assert.ok(r && t && t.x - r.x >= 8, `the title starts ${t && r ? t.x - r.x : "?"} px from the stripe`);
 });
+
+// ---- P5.29d (#1403): pages follow every action -----------------------------------------------------------------------
+// On the live one-CPU server every view read again after an action, the case's own read last, and Waiting on still said
+// "With ops lead queue" seconds after "Dispatched to kai". Here the reads made after the action never answer: what the
+// page shows next can only come from the action's own answer.
+
+const never = () => new Promise(() => {});
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.29d after Choose who, Waiting on names who has it with the confirmation (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    let chosen = 0;
+    const sent = queueCase("operator");
+    sent.processes[0].open[0] = { ...sent.processes[0].open[0], id: 51, name: "Field check", element: "field_check", assignee: "sam" };
+    await page.route("**/work/items/21", (route) => (chosen ? never() : route.fulfill({ json: queueCase("ops_lead") })));
+    await page.route("**/work/items/21/options", (route) => (chosen ? never() : route.fulfill({ json: caseOptions() })));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "riley", roles: ["ops_lead"] },
+      { name: "sam", roles: ["operator"], holding: 1 }] }));
+    await page.route("**/exceptions/7/options/choose", (route) => { chosen++;
+      return route.fulfill({ json: { choice: { id: 1, chosen: "dispatch", recommended: "dispatch", accepted: true },
+        event: { id: 7, item_id: 21, stage: "field", state: "open" }, item: sent } }); });
+    await page.goto(`${url}/#/cases/21`);
+    const waiting = page.getByLabel("Next step");
+    await waiting.getByText(/With .*ops lead/i).waitFor();
+    const opts = page.getByLabel("Options");
+    await opts.getByRole("button", { name: "Choose who…" }).click();
+    await opts.getByLabel("Send to").selectOption("sam");
+    await opts.getByRole("button", { name: "Dispatch now", exact: true }).last().click();
+    await page.getByRole("status").filter({ hasText: "Dispatched to sam" }).waitFor();
+    await waiting.getByText("Field check").waitFor({ timeout: 1500 });
+    await waiting.getByText(/with sam/i).waitFor({ timeout: 500 });
+    assert.equal(await waiting.getByText(/ops lead/i).count(), 0, "the old owner is gone");
+    assert.equal(chosen, 1);
+    assert.deepEqual(errors, []);
+  });
+
+  test(`P5.29d Send to someone else says where it went, and Waiting on shows them at once (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "riley"));
+    // a message case still at To dispatch: no step, nobody holds it (1203)
+    const waitingCase = { id: 1203, title: "Lube oil console has a small oil puddle under the filter", type: "message_report",
+      state: "open", subjects: [], created_by: "messages", created_at: "2026-11-25T16:30:00Z", events: [], processes: [],
+      assignee: null, role: null, payload: { exception_id: 77 } };
+    let sends = 0;
+    await page.route("**/work/items/1203", (route) => (sends ? never() : route.fulfill({ json: waitingCase })));
+    await page.route("**/work/items/1203/options", (route) => (sends ? never()
+      : route.fulfill({ json: { applies: false, why_not: "x", exception_id: 77, options: [] } })));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "riley", roles: ["ops_lead"] },
+      { name: "pat", roles: ["maintenance_planner"] }] }));
+    await page.route("**/work/roles/catalog", (route) => route.fulfill({ json: [{ name: "maintenance_planner", kind: "person" }] }));
+    await page.route("**/work/items/1203/reassign", (route) => { sends++;
+      return route.fulfill({ json: { item_id: 1203, to: "role:maintenance_planner",
+        item: { ...waitingCase, role: "maintenance_planner" } } }); });
+    await page.goto(`${url}/#/cases/1203`);
+    const next = page.getByLabel("Next step");
+    await next.getByText("No step is open").waitFor();
+    await page.getByRole("button", { name: "Send to someone else" }).click();
+    await page.locator(".case-actions select").selectOption("role:maintenance_planner");
+    await page.locator(".case-actions").getByRole("button", { name: "Send", exact: true }).click();
+    await page.locator(".case-actions").getByRole("status").filter({ hasText: "Sent to maintenance planner queue." }).waitFor();
+    // a case without a step is held by its queue: that is who it waits on
+    await next.getByText("With maintenance planner queue").waitFor({ timeout: 1500 });
+    assert.equal(await next.getByText("No step is open").count(), 0);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+
+  test(`P5.29d after Use it, the case is about the new entity by name at once (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "ana"));
+    await page.route("**/work/people", (route) => route.fulfill({ json: [{ name: "ana", roles: ["data_steward"] }] }));
+    let changed = 0;
+    const item = (about) => ({ id: 1156, title: "Export pump is making a grinding noise", type: "message_report", state: "open",
+      subjects: about, created_by: "messages", created_at: "2026-11-25T16:30:00Z", events: [], processes: [],
+      payload: { exception_id: 77, message: { id: "MSG-0019", channel: "phone", channel_label: "Field note", sender: "Ada Nwosu",
+        subject: null, text: "Export pump is making a grinding noise at the coupling end.", received_at: "2026-11-25T10:00" } } });
+    await page.route("**/work/items/1156", (route) => (changed ? never() : route.fulfill({ json: item(["fz-tag-p1001a"]) })));
+    await page.route("**/work/items/1156/options", (route) => route.fulfill({ json: { applies: false, why_not: "x", exception_id: 77, options: [] } }));
+    await page.route("**/entities/names**", (route) => route.fulfill({ json: {
+      "fz-tag-p1001a": { label: "10-P-1001A", description: "Oil export pump A" },
+      "fz-tag-p1001b": { label: "10-P-1001B", description: "Oil export pump B" } } }));
+    await page.route("**/entities?*", (route) => route.fulfill({ json: { total: 1, hits: [{ fuzer_id: "fz-tag-p1001b", kind: "tag",
+      label: "10-P-1001B", description: "Oil export pump B", parent_label: "OKAN-10" }] } }));
+    await page.route("**/exceptions/77/message/entities", (route) => { changed++;
+      return route.fulfill({ json: { case: 1156, about: [{ fuzer_id: "fz-tag-p1001b", label: "10-P-1001B" }],
+        item: item(["fz-tag-p1001b"]) } }); });
+    await page.goto(`${url}/#/cases/1156`);
+    const head = page.locator(".case-head");
+    await head.getByRole("link", { name: "10-P-1001A" }).waitFor();
+    const card = page.locator(".case-message");
+    await card.getByRole("button", { name: "Change the entity…" }).click();
+    await card.getByLabel("Search the register").fill("10-P-1001B");
+    await card.getByRole("button", { name: "Search", exact: true }).click();
+    await card.getByRole("checkbox", { name: /^10-P-1001B/ }).check();
+    await card.getByRole("button", { name: "Use it" }).click();
+    await head.getByRole("link", { name: "10-P-1001B" }).waitFor({ timeout: 1500 });
+    assert.equal(await head.getByRole("link", { name: "10-P-1001A" }).count(), 0);
+    assert.deepEqual(errors, []);
+  });
+
+  test(`P5.29d On site shows as said once it is answered, before My work reads again (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "fred"));
+    const finding = { detector: "test", origin: "external", origin_label: "Reported by", method: null, standard: null, start: null,
+      end: null, confidence: null, items: [], checks: [], subjects: [], value_usd: null };
+    const job = { type: "upset", source: "scada", state: "open", priority: null, value_usd: null, subjects: [], unmatched: [],
+      raised_count: 1, first_seen: "2026-11-25T06:00:00Z", last_seen: "2026-11-25T06:00:00Z", evidence: {}, finding, history: [],
+      label: "Upset", role: "operator", assets: [], id: 30, key: "m", title: "Outlet gauge reads high on 20-E-2150A", item_id: 50,
+      assignee: "fred", queued: false, sent: { by: "riley", at: "2026-11-25T07:00:00Z", reason: "Read the local gauge" }, field: [] };
+    let reported = 0;
+    await page.route("**/exceptions/field?*", (route) => (reported ? never()
+      : route.fulfill({ json: { person: "fred", coming_up: [], jobs: [job] } })));
+    await page.route("**/exceptions/30/report", (route) => { reported++; return route.fulfill({ json: job }); });
+    await page.route("**/work/inbox?*", (route) => route.fulfill({ json: { person: "fred", roles: ["operator"], mine: [], queue: [],
+      counts: { mine: { total: 0 }, queue: { total: 0 } } } }));
+    await page.goto(`${url}/#/inbox`);
+    const card = page.locator(".field-job", { hasText: "Outlet gauge reads high" });
+    await card.getByRole("button", { name: "On site", exact: true }).click();
+    await card.getByRole("button", { name: "On site ✓" }).waitFor({ timeout: 1500 });
+    assert.equal(reported, 1);
+    assert.deepEqual(errors, []);
+  });
+}

@@ -972,8 +972,13 @@ def work_item_set(item_id: int, c: ItemChange, conn=Depends(get_conn)):
 
 @router.post("/work/items/{item_id}/reassign")
 def work_item_reassign(item_id: int, r: ItemReassign, conn=Depends(get_conn)):
-    """Give everything open on a case to a person or a role's queue (role:<role>)."""
-    return work.reassign_item(conn, item_id, r.by, r.to, r.reason)
+    """Give everything open on a case to a person or a role's queue (role:<role>); a case still at To dispatch is
+    dispatched to them. Answers with the case as it now stands (`item`), which the page shows at once (P5.29d)."""
+    from ..ops import exceptions
+    from .ops import _exception_call
+
+    out = _exception_call(conn, exceptions.send_case, item_id, r.by, r.to, r.reason)
+    return {**out, "item": work.item(conn, item_id)}
 
 
 @router.get("/work/definitions/{definition_id}/routing")
