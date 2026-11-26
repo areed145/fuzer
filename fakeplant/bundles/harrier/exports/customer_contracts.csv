@@ -1,0 +1,4 @@
+contract_id,customer,customer_type,service,delivery_point,volume_bbl_d,rate_usd_bbl,start,end
+HR-TSA-101,Northgate Crude Marketing,shipper,transportation,A1-FT-1010,38000,2.15,today-400d,today+330d
+HR-TSA-102,Prairie Basin Producers,shipper,transportation,A1-FT-1010,22000,2.30,today-200d,today+530d
+HR-TML-201,Northgate Crude Marketing,shipper,marine loading,F1-FT-6010,30000,0.85,today+20d,today+300d

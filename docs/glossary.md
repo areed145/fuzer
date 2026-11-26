@@ -60,6 +60,11 @@ asked, or a duplicate.
 
 **Capability.** A tool an agent can call, declared once with the agents that use it. See [capabilities](capabilities.md).
 
+**Contract.** A customer's contract on the customer and contract register (a source): what it buys, the delivery
+point it receives or delivers at, the daily volume it carries (bbl/d), the rate it pays ($/bbl) and the dates it runs.
+Its **customer** is a shipper or a utility. An outage that takes its delivery point down, or leaves it with no feed,
+**hits** it. See [the data model](data-model.md).
+
 **Container.** A group of cases with a shared window, budget or goal, and a parent: a business plan, program,
 project, turnaround or package. Shown by its kind, never as "container". Its own case runs its gates.
 

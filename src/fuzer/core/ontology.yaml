@@ -254,6 +254,14 @@ kinds:
     description: >-
       A line of the business plan: the work it means to do in a program, on a facility or area, over a period, with
       the hours and cost it estimates. Read against the real cases that do the work.
+  contract:
+    label: Contract
+    group: Planning
+    colour: "#b9770e"
+    description: >-
+      A customer's contract (a shipper's or a utility's): what it buys, the delivery point it receives or delivers at,
+      the daily volume it carries and the rate it pays, and the dates it runs. An outage on the plan that takes its
+      delivery point down, or everything feeding it, hits it.
 
 relations:
   part_of:
@@ -275,6 +283,12 @@ relations:
     description: A sidetrack and the well it was drilled from.
     from: [well]
     to: [well]
+  delivers_at:
+    label: delivers at
+    view: planning
+    description: A customer's contract and the delivery point (a meter or a tank) it receives or delivers at.
+    from: [contract]
+    to: [tag]
   located_at:
     label: located at
     view: physical

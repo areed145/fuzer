@@ -1,0 +1,23 @@
+# The customer and contract register (P5.22a, #1253), as the commercial system exports it: each contract with its
+# customer (a shipper, a utility), what it buys (transportation, marine loading, storage), the delivery point it
+# receives or delivers at (a meter or tank's tag), the daily volume it carries (bbl/d), the rate it pays ($/bbl)
+# and the dates it runs. An outage that takes its delivery point down, or everything feeding it, hits it.
+source: contracts
+record_type: contract
+shape: records
+dataset: customer_contracts
+key: contract_id
+entity:
+  kind: contract
+  fields:
+    - customer
+    - customer_type
+    - service
+    - [volume_bbl_d, {from: volume_bbl_d, as: number}]
+    - [rate_usd_bbl, {from: rate_usd_bbl, as: number}]
+    - start
+    - end
+links:
+  - rel: delivers_at
+    when: delivery_point
+    to: {kind: tag, from: delivery_point, as: tag}
