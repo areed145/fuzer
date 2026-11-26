@@ -5,7 +5,8 @@ on, and an eval of questions with answer keys:
 
     title, owner      what it is called and the agent that loads it
     classes           the ISO 14224 equipment classes it covers (standards/iso14224.yaml), or a unit kind that has
-                      no equipment class (`well`: a well is its own unit, as the detectors class it)
+                      no equipment class (`well`: a well is its own unit, as the detectors class it; so are a
+                      pipeline, its segments and features, and a contract)
     tools             the registered tools the playbook tells the agent to call
     charts            the plot tools whose charts it shows (a subset of tools)
     methods           the registered methods (standards/methods.yaml) the playbook runs, through `calc` or, for a
@@ -45,7 +46,9 @@ from . import SKILLS
 
 MANIFEST = "pack.yaml"
 REQUIRED = ("title", "owner", "classes", "tools", "charts", "methods", "detectors", "roles", "eval")
-UNIT_KINDS = ("well",)  # units classed by their own kind rather than an ISO 14224 class (core/detectors.classes_of)
+# Units classed by their own kind rather than an ISO 14224 class (core/detectors.classes_of): a well, a pipeline with its
+# segments and features, and a customer's contract (P4.7).
+UNIT_KINDS = ("well", "pipeline", "pipeline_segment", "pipeline_feature", "contract")
 
 
 def shipped() -> list[str]:

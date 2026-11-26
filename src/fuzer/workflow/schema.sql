@@ -76,7 +76,8 @@ from (values
     ('maintenance-integrity', 'Maintenance history, integrity, drafts notifications'),
     ('work-management-supply-chain', 'Work backlog, job readiness and spares'),
     ('hse-incident-management', 'Incident evidence for accountable HSE review'),
-    ('asset-performance-reporting', 'Cross-domain summaries')
+    ('asset-performance-reporting', 'Cross-domain summaries'),
+    ('pipelines-commercial', 'Pipeline integrity, hydraulics, contracts and outages')
 ) as v (name, description)
 where exists (select 1 from work_role)
 on conflict do nothing;

@@ -39,6 +39,7 @@ BUILTIN = {
     "work-management-supply-chain": ("agent", "Work backlog, job readiness and spares", None, None),
     "hse-incident-management": ("agent", "Incident evidence for accountable HSE review", None, None),
     "asset-performance-reporting": ("agent", "Cross-domain summaries", None, None),
+    "pipelines-commercial": ("agent", "Pipeline integrity, hydraulics, contracts and outages", None, None),
     # Retired names, still served so steps already in flight on published definitions finish (agents/worker.py).
     "troubleshooter": ("agent", "Retired: now field-operations-facilities", None, None),
     "production": ("agent", "Retired: now production-surveillance", None, None),

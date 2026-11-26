@@ -436,8 +436,8 @@ def test_skills_are_valid():
         assert provider is not None
     found = sorted(p.parent.name for p in agents.SKILLS.glob("*/*/SKILL.md"))
     assert found == ["alarms-and-instruments", "analysis", "answering", "back-pressure", "charts",
-                     "compression", "constraint-management", "gas-lift", "gas-treating", "incident-evidence", "integrated-planning", "integrity", "job-readiness",
-                     "metering-and-balances", "operations-summary", "options-and-tradeoffs", "production-efficiency", "production-engineering",
+                     "compression", "constraint-management", "gas-lift", "gas-treating", "hydraulics-and-linepack", "incident-evidence", "integrated-planning", "integrity", "job-readiness",
+                     "metering-and-balances", "nominations-and-contracts", "operations-summary", "options-and-tradeoffs", "outage-planning", "pipeline-integrity", "production-efficiency", "production-engineering",
                      "production-surveillance", "pumps-and-drivers", "reliability", "safety-systems", "shift-handover", "static-equipment", "troubleshooting", "turnarounds", "upset-correlation",
                      "well-review", "wells-and-lift", "work-orders"]
     for t in {t for tools in agents.TOOLS.values() for t in tools}:
@@ -529,6 +529,7 @@ def test_eval_scores_answers(conn, okan_pack):
     assert len(keys) == 29 and all(k["must_mention"] for k in keys)
     # Every question names its specialists, except an emergency, which the orchestrator answers at once.
     assert [k["domain"] for k in keys if not k["specialists"]] == ["escalation"]
-    assert {s for k in keys for s in k["specialists"]} == set(agents.SPECIALISTS)  # a key per domain, none retired
+    # a key per domain, none retired; Okan has no pipeline, so the pipelines specialist is asked on Harrier (P4.7)
+    assert {s for k in keys for s in k["specialists"]} == set(agents.SPECIALISTS) - {"pipelines-commercial"}
     assert {k for c in keys for k in c.get("charts", [])} <= {"decline", "wall_ranking", "wall_thickness", "pump_curve",
                                                              "choke"}

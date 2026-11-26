@@ -9,6 +9,8 @@ coordinates.
 - build(): with the register rebuilt, each pipeline feature found on a line is linked to the segment whose station
   range holds it (`found_on`, its station in the link's props), and features and segments go on the map along their
   line's route. A feature whose station no segment holds stays on its line, and the stats count it.
+- lines(): each line as an agent reads it (P4.7): its size and MOP, the areas it starts and ends at with the flow
+  meters there, and its segments in station order with each one's wall, grade, class location, valves and features.
 - min_curvature() / well(): a well's directional survey (CSV or WITSML stations, kept as source records) as its
   trajectory, its completion components by measured and true vertical depth, and its depth logs (LAS curves, #901)
   with the true vertical depth of each sample; brief() is the same in the size an agent reads (#363).
@@ -162,7 +164,8 @@ def along(conn, fuzer_id: str) -> dict:
     labels = {r["fuzer_id"]: r["label"] for r in conn.execute(
         "select fuzer_id, label from entity_label where fuzer_id = any(%s)", (seg_ids,))}
     segments = sorted(({"id": i, "label": labels.get(i, i), **{k: segs[i].get(k) for k in (
-        "description", "station_from_ft", "station_to_ft", "wall_thickness_in", "grade", "class_location")}}
+        "description", "station_from_ft", "station_to_ft", "wall_thickness_in", "grade", "class_location",
+        "from_valve", "to_valve")}}
         for i in seg_ids), key=lambda s: _num(s["station_from_ft"]) or 0)
     on = fuzer_id if kind["kind"] == "pipeline_segment" else line
     feats = conn.execute(
@@ -178,6 +181,55 @@ def along(conn, fuzer_id: str) -> dict:
         key=lambda f: _num(f["station_ft"]) or 0)
     return {"line": line, "segments": segments, "features": features}
 
+
+def lines(conn, line: str | None = None) -> dict:
+    """Every pipeline (or the one whose id or label is `line`): its service, diameter, length and MOP, the areas it
+    starts and ends at with the flow meters on the flow network there (in at the start, out at the end), and its
+    segments in station order, each with its length, wall, grade, class location, the valves that bound it and how
+    many features are found on it."""
+    rows = conn.execute(
+        """
+        select e.fuzer_id as id, (select min(l.label) from entity_label l where l.fuzer_id = e.fuzer_id) as label,
+               (select jsonb_object_agg(g.field, g.value) from golden g where g.fuzer_id = e.fuzer_id
+                and g.field <> 'geometry') as f
+        from entity e where e.kind = 'pipeline' and e.merged_into is null and e.retired_at is null order by 2
+        """).fetchall()
+    if line:
+        rows = [r for r in rows if line == r["id"] or (r["label"] or "").lower() == line.lower()]
+    meters = {r["area"]: r for r in conn.execute(
+        """
+        select p.dst as area, array_agg(distinct l.label order by l.label) as labels
+        from edge p join entity_label l on l.fuzer_id = p.src
+        where p.rel = 'part_of' and p.valid_to is null and p.src in (
+            select src from edge where rel = 'flows_to' and valid_to is null
+            union select dst from edge where rel = 'flows_to' and valid_to is null)
+        and p.src in (select c.src from edge c join entity_label k on k.fuzer_id = c.dst
+                      where c.rel = 'classified_as' and k.label like '%%:IP.FL%%')
+        group by p.dst
+        """)}
+    out = []
+    for r in rows:
+        ends = {e["rel"]: e for e in conn.execute(
+            "select e.rel, e.dst, (select min(l.label) from entity_label l where l.fuzer_id = e.dst) as label "
+            "from edge e where e.src = %s and e.rel in ('starts_at', 'ends_at') and e.valid_to is null", (r["id"],))}
+        here = along(conn, r["id"])
+        count: dict[str, int] = {}
+        for x in here["features"]:
+            count[x["segment"]] = count.get(x["segment"], 0) + 1
+        segments = []
+        for s in here["segments"]:
+            a, b = _num(s["station_from_ft"]), _num(s["station_to_ft"])
+            segments.append({**s, "length_mi": round((b - a) / 5280, 1) if a is not None and b is not None else None,
+                             "features": count.get(s["id"], 0)})
+        f = r["f"] or {}
+        end = {rel: {"area": e["label"], "meters": list(meters[e["dst"]]["labels"]) if e["dst"] in meters else []}
+               for rel, e in ends.items()}
+        out.append({"id": r["id"], "line": r["label"] or r["id"], **{k: f.get(k) for k in (
+            "description", "service", "status", "diameter_in", "length_mi", "mop_psig", "install_year")},
+            "starts": end.get("starts_at"), "ends": end.get("ends_at"), "segments": segments,
+            "unsegmented_features": count.get(None, 0)})
+    return {"lines": out, "source": "GIS pipelines (size, MOP, ends), PODS route segments, in-line inspection "
+                                    "features, and the flow network's meters at each end"}
 
 
 # Depth positions (#61b): a well's trajectory from its directional survey, and what sits at a depth down it.

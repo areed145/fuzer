@@ -32,7 +32,7 @@ def test_agent_tool_lists_come_from_the_registry():
     assert set(capabilities.AGENTS) == {
         "orchestrator", "production-surveillance", "wells-subsurface", "field-operations-facilities",
         "maintenance-integrity", "work-management-supply-chain", "hse-incident-management",
-        "asset-performance-reporting",
+        "asset-performance-reporting", "pipelines-commercial",
     }
     shared = [c.name for c in capabilities.REGISTRY.values() if c.agents == capabilities.AGENTS]
     assert "search" in shared and all(set(shared) <= set(t) for t in tools.values())
@@ -51,7 +51,7 @@ def test_agent_tool_lists_come_from_the_registry():
 def test_personas_have_one_documented_domain_or_cross_cutting_disposition():
     personas = [persona for agent in capabilities.AGENT_CATALOG for persona in agent.personas]
     personas += [persona for persona, _, _ in capabilities.PERSONA_DISPOSITION]
-    assert len(personas) == 25 and len(set(personas)) == 25
+    assert len(personas) == 28 and len(set(personas)) == 28
     assert {persona for persona, _, _ in capabilities.PERSONA_DISPOSITION} == {
         "Data Scientist / Operations Research Analyst", "Data Steward / Platform Administrator",
     }

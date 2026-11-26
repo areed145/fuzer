@@ -2,6 +2,7 @@
 eval (P1.7) on the standard operating model, stood up from its seed bundle with no change under src/fuzer/. It has
 pump stations, a mainline, tanks, ship loading and a vapour recovery unit, and no wells."""
 
+from fuzer.agents import brief
 from fuzer.evals import loop
 from fuzer.workflow import operating_model as om
 
@@ -38,4 +39,11 @@ def test_every_type_of_work_on_harrier_completes_the_loop(harrier_db, field_jobs
     assert done["sap_notification"]["steps"]["write_back"].startswith("complete SAP "), done["sap_notification"]
     assert "approved by loop-planner, sent through sap_pm, confirmed" in done["sap_notification"]["steps"]["write_back"]
     assert done["upset"]["steps"]["write_back"] == "no source to write back to"
+    # every case raised on the line itself (its pig run anomaly) is the Pipelines & Commercial specialist's to brief
+    on_line = harrier_db.execute(
+        "select * from work_item i where exists (select 1 from entity e where e.fuzer_id = any(i.subjects) "
+        "and e.kind in ('pipeline', 'pipeline_segment', 'pipeline_feature'))").fetchall()
+    assert {i["type"] for i in on_line} == {"ili_anomaly"}
+    assert all(brief.owner(harrier_db, dict(i))["owner"] == "pipelines-commercial" for i in on_line)
+    harrier_db.rollback()
     field_jobs_kept("harrier", res)  # its field jobs, rendered at 390 px like Okan's

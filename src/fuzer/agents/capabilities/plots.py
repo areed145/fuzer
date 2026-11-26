@@ -7,10 +7,7 @@ from ...core import db
 from ..mcp_server import _chart, _plain, capability
 
 
-@capability(
-    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
-    kind="plot"
-)
+@capability("production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity", "pipelines-commercial", kind="plot")
 def plot_trend(refs: list[str], at: str | None = None, hours_before: int = 48, hours_after: int = 24) -> dict[str, Any]:
     """Chart process values (PI / ADX) on stacked panels sharing time, with incident lead-ins shaded.
     refs: tags, wells or PI points (a tag gives its instruments' points; up to 6 series). at: the

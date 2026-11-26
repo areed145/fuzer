@@ -253,7 +253,7 @@ def plot_cost_of_unreliability(since: str | None = None, until: str | None = Non
                   {"since": since, "until": until, "days": days})
 
 
-@capability("maintenance-integrity", kind="calc")
+@capability("maintenance-integrity", "pipelines-commercial", kind="calc")
 def ili_anomalies(line: str | None = None) -> dict[str, Any]:
     """In-line inspection anomalies (#366) per line, or one line: each run, and each metal loss anomaly of the latest
     run matched to the previous run by type and station (within 5 ft), with its growth (% of wall and mpy),
@@ -267,7 +267,7 @@ def ili_anomalies(line: str | None = None) -> dict[str, Any]:
         return _plain(ili.anomalies(conn, line))
 
 
-@capability("maintenance-integrity", kind="plot")
+@capability("maintenance-integrity", "pipelines-commercial", kind="plot")
 def plot_ili_anomalies(line: str | None = None) -> dict[str, Any]:
     """Chart ILI metal loss depth along a line for each run, the anomalies crossing the screen ringed."""
     from ...plots import maintenance
@@ -363,7 +363,7 @@ def plot_crew_load(as_of: str | None = None, weeks: int = 26) -> dict[str, Any]:
 
 
 
-@capability("work-management-supply-chain", "maintenance-integrity", "orchestrator", kind="calc")
+@capability("work-management-supply-chain", "maintenance-integrity", "orchestrator", "pipelines-commercial", kind="calc")
 def critical_path(project: str | None = None) -> dict[str, Any]:
     """A schedule on the integrated plan (P5.18; a turnaround's revision such as OK-TAR-2026, a project or a campaign;
     default: the next one): each activity's duration, early and late dates and total float in working hours, the
@@ -404,7 +404,7 @@ def logistics_plan(start: str | None = None, days: int = 14) -> dict[str, Any]:
             return {"error": str(e)}
 
 
-@capability("work-management-supply-chain", "orchestrator", kind="calc")
+@capability("work-management-supply-chain", "orchestrator", "pipelines-commercial", kind="calc")
 def plan_constraints(start: str | None = None, days: int = 42) -> dict[str, Any]:
     """The constraint check on the integrated plan from `start` (a date; default today) for `days`: every overload on
     every shared resource (crews, beds, helicopter or boat seats, vessels, cranes, deck space, production capacity),
@@ -428,7 +428,7 @@ def plan_constraints(start: str | None = None, days: int = 42) -> dict[str, Any]
             return {"error": str(e)}
 
 
-@capability("work-management-supply-chain", "maintenance-integrity", "orchestrator", kind="plot")
+@capability("work-management-supply-chain", "maintenance-integrity", "orchestrator", "pipelines-commercial", kind="plot")
 def plot_gantt(project: str | None = None, levelled: bool = True) -> dict[str, Any]:
     """Chart a schedule on the integrated plan as a Gantt: a bar per activity at its levelled dates (early dates with
     levelled false), the critical path in red and the window's end marked. Use this instead of writing a diagram."""

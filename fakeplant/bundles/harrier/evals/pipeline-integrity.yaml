@@ -1,0 +1,11 @@
+# Answer keys for the pipeline integrity specialist pack's eval on this bundle (P4.7), in the shape of the assistant
+# eval (fuzer.evals.evaluate): must_mention (a list entry is met by any one of its terms), specialists, charts.
+# The mainline HR-PL-001 has two MFL runs: the corrosion at the Battle Creek crossing (ILI-26-0029 on the heavy wall
+# segment S02) crosses the screen within five years at its growth; the new anomaly ILI-26-0112 sits on S05, which has
+# no recorded grade.
+- question: The pig run flagged an anomaly at the Battle Creek crossing. How serious is it and what should we do about it?
+  must_mention: [ILI-26-0029, HR-PL-001-S02, [ERF, safe pressure, B31G], [5 years, five years, within 5], [dig, repair, derate, pressure restriction]]
+  specialists: [pipelines-commercial]
+- question: What is the remaining strength of ILI-26-0112 on the mainline?
+  must_mention: [ILI-26-0112, [grade, material], [no strength, cannot, can't, not computed, no remaining strength]]
+  specialists: [pipelines-commercial]

@@ -1,0 +1,14 @@
+# The outage planning specialist pack (P4.7, with P5.22): what each planned outage costs the customers it hits, the
+# window that costs them least, its crews and the notices it needs. SKILL.md is its playbook; this file names what the
+# playbook relies on, so a missing or renamed piece fails the pack conformance test (tests/agents/test_specialist_packs.py)
+# instead of an answer on a case.
+title: Outage planning
+owner: pipelines-commercial           # the agent that loads this pack
+classes: [contract]                   # a customer's contract, which an outage hits
+tools: [critical_path, customer_contracts, outage_impact, plan_constraints, plot_gantt]
+charts: [plot_gantt]
+methods: [outage_impact]              # run by its own tool, outage_impact
+detectors: [plan_changes]             # an outage's windows come as a plan change the planner agent works out; it
+                                      # briefs no type, since briefing plan changes would expect a brief on every one
+roles: [flow]
+eval: outage-planning                 # each bundle's answer keys: evals/outage-planning.yaml in the bundle

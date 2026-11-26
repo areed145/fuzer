@@ -51,10 +51,7 @@ def lessons_learned(status: Literal["approved", "suggested", "all"] = "approved"
         return _plain({"lessons": lessons.listing(conn, None if status == "all" else status, min(limit, 200))})
 
 
-@capability(
-    "production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity",
-    kind="query"
-)
+@capability("production-surveillance", "wells-subsurface", "field-operations-facilities", "maintenance-integrity", "pipelines-commercial", kind="query")
 def measurements(ref: str, quantity: str | None = None, since: str | None = None, until: str | None = None,
                  history: bool = False) -> dict[str, Any]:
     """Sparse measurements that aren't in PI, on a well, tag, equipment, pipeline or an incident's unit:

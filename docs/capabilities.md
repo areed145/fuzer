@@ -16,6 +16,7 @@ Tool availability is not evidence that every source exists. Each specialist stay
 | Work Management & Supply Chain | Work backlog priorities, job scope and readiness, turnaround scope, and recorded spares and stock. | Why equipment keeps failing, or which critical machines would wait on a spare (Maintenance & Integrity). | Work orders, turnaround scope, and spares stock records when linked; vendor and transport data may be absent. | Readiness and backlog findings with explicit missing-resource information. | A recorded stock count is not a reservation; no vendor, transport, access, or schedule status is inferred. | People approve work priorities, schedules, resource commitments, and logistics. |
 | HSE & Incident Management | Evidence-only incident timelines, investigation records, corrective-action tracking, recorded flare and permit conditions beside the record; no regulatory or emergency authority. | Live troubleshooting of a unit (Field Operations & Facilities). | Recorded incidents, event logs, linked corrective work, and the permit register's conditions with the values on record; no compliance determination is made from them. | Source-linked incident timelines and clearly scoped evidence gaps for human review. | No compliance determination, hazard/barrier assurance, emergency procedure, or response advice without authoritative data. | Escalate safety-critical judgments and emergency response to accountable people and approved procedures. |
 | Asset Performance & Reporting | Cited cross-domain KPI summaries, handovers and opportunity trade-offs, from the linked evidence available to Fuzer. | Explaining one domain's cause in depth (the domain specialist); accounting reconciliation (no authoritative source). | Current operational measures and provenance; authoritative allocation, cost, and accounting data are required for reconciliation. | Cross-domain KPI summaries with units, time windows, provenance, and explicit unknowns. | Commercial and accounting reconciliation is unavailable without authoritative accounting and cost sources. | Asset trade-offs and external/commercial reporting require human validation and approval. |
+| Pipelines & Commercial | A pipeline's integrity (in-line inspection anomalies, MAOP derates, pig runs, leak alarms), its pressures, flows and pump station trips, its customers' contracts and delivery points, and what an outage costs them in volume and dollars. | A pump or compressor's own condition (Maintenance & Integrity); a meter's allocation factor or drift (Production & Surveillance); a schedule's critical path and crews (Work Management & Supply Chain). | Pipelines and their route segments, in-line inspection runs, the flow network's meters, process values on the line's transmitters, the plan's outages and the customer and contract register where one is loaded. | Anomalies screened against MOP, line balances and pressures with their windows, and each outage's hits on customers in bbl and $, with what could not be checked. | No hydraulic or linepack model, CPM leak detection or nominations are loaded: contract volumes stand in for nominations, and the answer says so. | Pressure derates, digs and repairs, shutdowns and restarts, outage windows and customer and regulatory notices are the accountable engineer's, controller's and planner's. |
 
 ## Persona coverage
 
@@ -46,6 +47,9 @@ Every persona has one owner and at least one skill.
 | Asset Manager | Asset Performance & Reporting | operations-summary |
 | Operations Reporter | Asset Performance & Reporting | operations-summary |
 | Commercial / Production Accounting Specialist | Asset Performance & Reporting | operations-summary |
+| Pipeline Controller | Pipelines & Commercial | pipeline-integrity, hydraulics-and-linepack, outage-planning |
+| Pipeline Integrity & Hydraulics Engineer | Pipelines & Commercial | pipeline-integrity, hydraulics-and-linepack |
+| Oil Movements & Commercial Scheduler | Pipelines & Commercial | nominations-and-contracts, outage-planning |
 | Data Scientist / Operations Research Analyst | Shared analytical methods in domain agents (`shared/analysis`); no separate agent | analysis |
 | Data Steward / Platform Administrator | Platform administration, Sources/Settings/Jobs, and governance; outside the operational-agent roster | none |
 
@@ -82,6 +86,10 @@ Tools are read from each `SKILL.md`. A shared skill is loaded by every agent, ea
 | `hse-incident-management/incident-evidence` | HSE & Incident Management | none | HSE Specialist; Environmental / Regulatory Specialist; Incident Investigator; Emergency Response Lead | Organize recorded incident, event and corrective-work evidence for accountable HSE review - timelines, investigation records, corrective-action status, past lessons and recorded flare and the gas balance - without making safety or compliance decisions. | `alarm_analysis`, `compare_periods`, `downtime`, `flare_attribution`, `gas_balance`, `get_events`, `get_incidents`, `get_upsets`, `incident_detail`, `incident_repeats`, `ldar_surveys`, `lessons_learned`, `maintenance_history`, `permit_conditions`, `plot_flare`, `plot_flare_attribution`, `plot_gas_balance`, `plot_incident`, `plot_incident_repeats`, `plot_ldar_leaks`, `plot_propagation`, `plot_state_timeline`, `record_history`, `similar_cases`, `trip_analysis`, `upset_detail` | Incidents, events, upsets, linked work and lessons; flare from EC DAY001. No HSE system of record. | Source-linked timelines, corrective-work status and evidence gaps for accountable review. | No compliance finding, barrier assurance or emergency advice; escalates to accountable people. |
 | `hse-incident-management/safety-systems` | HSE & Incident Management | none | HSE Specialist; Incident Investigator; Emergency Response Lead | Safety systems and relief - whether each trip, interlock and shutdown is in service, proof tested within its interval and demanded no more than designed, and which equipment relieved into the flare during an episode, for any plant with a safeguard register (ISO 14224 classes VA, IP, FG). | `flare_attribution`, `plot_flare_attribution`, `safeguard_status` | The safeguard register (proof test interval and last test, designed demand rate), the bypass register, the demand log, change records, and the flare flow with the piping into the flare system. | Each safeguard's bypasses, proof test status and demands against its designed rate, the most serious first, and the equipment and devices relieving into the flare during an episode. | Advises; removing a bypass, a test interval, a trip setting or any change to the safety instrumented system is the accountable engineer's decision under management of change. No SIL verification or relief sizing. |
 | `asset-performance-reporting/operations-summary` | Asset Performance & Reporting | none | Asset Manager; Operations Reporter; Commercial / Production Accounting Specialist | Produce cited cross-domain operational summaries from the linked production and work records Fuzer actually has. | `accounting_reconciliation`, `bad_actors`, `compare_periods`, `deferment_pareto`, `get_daily_ops_report`, `kpi_scorecard`, `maintenance_compliance`, `opportunities`, `plot_accounting_reconciliation`, `plot_backlog`, `plot_bad_actors`, `plot_compliance`, `plot_kpi_scorecard`, `plot_loss_waterfall`, `plot_score_breakdown`, `production_constraints`, `production_summary`, `turnaround_scope`, `unit_cost`, `value_score`, `well_performance`, `work_order_backlog` | The cited daily report plus production, deferment, constraints, reliability and work summaries. | Dated cross-domain KPIs, trade-offs and opportunities with units, windows and unknowns. | Internal evidence only: not an approved decision, an external report or accounting reconciliation. |
+| `pipelines-commercial/pipeline-integrity` | Pipelines & Commercial | none | Pipeline Integrity & Hydraulics Engineer; Pipeline Controller | Pipeline integrity - in-line inspection anomalies screened against MOP (modified ASME B31G) with their growth between pig runs, the derate or dig an anomaly over the screen asks for, and a leak alarm read against the balance between the meters at each end of the line, for any pipeline with route segments. | `ili_anomalies`, `measurements`, `pipeline_segments`, `plot_ili_anomalies`, `plot_trend` | In-line inspection runs and their metal loss features, route segments (wall, grade, class location), the line's MOP, and the flow and pressure at each end of the line. | Each anomaly over the screen with its segment, station, ERF now and at its growth, the derate or dig to weigh, and for a leak alarm the balance between the meters at each end. | Advises; fitness for service, a MOP derate, a dig and confirming or clearing a leak are the integrity engineer's and controller's decisions. |
+| `pipelines-commercial/hydraulics-and-linepack` | Pipelines & Commercial | none | Pipeline Controller; Pipeline Integrity & Hydraulics Engineer | Read a pipeline's pressures and flows against their band, the pump station trips behind a change, and the line balance between the meters at each end; say plainly that linepack and capacity with a segment down need a hydraulic model Fuzer does not hold. | `detect_changes`, `limits`, `measurements`, `pipeline_segments`, `plot_trend`, `trip_analysis` | Pressure and flow at the stations and the meters at each end of the line, pump run signals and trips, and the operating limits on those points. | Which pressure or flow left its band and when, the pump station trips behind it, the line balance over the window, and what can't be said without a hydraulic model. | No hydraulic or linepack model: capacity with a segment down is unknown, not estimated. Recommend checks and decisions to the accountable operator or engineer; never give operating instructions. |
+| `pipelines-commercial/nominations-and-contracts` | Pipelines & Commercial | none | Oil Movements & Commercial Scheduler | Read the customer and contract register (shippers, delivery points, daily volumes, rates and dates) against the flow measured at each delivery point, and what an outage costs each customer in barrels and dollars. | `customer_contracts`, `measurements`, `outage_impact`, `pipeline_segments`, `plot_trend` | The customer and contract register (customer, delivery point, daily volume, rate, dates) and the flow at each delivery point's meter. | Each contract's daily volume against the flow measured at its delivery point, and what an outage costs each customer in bbl and $. | Contract volumes are not nominations; no shipper balance, invoice or tariff is settled here. |
+| `pipelines-commercial/outage-planning` | Pipelines & Commercial | none | Oil Movements & Commercial Scheduler; Pipeline Controller | Outage planning - each planned outage's customers hit and what they lose, the window that costs them least and why, the crews and planner's rules it keeps, and the customer and regulatory notices it needs, for any plan with a customer and contract register. | `critical_path`, `customer_contracts`, `outage_impact`, `plan_constraints`, `plot_gantt` | The plan's outages, their schedules and crews, the contracts each hits, and similar past outages. | Each outage's customers hit and what they lose, the window that costs least and why, the crews and rules it keeps, and the notices it needs. | Advises; the planner picks and approves the window, and a person sends each customer's and regulator's notice. Findings inform people who approve priorities, schedules and commitments; nothing here commits anything. |
 | `shared/charts` | Shared | every agent | all | When and how to put interactive charts in an answer - which plot tool fits which question, how to read and cite a chart's summary, and when (rarely) to look at the image. | `look_at_figure`, `plot_backlog`, `plot_bad_actors`, `plot_bar`, `plot_changes`, `plot_choke`, `plot_compliance`, `plot_correlation`, `plot_custom`, `plot_decline`, `plot_distribution`, `plot_gas_lift_allocation`, `plot_gas_lift_curve`, `plot_incident`, `plot_instrument_health`, `plot_measurements`, `plot_pump_curve`, `plot_reliability`, `plot_trend`, `plot_vibration`, `plot_wall_thickness`, `plot_water_diagnostic`, `plot_xy` | Whichever records each plot tool reads. | Interactive figures with their markers and a sentence on what each shows. | Says when a chart rests on synthetic data; an agent calls only the plot tools in its own list. |
 | `shared/analysis` | Shared | every agent | Data Scientist / Operations Research Analyst | Reusable analysis methods - comparing periods, detecting changes, correlation, clustering and kept studies - with the assumptions, data sufficiency and uncertainty to state with each result. | `cluster_entities`, `cluster_events`, `cluster_modes`, `compare_periods`, `correlate`, `correlation_matrix`, `detect_changes`, `get_study`, `plot_correlation`, `start_study`, `trace_flow` | PI process values, detected upsets and well tests; results depend on the time-series source. | Correlations, clusters and period comparisons with assumptions, sample size and uncertainty. | Correlation is not cause. Findings on synthetic values show how the generator works, not plant physics. |
 | `shared/options-and-tradeoffs` | Shared | every agent | all | How to weigh the options on a case - dispatch now, ride along with the next visit, shelve, escalate, keep on watch - on one scale every time, recommend one with the factor that decided it, and name what is not known instead of guessing. Load whenever there is a choice to make on a case. | `case_options` | A case's options as Fuzer assembles them: deferred production priced by the pack, risk of waiting by criticality or hazard, readiness (crew, permit, parts) and clashes. | One recommended option with the factor that decided it, or another with why, and what is not known. | Advises; the person deciding takes an option on the case. Never weighs barrels against risk on a scale of its own. |
@@ -168,6 +176,30 @@ A pack is a skill folder whose `pack.yaml` names what its playbook relies on (P4
 - **Charts:** `plot_cooler_fouling`, `plot_wall_thickness`
 - **Eval:** 5 questions with answer keys across 3 bundles
 
+### Outage planning
+
+- **Skill:** `pipelines-commercial/outage-planning`, loaded by Pipelines & Commercial
+- **Equipment classes (ISO 14224):** contract
+- **Methods:** `outage_impact` (Engineering practice)
+- **Detectors:** `plan_changes`
+- **Briefs:** none
+- **Measurement roles:** `flow`
+- **Charts:** `plot_gantt`
+- **Eval:** 3 questions with answer keys across 1 bundles
+- **Not applicable:** kestrel: it loads no customer and contract register; okan: it loads no customer and contract register
+
+### Pipeline integrity
+
+- **Skill:** `pipelines-commercial/pipeline-integrity`, loaded by Pipelines & Commercial
+- **Equipment classes (ISO 14224):** pipeline, pipeline_segment, pipeline_feature
+- **Methods:** `ili_strength` (ASME B31G (modified, 0.85 dL); ASME B31.8 design factors)
+- **Detectors:** `ili_anomalies`
+- **Briefs:** `ili_anomaly`
+- **Measurement roles:** `pressure`, `flow`
+- **Charts:** `plot_ili_anomalies`, `plot_trend`
+- **Eval:** 2 questions with answer keys across 1 bundles
+- **Not applicable:** kestrel: its lines have no in-line inspection runs or route segments; okan: its lines have no in-line inspection runs or route segments
+
 ### Metering and balances
 
 - **Skill:** `production-surveillance/metering-and-balances`, loaded by Production & Surveillance
@@ -207,6 +239,9 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 | HSE & Incident Management | Hazard and barrier status | An authoritative barrier or safety-case register. |
 | HSE & Incident Management | Compliance determinations and regulatory interpretation | Accountable people; the permit register's conditions are set beside the recorded values with owners and due dates (permit_conditions), and none is judged. |
 | HSE & Incident Management | Emergency response procedures | Approved emergency response plans; the assistant only supports with information. |
+| Pipelines & Commercial | Transient hydraulics, linepack, and a line's capacity with a segment or pump station down | A hydraulic model of the line; pressures, flows and pump stops are read as measured (measurements, plot_trend, trip_analysis). |
+| Pipelines & Commercial | Leak detection (CPM) alarms | The leak detection system's alarm export; the balance between the meters at each end of the line is read instead (pipeline_segments, measurements). |
+| Pipelines & Commercial | Nominations and shipper balances | The scheduling system's nominations; each contract's daily volume and the flow at its delivery point stand in (customer_contracts, outage_impact). |
 | Asset Performance & Reporting | Commercial reconciliation: sales, nominations, liftings and entitlements | The commercial system's sales and nomination records; production accounting volumes and the cost ledger are reconciled (accounting_reconciliation, unit_cost). |
 
 ## Tool coverage
@@ -221,8 +256,9 @@ No agent can do these yet, whatever the question. A specialist asked for one say
 | Work Management & Supply Chain | 45 |
 | HSE & Incident Management | 53 |
 | Asset Performance & Reporting | 52 |
+| Pipelines & Commercial | 34 |
 
-## Shared (134)
+## Shared (137)
 
 Used by every agent or by several specialists.
 
@@ -260,9 +296,12 @@ Used by every agent or by several specialists.
 | `cost_of_unreliability` | calc | since?, until?, days?, limit? | The cost of unreliability by unit (#352): oil lost to the downtime each unit caused, at the pack's oil price and currency, beside its corrective orders' cost in their own currency, ranked. |
 | `plot_maintenance_spend` | plot | by?, since?, until?, days? | Chart work order cost ranked by unit, class or order type, one series per currency (unknown labelled). |
 | `plot_cost_of_unreliability` | plot | since?, until?, days? | Chart each unit's lost oil value beside its corrective order cost, each with its currency. |
+| `ili_anomalies` | calc | line? | In-line inspection anomalies (#366) per line, or one line: each run, and each metal loss anomaly of the latest run matched to the previous run by type and station (within 5 ft), with its growth (% of wall and mpy), its modified ASME B31G remaining strength against the MOP (ERF = MOP over the safe pressure at the class location's design factor) now and at its growth rate 5 years on, and the screen (exceeds_now, exceeds_within_5_years at ERF 1 or 80 % of wall, no_strength, within_screen). |
+| `plot_ili_anomalies` | plot | line? | Chart ILI metal loss depth along a line for each run, the anomalies crossing the screen ringed. |
 | `material_readiness` | calc | as_of?, ref? | Material readiness (#362): every open reservation (or those on one work order or material) against stock on hand and open purchase orders, allocated earliest need date first: in stock, on order and due in time, late (an order due after the job's need date, with the days late), or not on order (with whether the material's planned delivery time would still fit if it were ordered today). |
 | `crew_load` | calc | as_of?, weeks? | Crew load (#361): per work center, open orders, planned hours and the backlog in crew-weeks (open planned hours over the crew's weekly hours); the weekly load against capacity over the `weeks` ahead; crew conflicts (the days the orders scheduled ahead need more people than the crew has, naming the crew, the dates and the orders); and unit conflicts (orders on one unit on the same days). |
 | `critical_path` | calc | project? | A schedule on the integrated plan (P5.18; a turnaround's revision such as OK-TAR-2026, a project or a campaign; default: the next one): each activity's duration, early and late dates and total float in working hours, the critical path (logic only), the schedule levelled against every shared resource (crews, cranes and the rest, other planned work on them counted) with who held each activity back, the unconstrained and levelled finish against the window, the levelled chain that sets the finish, and where demand would exceed capacity if nothing were levelled. |
+| `plan_constraints` | calc | start?, days? | The constraint check on the integrated plan from `start` (a date; default today) for `days`: every overload on every shared resource (crews, beds, helicopter or boat seats, vessels, cranes, deck space, production capacity), first to last. |
 | `plot_gantt` | plot | project?, levelled? | Chart a schedule on the integrated plan as a Gantt: a bar per activity at its levelled dates (early dates with levelled false), the critical path in red and the window's end marked. |
 | `list_metrics` | query |  | Every registered KPI: key, label, definition, formula, unit, standard, the grains it can be cut by and the records behind it. |
 | `get_metric` | query | key, grain?, at?, scope?, window? | One registered KPI: its value, with its definition and unit, and by a grain (one of the metric's grains: queue, type, area, class, facility, well, cause, ...) its rows and the cases or records behind each. |
@@ -411,7 +450,7 @@ Used by every agent or by several specialists.
 | `detections` | query | since?, detector?, limit? | What the SRE's scheduled scans found in the process data (#96), newest first: the point and unit, detector (excursions outside limits, unit stops, steps, drifts, bad instruments, equipment against its curve), what it found (key), start and end (null = still going) and evidence. |
 | `plot_instrument_health` | plot | ref, since?, until? | Chart a point's or a unit's readings with the stretches instrument_health flags shaded (noisy, frozen or stuck, out of range, apart from its redundant twin). |
 
-## Maintenance & Integrity (10)
+## Maintenance & Integrity (8)
 
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
@@ -419,20 +458,17 @@ Used by every agent or by several specialists.
 | `plot_wall_thickness` | plot | ref?, kind?, min_required_in? | Chart wall thickness: with ref, each CML on that vessel / piping / pipeline over time with loss rates (and retirement dates if min_required_in is given); without ref, the items losing wall fastest across the asset (kind narrows to pipelines or tags). |
 | `plot_reliability` | plot | ref, method? | Chart reliability from failure notifications on a unit or an equipment class: a Weibull plot of times between failures (beta, eta), or Crow-AMSAA cumulative failures (beta > 1: speeding up). |
 | `plot_peers` | plot | ref | Chart the units of one equipment class (or a unit's class) by failures per year, outliers marked. |
-| `ili_anomalies` | calc | line? | In-line inspection anomalies (#366) per line, or one line: each run, and each metal loss anomaly of the latest run matched to the previous run by type and station (within 5 ft), with its growth (% of wall and mpy), its modified ASME B31G remaining strength against the MOP (ERF = MOP over the safe pressure at the class location's design factor) now and at its growth rate 5 years on, and the screen (exceeds_now, exceeds_within_5_years at ERF 1 or 80 % of wall, no_strength, within_screen). |
-| `plot_ili_anomalies` | plot | line? | Chart ILI metal loss depth along a line for each run, the anomalies crossing the screen ringed. |
 | `co2_corrosion_screen` | calc | until?, days? | CO2 corrosion screening (#368): for each line with produced water chemistry, the de Waard-Milliams uninhibited, water-wet CO2 corrosion rate at the water's temperature and the line's MOP (gas CO2 from the line's own samples or the field's), against the rate its CMLs measure. |
 | `plot_co2_corrosion` | plot | until?, days? | Chart each line's predicted CO2 corrosion rate beside its measured CML rate, the lines out of step marked. |
 | `vibration_spectra` | calc | tag? | Condition-monitoring vibration spectra (#367), for every measurement point or one machine's: its latest spectrum read against its fault frequencies (1x, 2x, and the bearing defect frequencies BPFO, BPFI, BSF and FTF from the bearing's geometry), the peaks on them, and the indications with the date each first showed and its amplitude trend: a bearing defect when 2 of its first three harmonics stand above 0.004 in/s, misalignment when 2x is over half of 1x, unbalance when 1x is over 0.9 of the overall level. |
 | `plot_vibration_spectrum` | plot | tag, point? | Chart a machine's latest vibration spectrum at a point (the one with an indication first), with 1x, 2x and the bearing defect frequencies and their harmonics marked. |
 
-## Work Management & Supply Chain (3)
+## Work Management & Supply Chain (2)
 
 | Tool | Kind | Parameters | What it does |
 |---|---|---|---|
 | `plot_crew_load` | plot | as_of?, weeks? | Chart each crew's planned hours per week ahead against its weekly capacity, with the weeks over capacity. |
 | `logistics_plan` | calc | start?, days? | Logistics from the integrated plan (what to send where), day by day from `start` (a date; default today) for `days`: each crew's jobs with the people, the assets and the hours, the crews that travel out and back for a schedule and how, the crews aboard with no job that day (`aboard`: they keep their beds until they fly back), the seats and beds needed against what there is (`over` marks a day that is short), the cranes, vessels and deck space booked, and the parts to send for the jobs that start that day (`materials`, with `verdict`: in_stock, on_order, late, not_on_order or not_on_order_too_late). |
-| `plan_constraints` | calc | start?, days? | The constraint check on the integrated plan from `start` (a date; default today) for `days`: every overload on every shared resource (crews, beds, helicopter or boat seats, vessels, cranes, deck space, production capacity), first to last. |
 
 ## HSE & Incident Management (2)
 
@@ -448,6 +484,14 @@ Used by every agent or by several specialists.
 | `plot_kpi_scorecard` | plot | until?, days? | Chart each KPI's change against the period before, coloured better or worse, unknown ones left as gaps. |
 | `unit_cost` | calc | since?, until?, days? | Operating cost per accounted barrel of oil (#372): the cost ledger's booked cost by month and cost element over that month's closed accounted oil, each currency apart and never converted or summed. |
 | `plot_accounting_reconciliation` | plot | since?, until?, days? | Chart each month's daily allocated oil against production accounting, in % of the accounted volume, with the 1 % tolerance; months that can't be compared are listed, not drawn. |
+
+## Pipelines & Commercial (3)
+
+| Tool | Kind | Parameters | What it does |
+|---|---|---|---|
+| `pipeline_segments` | query | line? | Every pipeline, or one by its name: service, diameter, length and MOP, the areas it starts and ends at with the flow meters there (in at the start, out at the end), and its route segments in station order, each with its length, wall thickness, grade, class location, the block valves or stations bounding it and how many in-line inspection features are found on it. |
+| `customer_contracts` | query |  | The customer and contract register: each contract's customer (a shipper or a utility), what it buys, the delivery point it receives or delivers at (a meter or a tank), its daily volume (bbl/d), its rate ($/bbl) and the dates it runs. |
+| `outage_impact` | calc | days? | The outages on the plan over the next `days`: each one's dates and hours, the plant it takes down (units and areas), the contracts it hits (delivery point down or left with no feed while the contract runs) with the volume (bbl) and dollars each loses, its crews and any over capacity; then each customer hit, with how many separate times and what it loses over the window (a contract's hours counted once where outages overlap). |
 
 ## MCP only (7)
 

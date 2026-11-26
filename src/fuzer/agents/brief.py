@@ -1,12 +1,14 @@
 """The agent brief on a case (P4.3): before a person opens a case, the specialist whose pack owns it reads it.
 
 A pack owns a case when the case's work type is one the pack `briefs` and one of the case's subjects is of a class
-the pack covers (ISO 14224). The pack's agent writes the brief: what happened in plain words, the evidence, what the
-standard analysis shows, similar past cases and what fixed them, a proposed disposition with its confidence, and
-what it could not check, led by the methods its pack cannot run on the case's subjects because a measurement it
-needs is not on the register there (P4.1b). The approved lessons for the subjects' equipment model or class go to the
-specialist with the case and are kept on the brief (P6.2b); a suggested or rejected lesson never does. The brief proposes; a person decides (the gate policy, P5.10, always stops an agent's
-proposed disposition at a person).
+the pack covers (ISO 14224, or a unit kind such as a well, a pipeline or a contract). The pack's agent writes the
+brief: what happened in plain words, the evidence, what the standard analysis shows, similar past cases and what fixed
+them, a proposed disposition with its confidence, and what it could not check, led by the methods its pack cannot run
+on the case's subjects because a measurement it needs is not on the register there (P4.1b). Those, and what a tool
+the specialist called said it could not say (a source not loaded), are kept as what the brief could not determine
+(P6.6). The approved lessons for the subjects' equipment model or class go to the specialist with the case and are
+kept on the brief (P6.2b); a suggested or rejected lesson never does. The brief proposes; a person decides (the gate
+policy, P5.10, always stops an agent's proposed disposition at a person).
 
 A brief is kept on the case as an `agent_result` event for the step `brief`, with its ledger (P4.4), so its cost
 counts toward the case's agent spend and it shows in the agent work card. A case that gets no brief records why in
@@ -181,6 +183,8 @@ def prepare(conn, item_id: int, ask=None, now: datetime | None = None) -> dict:
         return _record(conn, item, actor, {"missing": f"the {pack['owner']} specialist could not be reached: {e}",
                                            **when})
     led = ledger.record(pack["owner"], answer)
+    # what a tool it called said it can't say (a source not loaded) is kept on the case too (P6.6)
+    _undetermined(conn, item, actor, [t["undetermined"] for t in answer.get("tools") or [] if t.get("undetermined")])
     budget = float(settings.get(conn, "agents.brief_cap_usd") or 0)
     return _record(conn, item, actor, {
         "pack": pack["path"], "brief": with_gaps(parse(answer["answer"]), gaps), "answer": answer["answer"],
