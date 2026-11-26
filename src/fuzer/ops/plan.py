@@ -1,7 +1,8 @@
 """The built-in integrated plan behind fuzer.core.plan: plan_item rows from every source on one timeline.
 
     propose / update             the contract (core/plan.py)
-    items(conn, start, end)      the plan in a window, each item with its clashes, bundling chances and overloads
+    items(conn, start, end)      the plan in a window, each item with its clashes, bundling chances, overloads and the
+                                 planner's rules it breaks
     sync_work_orders(conn)       open SAP work orders with dates in the register, as plan items
     sync_maintenance_plans(conn) the next due date of each SAP maintenance and inspection plan, as plan items
     plan_exception(conn, id, ...)  an exception the IOC chose to plan rather than work now
@@ -185,14 +186,14 @@ def _clashes(rows: list[dict]) -> dict[int, list[dict]]:
 
 def items(conn, start=None, end=None, area: str | None = None, status: str | None = None,
           subject: str | None = None, crew: str | None = None, within: str | None = None,
-          active: bool = False, over_capacity: bool = False) -> list[dict]:
+          active: bool = False, over_capacity: bool = False, rules: bool = False) -> list[dict]:
     """The plan between start and end (default: from a week ago to eight weeks ahead), in start order, each item
     with its subjects' and area's labels, its clashes and bundling chances. Items just outside the window that
     touch the same areas are compared too, so a clash at its edge still shows. `within` keeps the items about an
     entity or anything beneath it (an entity page's Schedule); `active` keeps the work still to do (Plan's timeline:
     a job that is done or cancelled is no longer on the day). A job whose case is open is booked to whoever has the
     case now. `over_capacity` adds the constraint check's overloads each item is in (schedule.over_capacity), as
-    Plan's timeline flags them."""
+    Plan's timeline flags them; `rules` the planner's rules each one breaks (plan_rules.breaks)."""
     now = datetime.now(UTC)
     inside = None
     if within:
@@ -233,8 +234,13 @@ def items(conn, start=None, end=None, area: str | None = None, status: str | Non
     if over_capacity:
         from . import schedule
         over = schedule.over_capacity(conn, start, end)
+    broken = {}
+    if rules:
+        from . import plan_rules
+        broken = plan_rules.breaks(conn)
     return [{**r, "clashes": clashes[r["id"]], "parts_short": short.get(r["id"], []), "stage": job_stage(r),
-             **({"over_capacity": over.get(r["id"], [])} if over_capacity else {})} for r in shown]
+             **({"over_capacity": over.get(r["id"], [])} if over_capacity else {}),
+             **({"breaks": broken.get(r["id"], [])} if rules else {})} for r in shown]
 
 
 JOB_STAGES = ("planned", "scheduled", "released", "in_progress", "done", "cancelled")

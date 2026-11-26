@@ -140,6 +140,39 @@ closed**), linked to the resource on **Resources**. A crew's trip in an overload
 back after, and that job carries the flag: moving it moves the trip. On Resources each overload lists the jobs in it
 and the moves that clear it.
 
+### Rules typed in words
+
+**Rules** on Plan holds the planner's own rules. Type one and choose **Add rule**; Fuzer reads it without a model,
+says it back as it read it (**A0130 done by Wed 15 Apr 00:00**) with its form, and lists each job breaking it. Each of
+those jobs carries **breaks a rule** on the timeline and a red mark around its bar; open it to read the rule and how it
+breaks it. Untick a rule to switch it off (it stays, and marks nothing); **Remove** takes it out.
+
+| Form | You type | A job breaks it when |
+|---|---|---|
+| deadline | A0130 done by 15 Apr | it finishes after that day (an activity, an SAP order with its operations, or a whole schedule) |
+| duration | no job longer than 36 h, no MECH job longer than 36 h | it runs longer, on that resource when one is named |
+| gap | at least 12 h between jobs on MECH | it starts sooner than that after the job before it on the resource ends |
+| overlap | no overlap on crane | another job on the resource runs at the same time |
+| sequence | A0220 before A0130 | it is a job of the second and starts before the last job of the first is done |
+
+A resource is named by its code, its kind (crane) or a word of its name (fitters). Anything else is not guessed at:
+Fuzer says which forms it reads.
+
+### Auto-assign
+
+**Auto-assign** on Plan asks Fuzer for a crew for each field job on the dates shown that has no person or crew booked
+on it (a schedule's activities are booked by their schedule). It arrives as a **Plan change to review** on your work,
+and Plan opens it. Each job gets the first crew that does its work and can take it, one person for the job's dates:
+
+1. the crew of its SAP order's work center (**does SAP work center MECH's orders**)
+2. a crew named for its kind of work (**does inspection work**)
+3. the crews booked on the plan's other jobs of its kind
+
+A crew is skipped when booking it would take it over capacity or break one of your rules; a job no crew can take
+says why and is left with none. Pick another crew (or **No crew**) on any line and the rest is worked out again
+around it; a pick that breaks a rule or a crew's capacity says so, and the plan change can't be approved until it is
+changed. **Approve** books each job on its crew; nothing is booked before.
+
 ## When something breaks
 
 A trip, a late part or a lapsed permit that lands on planned work arrives as routed work, **Plan change to review**,
@@ -181,6 +214,19 @@ Anything else is not guessed at: Fuzer says which forms it reads and the proposa
 - A notice is drafted for each crew whose work moved, each person or queue booked on a moved job and, for a trip,
   the units downstream that lose their feed (to the ops lead). Edit one and choose **Send**: it goes on the case of
   each moved job it is about, and the plan change keeps who sent it.
+
+### What a plan change did, and Revert
+
+Fuzer works each plan change out as the planner's agent, so the case keeps its **History**: each thing done to it,
+when and by whom, oldest first (Fuzer working it out, each constraint or crew picked, the approval, each notice
+sent). Once approved, **What it changed** lists each job's fields before and after (start, end, status, who, why it
+moved), each booking on a crew and each capacity window it added.
+
+**Revert** (a maintenance planner) puts all of that back as it was: the jobs return to their dates and crews, the
+bookings and capacity windows go, and each SAP schedule change it queued that has not been approved to go is
+rejected (one already on its way is named, to change in SAP). Each moved job's case says it moved back, and the
+plan change's case says it was reverted. If any of it has changed again since it was approved, Revert is refused and
+names what changed: put those back by hand. The notices of a reverted plan change can no longer be sent.
 
 ## Approve the update that goes back to SAP
 

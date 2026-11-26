@@ -1455,7 +1455,7 @@ def _plan_call(conn, fn, *args, **kwargs):
         from ..core.plan import PlanOverload
         if isinstance(e, PlanOverload):
             raise HTTPException(409, str(e)) from e
-        raise HTTPException(404 if re.match(r"no (plan item|plan change|exception|schedule activity) \d|no schedule |no resource |no resource capacity window ", str(e)) else 400, str(e)) from e
+        raise HTTPException(404 if re.match(r"no (plan item|plan change|plan rule|exception|schedule activity) \d|no schedule |no resource |no resource capacity window ", str(e)) else 400, str(e)) from e
     conn.commit()
     return out
 
@@ -1471,14 +1471,51 @@ def plan_at_risk(start: str | None = None, days: int = 90, conn=Depends(get_conn
 @router.get("/plan")
 def plan_items(start: str | None = None, end: str | None = None, area: str | None = None, status: str | None = None,
                subject: str | None = None, within: str | None = None, active: bool = False,
-               over_capacity: bool = False, conn=Depends(get_conn)):
+               over_capacity: bool = False, rules: bool = False, conn=Depends(get_conn)):
     """The integrated plan in a window (default: a week ago to eight weeks ahead), each item with its clashes
     (same asset, same person), bundling chances (could ride along with a shutdown of its area) and, for work
     starting within 30 days, its assets' spare parts with no stock on record. `active` keeps the work still to do;
-    `over_capacity` adds the shared-resource overloads each item is in."""
+    `over_capacity` adds the shared-resource overloads each item is in; `rules` the planner's rules it breaks."""
     from ..ops import plan
     return _plan_call(conn, plan.items, start, end, area=area, status=status, subject=subject, within=within,
-                      active=active, over_capacity=over_capacity)
+                      active=active, over_capacity=over_capacity, rules=rules)
+
+
+@router.get("/plan/rules")
+def plan_rules_list(conn=Depends(get_conn)):
+    """The planner's rules (P5.23a): each as typed and said back in words, on or off, with the jobs breaking it."""
+    from ..ops import plan_rules
+    return _plan_call(conn, plan_rules.rules)
+
+
+class PlanRuleNew(BaseModel):
+    by: str
+    text: str
+
+
+@router.post("/plan/rules")
+def plan_rule_add(r: PlanRuleNew, conn=Depends(get_conn)):
+    """A rule typed in words (A0130 done by 15 Apr; no job longer than 36 h; at least 12 h between jobs on MECH; no
+    overlap on crane; A0220 before A0130), read without a model. A phrase it can't read is refused, naming the forms."""
+    from ..ops import plan_rules
+    return _plan_call(conn, plan_rules.add, r.text, r.by)
+
+
+class PlanRuleSwitch(BaseModel):
+    by: str
+    on: bool
+
+
+@router.patch("/plan/rules/{rule_id}")
+def plan_rule_switch(rule_id: int, r: PlanRuleSwitch, conn=Depends(get_conn)):
+    from ..ops import plan_rules
+    return _plan_call(conn, plan_rules.switch, rule_id, r.on, r.by)
+
+
+@router.delete("/plan/rules/{rule_id}")
+def plan_rule_remove(rule_id: int, by: str = "", conn=Depends(get_conn)):
+    from ..ops import plan_rules
+    return _plan_call(conn, plan_rules.remove, rule_id, by)
 
 
 @router.post("/plan")
@@ -2017,6 +2054,14 @@ def plan_change_approve(exception_id: int, a: PlanChangeApprove, conn=Depends(ge
     return _plan_call(conn, replan.approve, exception_id, a.by)
 
 
+@router.post("/plan/changes/{exception_id}/revert")
+def plan_change_revert(exception_id: int, a: PlanChangeApprove, conn=Depends(get_conn)):
+    """A maintenance planner reverts an approved plan change (P5.23c): each job, booking and capacity window it changed
+    is put back as it was and the SAP changes not yet sent are dropped. Refused when any of it changed again since."""
+    from ..ops import replan
+    return _plan_call(conn, replan.revert, exception_id, a.by)
+
+
 class PlanNotice(BaseModel):
     by: str
     text: str | None = None
@@ -2027,6 +2072,33 @@ def plan_change_notice(exception_id: int, n: int, x: PlanNotice, conn=Depends(ge
     """A person sends a drafted notice, as they edited it: it goes on the case of each moved job it is about."""
     from ..ops import replan
     return _plan_call(conn, replan.send_notice, exception_id, n, x.by, x.text)
+
+
+class PlanAutoAssign(BaseModel):
+    by: str
+    start: str | None = None
+    end: str | None = None
+
+
+@router.post("/plan/auto-assign")
+def plan_auto_assign(a: PlanAutoAssign, conn=Depends(get_conn)):
+    """Auto-assign (P5.23b): a crew proposed for each field job with none between start and end, within each crew's
+    capacity and the planner's rules, as a plan change to review on the maintenance planner's case."""
+    from ..ops import replan
+    return _plan_call(conn, replan.auto_assign, a.by, a.start, a.end)
+
+
+class PlanPick(BaseModel):
+    by: str
+    crew: str | None = None
+
+
+@router.put("/plan/changes/{exception_id}/assign/{item_id}")
+def plan_change_pick(exception_id: int, item_id: int, p: PlanPick, conn=Depends(get_conn)):
+    """The planner changes one job's crew on an auto-assign plan change (a crew's code, "" for none, null to let Fuzer
+    choose again); the proposal is worked out again around it."""
+    from ..ops import replan
+    return _plan_call(conn, replan.pick, exception_id, item_id, p.crew, p.by)
 
 
 @router.post("/plan/resources/{code}/capacity")

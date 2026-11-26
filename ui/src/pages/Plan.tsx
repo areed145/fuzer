@@ -4,10 +4,10 @@
 import { acronyms, detectorName, person as personName, queue, say } from "../wording";
 import { money, when, whenDay, whenHour, estimate } from "../format";
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { api, type AtRisk, type PlanItem, type ResourceLoad } from "../api";
-import { Badge, Button, Card, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field, confirmDialog, promptDialog } from "../ui";
+import { api, type AtRisk, type PlanItem, type PlanRule, type ResourceLoad } from "../api";
+import { Badge, Button, Card, Checkbox, Input, PageHeader, Select, Empty, ErrorText, Line, Text, List, Field, confirmDialog, promptDialog } from "../ui";
 import { Status, errorMessage, href, useAsync, useAction } from "../lib";
-import { AssignPicker } from "./workflows/shared";
+import { AssignPicker, caseHref } from "./workflows/shared";
 import { TurnaroundPanel } from "./Turnaround";
 import { SchedulePage } from "./Schedule";
 import { ResourcesPage } from "./Resources";
@@ -104,7 +104,7 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
   }, []);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   // the work still to do: a job that is done or cancelled leaves the timeline (tour E, E11)
-  const plan = useAsync(() => api.plan({ start: from, end: to, within, active: true, overCapacity: !within }), [from, to, within]);
+  const plan = useAsync(() => api.plan({ start: from, end: to, within, active: true, overCapacity: !within, rules: !within }), [from, to, within]);
   const { busy, error, run } = useAction();
   const [open, setOpen] = useState<number | null>(() => Number(query.get("item")) || null);
   const askedItem = Number(query.get("item")) || null, askedFrom = query.get("from");
@@ -139,6 +139,7 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
   const bundles = plan.data.filter((i) => i.clashes.some((c) => c.kind === "bundle")).length;
   const waiting = plan.data.filter((i) => i.parts_short?.length).length;
   const overloaded = plan.data.filter((i) => i.over_capacity?.length).length;
+  const breaking = plan.data.filter((i) => i.breaks?.length).length;
   const today = pos(new Date().toISOString());
   // Lines on every track and a time axis above them (#1078): every three hours on a day, every day over two weeks or
   // less, every Monday beyond.
@@ -155,7 +156,7 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
                            axisWidth);
   const taWindow = turnaround?.window ? { left: pos(turnaround.window.start), right: pos(turnaround.window.end) } : null;
   const changed = () => { plan.reload(); scope.reload(); };
-  const bar = (i: PlanItem) => <span key={i.id} className={`plan-bar kind-${i.kind}${i.needs_shutdown ? " shutdown" : ""}`}
+  const bar = (i: PlanItem) => <span key={i.id} className={`plan-bar kind-${i.kind}${i.needs_shutdown ? " shutdown" : ""}${i.breaks?.length ? " breaks" : ""}`}
     style={{ left: `${pos(i.start_at)}%`, width: `${Math.max(0.8, pos(i.end_at) - pos(i.start_at))}%` }} />;
   const row = (i: PlanItem) => <li key={i.id} id={`plan-item-${i.id}`} className="plan-row">
     <button type="button" className="plan-label" aria-expanded={open === i.id} onClick={() => setOpen(open === i.id ? null : i.id)}>
@@ -168,6 +169,7 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
       {i.stage === "released" && <Badge tone="ok">released</Badge>}
       {!!i.parts_short?.length && <Badge tone="warn">parts short</Badge>}
       {!!i.over_capacity?.length && <Badge tone="danger">over capacity</Badge>}
+      {!!i.breaks?.length && <Badge tone="danger">breaks a rule</Badge>}
     </button>
     <div className="plan-track" aria-hidden="true">
       {taWindow && <span className="plan-window" style={{ left: `${taWindow.left}%`, width: `${Math.max(0.8, taWindow.right - taWindow.left)}%` }} />}
@@ -188,7 +190,12 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
   return (
     <section>
       {!within && <PageHeader
-        actions={<Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>}>
+        actions={<>
+          {/* a crew proposed for each field job with none on these dates, as a plan change to review (P5.23b) */}
+          {person && <Button disabled={!!busy} onClick={() => run("Proposing crews", () => api.planAutoAssign(person, from, to),
+            (c) => { if (c.case) location.hash = caseHref(c.case); })}>Auto-assign</Button>}
+          <Button disabled={!!busy} onClick={() => run("Refreshing from SAP", () => api.planSync(), plan.reload)}>Refresh from SAP</Button>
+        </>}>
         Plan</PageHeader>}
       <Line>
         <Field inline label="From"><Input type="date" value={from} onChange={(e) => e.target.value && setFrom(e.target.value)} /></Field>
@@ -204,12 +211,14 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
         {bundles > 0 && <Badge tone="ok">{bundles} could ride along with a shutdown</Badge>}
         {waiting > 0 && <Badge tone="warn">{waiting} waiting on parts</Badge>}
         {overloaded > 0 && <Badge tone="danger">{overloaded} over capacity</Badge>}
+        {breaking > 0 && <Badge tone="danger">{breaking} breaking a rule</Badge>}
       </Line>
       {busy && <p role="status">{busy}…</p>}
       <ErrorText>{error}</ErrorText>
       <div className={revision !== null ? "plan-layout with-panel" : "plan-layout"}>
       <div>
       {/* The number a manager wants comes first: production at risk from the planned shutdowns (#1078). */}
+      {!within && <RulesCard person={person} onChange={plan.reload} />}
       {!within && <AtRiskCard from={from} />}
       {!within && <CrewLoadCard from={from} days={days} pos={pos} lines={lines} axis={axis} />}
       {!plan.data.length && <Empty>Nothing planned on these dates.</Empty>}
@@ -231,6 +240,7 @@ function PlanTimeline({ query, person, within }: { query: URLSearchParams; perso
                 {entry.some((i) => i.clashes.some((c) => c.kind !== "bundle")) && <Badge tone="danger">clash</Badge>}
                 {entry.some((i) => i.parts_short?.length) && <Badge tone="warn">parts short</Badge>}
                 {entry.some((i) => i.over_capacity?.length) && <Badge tone="danger">over capacity</Badge>}
+                {entry.some((i) => i.breaks?.length) && <Badge tone="danger">breaks a rule</Badge>}
               </Button>
               <div className="plan-track" aria-hidden="true">
                 {today > 0 && today < 100 && <span className="plan-today" />}
@@ -313,6 +323,8 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
         <Badge tone="danger">over capacity</Badge> {o.name} needs {num(o.peak)} against {num(o.capacity)}{o.unit ? ` ${o.unit}` : ""}, {when(o.from)} to {when(o.to)}
         {o.limited_by.length ? ` (${o.limited_by.join("; ")})` : ""}.{" "}
         <a href={`#/plan?resources=1&resource=${encodeURIComponent(o.resource)}`}>Resources</a></Text>)}
+      {/* the planner's rules: each one this job breaks, said back, and how */}
+      {item.breaks?.map((b) => <Text as="p" small key={b.rule}><Badge tone="danger">breaks a rule</Badge> {b.rule_say}: {b.say}.</Text>)}
       {/* by name, as every page names entities: equipment by the tag it is installed at, not "S/N 72852" */}
       {item.assets.length > 0 && <Text as="p" small><EntityLinks ids={item.assets.map((a) => a.fuzer_id)} /></Text>}
       {item.item_id != null ? <Text as="p" small><a href={href(`/cases/${item.item_id}`)}>Open its case</a></Text>
@@ -357,6 +369,45 @@ function Detail({ item, person, onChange }: { item: PlanItem; person: string | n
 }
 
 const num = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+const SHOWN_BREAKS = 8;
+
+/** The planner's rules, typed in words (P5.23a): each said back as Fuzer read it, switched on or off, with the jobs
+ * breaking it. Plan marks those jobs' bars. */
+function RulesCard({ person, onChange }: { person: string | null; onChange: () => void }) {
+  const rules = useAsync(() => api.planRules(), []);
+  const [text, setText] = useState("");
+  const { busy, error, run } = useAction();
+  const put = (x: PlanRule[]) => { rules.put(x); onChange(); };
+  const list = Array.isArray(rules.data) ? rules.data : [];
+  return (
+    <Card title="Rules" className="plan-area plan-rules">
+      <Status of={rules} />
+      {list.length > 0 && <List plain aria-label="Rules">{list.map((r) => <li key={r.id} className="plan-rule">
+        <Line wrap>
+          <Checkbox checked={r.on} disabled={!person || !!busy}
+            onChange={(on) => person && run("Saving", () => api.planRuleSwitch(r.id, person, on), put)}>{r.say}</Checkbox>
+          <Badge>{r.form}</Badge>
+          {r.breaks.length > 0 && <Badge tone="danger">{r.breaks.length} breaking it</Badge>}
+          {person && <Button size="sm" variant="secondary" disabled={!!busy}
+            onClick={() => run("Removing", () => api.planRuleRemove(r.id, person), put)}>Remove</Button>}
+        </Line>
+        {r.breaks.length > 0 && <List small aria-label={`Breaking ${r.say}`}>
+          {r.breaks.slice(0, SHOWN_BREAKS).map((b) => <li key={b.item_id}>
+            <a href={href("/plan", { item: String(b.item_id), from: b.start.slice(0, 10) })}>{acronyms(b.title)}</a>: {b.say}</li>)}
+          {r.breaks.length > SHOWN_BREAKS && <li>and {r.breaks.length - SHOWN_BREAKS} more</li>}
+        </List>}
+      </li>)}</List>}
+      {person && <form onSubmit={(e) => { e.preventDefault(); run("Reading the rule", () => api.planRuleAdd(person, text), (x) => { put(x); setText(""); }); }}>
+        <Line wrap>
+          <Input aria-label="Rule" placeholder="A0130 done by 15 Apr" value={text} onChange={(e) => setText(e.target.value)} />
+          <Button type="submit" variant="primary" disabled={!!busy || !text.trim()}>Add rule</Button>
+        </Line>
+      </form>}
+      <ErrorText>{error}</ErrorText>
+    </Card>
+  );
+}
 
 /** Crew load on the plan itself (red team #25): each shared crew or resource the plan uses in these weeks, day by day
  * against its capacity, on the same dates as the rows below, so an overloaded day shows beside the jobs that cause it.

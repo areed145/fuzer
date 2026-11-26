@@ -562,6 +562,29 @@ alter table plan_change add column if not exists writebacks bigint[] not null de
 alter table plan_change add column if not exists notices jsonb not null default '[]';
 -- why a job last moved, in words a field operator reads on it ("20-K-2200B tripped")
 alter table plan_item add column if not exists moved_because text;
+-- an auto-assign plan change (P5.23b, key auto_assign:<when>): the planner's picks, by job id (a crew's code, or ''
+-- for none), kept while it is worked out again
+alter table plan_change add column if not exists picks jsonb not null default '{}';
+-- what was done to it (P5.23c): each step with when and who (Fuzer working it out, a constraint or a pick, the
+-- approval, a notice sent, the revert); once approved, what it changed, before and after (each job's fields, each
+-- booking, each capacity window added); and who reverted it, putting those back
+alter table plan_change add column if not exists history jsonb not null default '[]';
+alter table plan_change add column if not exists changed jsonb not null default '[]';
+alter table plan_change add column if not exists reverted_by text;
+alter table plan_change add column if not exists reverted_at timestamptz;
+
+-- Plan rules (P5.23a, ops/plan_rules.py): a rule a planner typed in words on Plan, as read (deadline, duration, gap,
+-- overlap or sequence) and said back. Checked against every job still to do while it is on; Plan marks each job breaking it.
+create table if not exists plan_rule (
+    id          bigserial primary key,
+    text        text not null,                     -- as the planner typed it
+    rule        jsonb not null,                    -- as read: its form, what it names and `say`, the rule in words
+    enabled     boolean not null default true,     -- switched off, it stays and marks nothing
+    created_by  text not null,
+    created_at  timestamptz not null default now(),
+    updated_by  text not null,
+    updated_at  timestamptz not null default now()
+);
 
 -- Close-outs back to the source (#466, ops/closeout.py): what the field did, drafted as an update for the system that
 -- raised the work (complete the record, or a follow-up when the field could not do it), approved on the planner's

@@ -13,6 +13,14 @@
                                  who approved, and a notice is drafted for each crew, field operator and the unit
                                  downstream
     send_notice(conn, id, n, by) a person sends a notice, edited: it goes on each moved job's case
+    auto_assign(conn, by, start, end)  a planner asks for crews (P5.23b): each field job with no crew or person booked
+                                 gets the crew that does its work and has room, within the planner's rules, as a plan
+                                 change to review; `pick` changes or clears one, and approve books them
+    revert(conn, id, by)         a planner puts back what an approved plan change changed (P5.23c): each job, booking and
+                                 capacity window as it was, and the SAP changes not yet sent dropped
+
+Each plan change keeps its history (P5.23c): each thing done to it, when and by whom (Fuzer working it out, a
+constraint or a pick, the approval, a notice sent, the revert), and once approved what it changed, before and after.
 
 What each disruption holds, from the records, never the equipment type:
 
@@ -49,6 +57,9 @@ PLANNER = "maintenance_planner"
 PERMIT_HOURS = 24  # allowed for reissuing a lapsed permit before work under it goes on: a planning allowance
 HORIZON_DAYS = at_risk.HORIZON_DAYS  # how far past the disruption a typed constraint reaches
 CAUSES = (*DOWN_TYPES, materials.TYPE, permits.TYPE)
+ASSIGN = "auto_assign"  # a plan change a planner asked for: a crew for each field job with none (its key's prefix)
+AGENT = "agent:planner"  # who works a plan change out
+ASSIGN_DAYS = 28  # how far ahead auto-assign looks when it is not told
 FORMS = ("keep A0200 on 12 Apr", "no crane work before 10 Apr", "crew MECH max 4")
 
 
@@ -362,8 +373,9 @@ def _finding(d: dict, p: dict) -> Finding:
                    items=tuple(i for i in items if i))
 
 
-def _store(conn, d: dict, by: str) -> dict:
-    """Work the proposal out with the constraints typed so far, and raise (or update) the plan change."""
+def _store(conn, d: dict, by: str, said: tuple[str, str] | None = None) -> dict:
+    """Work the proposal out with the constraints typed so far, and raise (or update) the plan change. `said` is what
+    the person who asked did, for its history, ahead of Fuzer working it out again."""
     from ..core.exceptions import raise_exception
 
     pc = conn.execute("select * from plan_change where key = %s", (d["key"],)).fetchone()
@@ -379,8 +391,14 @@ def _store(conn, d: dict, by: str) -> dict:
         on conflict (key) do update set exception_id = excluded.exception_id, proposal = excluded.proposal,
             constraints = case when plan_change.state = 'open' then plan_change.constraints else '[]' end,
             state = 'open', approved_by = case when plan_change.state = 'open' then plan_change.approved_by end,
-            updated_at = now()
+            changed = case when plan_change.state = 'open' then plan_change.changed else '[]' end,
+            reverted_by = null, reverted_at = null, updated_at = now()
         """, (d["key"], x["id"], Jsonb(plain(constraints)), Jsonb(plain(p))))
+    if said:
+        _did(conn, d["key"], *said)
+    _did(conn, d["key"], by, f"Worked out: {plural(n, 'planned job')} to move"
+         + (f", {', '.join(p['schedules'])} levelled again" if p["schedules"] else "")
+         + (f", with {plural(len(constraints), 'constraint')}" if constraints else ""), again=False)
     return x
 
 
@@ -393,13 +411,14 @@ def _planned(conn, pack) -> bool:
                     needs={"planned work": _planned},
                     eval="test:tests/ops/test_replan.py::test_a_trip_on_planned_work_is_a_plan_change_with_each_move_and_why",
                     found=lambda out: len(out["raised"]))
-def watch(conn, by: str = "agent:planner") -> dict:
+def watch(conn, by: str = AGENT) -> dict:
     """Each open trip, late part or lapsed permit that holds planned work, raised as `plan_change` for the maintenance
     planner (keyed by the disruption) with its proposal worked out; open ones nothing is hit by any more (the cause
     cleared, or the work moved) are cleared."""
     from ..core.exceptions import ExceptionError, clear_exception
 
-    held = [r["key"] for r in conn.execute("select key from exception_record where type = %s and state = 'open'", (TYPE,))]
+    held = [r["key"] for r in conn.execute("select key from exception_record where type = %s and state = 'open' "
+                                           "and key not like %s", (TYPE, f"{ASSIGN}:%"))]
     raised, cleared, errors, seen = [], [], [], set()
     for row in conn.execute("select * from exception_record where state = 'open' and type = any(%s) order by id",
                             (list(CAUSES),)).fetchall():
@@ -424,11 +443,14 @@ def watch(conn, by: str = "agent:planner") -> dict:
 
 def _open(conn, exception_id: int) -> tuple[dict, dict]:
     """The plan change and its disruption, as they stand."""
-    pc = conn.execute("select c.*, e.state as exception_state from plan_change c join exception_record e "
-                      "on e.id = c.exception_id where c.exception_id = %s", (exception_id,)).fetchone()
+    pc = conn.execute("select c.*, e.state as exception_state, e.item_id as case_id from plan_change c join "
+                      "exception_record e on e.id = c.exception_id where c.exception_id = %s", (exception_id,)).fetchone()
     if pc is None:
         raise PlanError(f"no plan change {exception_id}")
     kind, key = pc["key"].split(":", 1)
+    if kind == ASSIGN:
+        p = pc["proposal"] or {}
+        return pc, _asked(pc["key"], _when(p["start"]), _when(p["until"]))
     cause = conn.execute("select * from exception_record where type = %s and key = %s "
                          "order by state = 'open' desc, id desc limit 1", (kind, key)).fetchone()
     d = disruption(conn, cause) if cause else None
@@ -448,7 +470,9 @@ def change(conn, exception_id: int) -> dict:
             "constraint": d["constraint"], "start": d["start"], "until": d["until"], "cause_case": d["case"],
             "constraints": [{"text": c["text"], "form": c["form"]} for c in pc["constraints"]], "forms": list(FORMS),
             "proposal": pc["proposal"], "approved_by": pc["approved_by"], "approved_at": pc["approved_at"],
-            "writebacks": wbs, "notices": pc["notices"],
+            "writebacks": wbs, "notices": pc["notices"], "case": pc["case_id"], "picks": pc["picks"],
+            "history": pc["history"], "changed": pc["changed"], "reverted_by": pc["reverted_by"],
+            "reverted_at": pc["reverted_at"],
             "open": pc["state"] == "open" and pc["exception_state"] == "open"}
 
 
@@ -464,10 +488,12 @@ def _editable(conn, exception_id: int, by: str) -> tuple[dict, dict]:
 def add_constraint(conn, exception_id: int, text: str, by: str) -> dict:
     """A constraint typed in words: read (`read`), kept on the plan change, and the proposal worked out again."""
     pc, d = _editable(conn, exception_id, by)
+    if d["type"] == ASSIGN:
+        raise PlanError("this plan change books crews: pick a crew on a job instead")
     c = read(conn, text, d["start"])
     conn.execute("update plan_change set constraints = constraints || %s, updated_at = now() where key = %s",
                  (Jsonb([plain(c)]), pc["key"]))
-    _store(conn, d, by)
+    _store(conn, d, AGENT, said=(by, f"Added the constraint “{c['text']}”"))
     return change(conn, exception_id)
 
 
@@ -477,7 +503,7 @@ def remove_constraint(conn, exception_id: int, n: int, by: str) -> dict:
         raise PlanError(f"plan change {exception_id} has no constraint {n + 1}")
     conn.execute("update plan_change set constraints = constraints - %s, updated_at = now() where key = %s",
                  (n, pc["key"]))
-    _store(conn, d, by)
+    _store(conn, d, AGENT, said=(by, f"Removed the constraint “{pc['constraints'][n]['text']}”"))
     return change(conn, exception_id)
 
 
@@ -535,7 +561,10 @@ def approve(conn, exception_id: int, by: str) -> dict:
     pc, d = _editable(conn, exception_id, by)
     if PLANNER not in work.roles_of(conn, by):
         raise PlanError(f"{by} isn't a maintenance planner: a planner approves a plan change")
+    if d["type"] == ASSIGN:
+        return _approve_assign(conn, pc, d, by)
     p = work_out(conn, d, list(pc["constraints"]), by)
+    was = _state(conn)
     _apply(conn, d, list(pc["constraints"]), by)
     for m in p["moves"]:
         row = conn.execute("update plan_item set moved_because = %s, released_at = null, released_by = null, "
@@ -562,8 +591,10 @@ def approve(conn, exception_id: int, by: str) -> dict:
         queued.append(wb["id"])
     notices = _notices(conn, d, p["moves"])
     conn.execute("update plan_change set state = 'approved', approved_by = %s, approved_at = now(), proposal = %s, "
-                 "writebacks = %s, notices = %s, updated_at = now() where key = %s",
-                 (by, Jsonb(plain(p)), queued, Jsonb(plain(notices)), pc["key"]))
+                 "writebacks = %s, notices = %s, changed = %s, updated_at = now() where key = %s",
+                 (by, Jsonb(plain(p)), queued, Jsonb(plain(notices)), Jsonb(_changes(conn, was)), pc["key"]))
+    _did(conn, pc["key"], by, f"Approved: {plural(len(p['moves']), 'job')} moved, {plural(len(queued), 'SAP change')} "
+                              f"queued, {plural(len(notices), 'notice')} drafted")
     clear_exception(conn, TYPE, pc["key"], by, reason=f"approved by {by}: {plural(len(p['moves']), 'job')} moved")
     events.publish(conn, "plan.changed", f"plan_change:{pc['key']}",
                    {"change": "plan change approved", "by": by, "moved": [m["item_id"] for m in p["moves"]],
@@ -577,6 +608,8 @@ def send_notice(conn, exception_id: int, n: int, by: str, text: str | None = Non
     if gates.machine(by):
         raise PlanError("a notice is sent by a named person")
     pc, _ = _open(conn, exception_id)
+    if pc["state"] == "reverted":
+        raise PlanError(f"plan change {exception_id} was reverted: nothing moved, so there is nothing to tell")
     notices = list(pc["notices"])
     if not 0 <= n < len(notices):
         raise PlanError(f"plan change {exception_id} has no notice {n + 1}")
@@ -589,5 +622,322 @@ def send_notice(conn, exception_id: int, n: int, by: str, text: str | None = Non
         work.comment(conn, r["item_id"], by, x["text"])
     notices[n] = x
     conn.execute("update plan_change set notices = %s, updated_at = now() where key = %s", (Jsonb(notices), pc["key"]))
+    _did(conn, pc["key"], by, f"Sent the notice to {x['name']}")
     events.publish(conn, "plan.notice", f"plan_change:{pc['key']}", {"to": x["to"], "by": by, "text": x["text"]})
+    return change(conn, exception_id)
+
+
+# ---- auto-assign (P5.23b): a crew for each field job with none, as a plan change to review ---------------------------
+
+def _asked(key: str, start: datetime, until: datetime) -> dict:
+    """An auto-assign plan change's window, in the shape of a disruption: what the case says it is about."""
+    return {"key": key, "type": ASSIGN, "cause_id": None, "case": None, "subjects": [], "source": "plan", "order": None,
+            "start": start, "until": until, "say": "Field jobs with no crew",
+            "constraint": f"a crew proposed for each, {_say(start, hour=False)} to {_say(until, hour=False)}"}
+
+
+def unassigned(conn, start: datetime, until: datetime) -> list[dict]:
+    """Field jobs still to do in the window that no person and no crew is booked on: not a schedule's activity (its
+    schedule books its crews), not an SAP order's summary, not a field operator's look."""
+    return conn.execute(
+        _JOBS + " and p.place = 'field' and p.crew is null and p.project is null and p.kind <> 'exception' "
+                "and p.start_at < %(until)s and p.end_at > %(start)s and not exists (select 1 from plan_demand_all x "
+                "join plan_resource r on r.code = x.resource where x.item_id = p.id and r.kind = 'crew') "
+                "order by p.start_at, p.id",
+        {"active": list(ACTIVE), "start": start, "until": until}).fetchall()
+
+
+def _crews_for(conn, job: dict, crews: list[dict]) -> list[tuple[str, str]]:
+    """The crews that do a job's work, best first, each with why: the crew of its SAP order's work center, a crew
+    named for its kind of work (inspection), then the crews booked on the plan's other jobs of its kind."""
+    out: dict[str, str] = {}
+    if job["source"] == "sap" and job["source_key"]:
+        wc = conn.execute("select min(l.label) as wc from entity_key k join edge x on x.src = k.fuzer_id and "
+                          "x.rel = 'done_by' join entity_label l on l.fuzer_id = x.dst where k.kind = 'work_order' "
+                          "and k.key = %s", (job["source_key"],)).fetchone()["wc"]
+        for c in crews:
+            if wc and c["work_center"] == wc:
+                out.setdefault(c["code"], f"does SAP work center {wc}'s orders")
+    kind = job["kind"].replace("_", " ")
+    for c in crews:
+        if kind in c["name"].lower():
+            out.setdefault(c["code"], f"does {kind} work")
+    for r in conn.execute(
+            "select x.resource, count(distinct p.id) as n from plan_demand_all x join plan_item p on p.id = x.item_id "
+            "join plan_resource r on r.code = x.resource and r.kind = 'crew' where p.kind = %s and p.status = any(%s) "
+            "and p.id <> %s group by 1 order by 2 desc, 1", (job["kind"], list(ACTIVE), job["id"])):
+        out.setdefault(r["resource"], f"is booked on {plural(r['n'], f'other {kind} job')}")
+    return list(out.items())
+
+
+def _rule_breaks(conn) -> set[tuple]:
+    from . import plan_rules
+
+    return {(i, b["rule"], b["say"]) for i, bs in plan_rules.breaks(conn).items() for b in bs}
+
+
+def _breaks(conn, job: dict, crew: dict, seen: set[tuple]) -> list[str]:
+    """What booking `crew` on `job` breaks, as the plan stands in this transaction: the crew over its capacity, or a
+    planner's rule broken that was not broken before."""
+    from . import plan_rules
+    from .plan import _overloads
+
+    out = [f"{crew['name']} would be {o['peak']:g} of {o['capacity']:g} from {_say(o['from'])}"
+           for o in _overloads(conn, crew["code"], job)][:1]
+    new = _rule_breaks(conn) - seen
+    if new:
+        said = {r["id"]: r["rule"]["say"] for r in conn.execute("select id, rule from plan_rule")}
+        titles = {r["id"]: r["title"] for r in plan_rules._jobs(conn)}
+        out += [f"{said.get(rule, 'a rule')}: {titles.get(i, 'a job')} {how}" for i, rule, how in sorted(new)]
+    return out
+
+
+def work_assign(conn, start: datetime, until: datetime, picks: dict) -> dict:
+    """The proposal: each unassigned field job in the window (the ones a work center names first) with the first crew
+    that does its work and can take it without going over capacity or breaking a rule, one person for the job's dates,
+    booked in turn in a savepoint and rolled back. A planner's pick (`picks`, by job id: a crew's code, or "" for none)
+    is taken as it is, with anything it breaks."""
+    crews = {c["code"]: c for c in conn.execute("select * from plan_resource where kind = 'crew' order by code")}
+    jobs = unassigned(conn, start, until)
+    options = {j["id"]: _crews_for(conn, j, list(crews.values())) for j in jobs}
+    lines = []
+    conn.execute("savepoint auto_assign")
+    try:
+        seen = _rule_breaks(conn)
+        for j in sorted(jobs, key=lambda j: (not options[j["id"]] or "work center" not in options[j["id"]][0][1],
+                                             j["start_at"], j["id"])):
+            line = {"item_id": j["id"], "title": j["title"], "kind": j["kind"], "start": j["start_at"], "end": j["end_at"],
+                    "case": j["item_id"], "order": j["source_key"] if j["source"] == "sap" else None, "crew": None,
+                    "name": None, "people": 1, "because": None, "breaks": [], "picked": str(j["id"]) in picks}
+            pick = picks.get(str(j["id"]))
+            tries = ([(pick, "picked by the planner")] if pick in crews else []) if line["picked"] else options[j["id"]]
+            tried = []
+            for code, why in tries:
+                conn.execute("savepoint crew")
+                conn.execute("insert into plan_demand (item_id, resource, quantity) values (%s, %s, 1)", (j["id"], code))
+                broken = _breaks(conn, j, crews[code], seen)
+                if broken and not line["picked"]:
+                    conn.execute("rollback to savepoint crew")
+                    conn.execute("release savepoint crew")
+                    tried.append(broken[0])
+                    continue
+                conn.execute("release savepoint crew")
+                line.update(crew=code, name=crews[code]["name"], because=why, breaks=broken)
+                seen = _rule_breaks(conn)
+                break
+            if line["crew"] is None:
+                line["because"] = ("left with no crew by the planner" if line["picked"]
+                                   else "no crew has room: " + "; ".join(tried) if tried
+                                   else "no crew's work center or work matches: pick one")
+            lines.append(line)
+    finally:
+        conn.execute("rollback to savepoint auto_assign")
+        conn.execute("release savepoint auto_assign")
+    lines.sort(key=lambda x: (x["start"], x["item_id"]))
+    return {"start": start, "until": until, "assign": lines, "moves": [], "pull_forward": [], "schedules": [],
+            "basis": "the crew of each job's SAP work center, a crew named for its kind of work, or the crews on the "
+                     "plan's other jobs of its kind, one person for the job's dates, checked against each crew's "
+                     "capacity and the planner's rules"}
+
+
+def _store_assign(conn, d: dict, picks: dict, said: tuple[str, str] | None = None) -> dict:
+    from ..core.exceptions import raise_exception
+
+    p = work_assign(conn, d["start"], d["until"], picks)
+    n = sum(1 for a in p["assign"] if a["crew"])
+    title = f"Crews for {n} of {plural(len(p['assign']), 'field job')}"
+    found = Finding("replan.auto_assign", DETERMINISTIC, method=p["basis"], start=d["start"], end=d["until"],
+                    data={"jobs": len(p["assign"]), "assigned": n},
+                    items=(fact("Field jobs with no crew", len(p["assign"])), fact("Crews proposed", n)))
+    x = raise_exception(conn, TYPE, d["key"], title, AGENT, source="plan", refs=[], priority=0.5, finding=found)
+    conn.execute(
+        """
+        insert into plan_change (key, exception_id, proposal, picks, state) values (%s, %s, %s, %s, 'open')
+        on conflict (key) do update set exception_id = excluded.exception_id, proposal = excluded.proposal,
+            picks = excluded.picks, updated_at = now()
+        """, (d["key"], x["id"], Jsonb(plain(p)), Jsonb(picks)))
+    if said:
+        _did(conn, d["key"], *said)
+    _did(conn, d["key"], AGENT, f"Proposed crews for {n} of {plural(len(p['assign']), 'field job')}", again=False)
+    return x
+
+
+def auto_assign(conn, by: str, start=None, end=None) -> dict:
+    """A planner asks for crews on the field jobs with none between `start` and `end` (from now, ASSIGN_DAYS when not
+    told): the proposal is a plan change for the maintenance planner, worked out by Fuzer. One open at a time: asking
+    again works the open one out again for the new dates, keeping the planner's picks."""
+    if gates.machine(by):
+        raise PlanError("auto-assign is asked for by a named person")
+    start = _when(start) if start else clock.aware(clock.now())
+    until = _when(end) if end else start + timedelta(days=ASSIGN_DAYS)
+    if until <= start:
+        raise PlanError("auto-assign needs an end after its start")
+    pc = conn.execute("select c.key, c.picks from plan_change c join exception_record e on e.id = c.exception_id "
+                      "where c.key like %s and c.state = 'open' and e.state = 'open' order by c.updated_at desc limit 1",
+                      (f"{ASSIGN}:%",)).fetchone()
+    key = pc["key"] if pc else f"{ASSIGN}:{clock.now():%Y%m%d%H%M%S}"
+    x = _store_assign(conn, _asked(key, start, until), dict(pc["picks"]) if pc else {},
+                      said=(by, f"Asked for crews on field jobs, {_say(start, hour=False)} to {_say(until, hour=False)}"))
+    return change(conn, x["id"])
+
+
+def pick(conn, exception_id: int, item_id: int, crew: str | None, by: str) -> dict:
+    """The planner changes one job's crew on an auto-assign plan change: a crew's code, "" for none, or None to let
+    Fuzer choose again. The proposal is worked out again around it, and says what the pick breaks."""
+    pc, d = _editable(conn, exception_id, by)
+    if d["type"] != ASSIGN:
+        raise PlanError("a crew is picked on an auto-assign plan change")
+    if not any(a["item_id"] == item_id for a in (pc["proposal"] or {}).get("assign", [])):
+        raise PlanError(f"plan change {exception_id} has no job {item_id}")
+    if crew and not conn.execute("select 1 from plan_resource where code = %s and kind = 'crew'", (crew,)).fetchone():
+        raise PlanError(f"no crew is called {crew}")
+    picks = {k: v for k, v in dict(pc["picks"]).items() if k != str(item_id)}
+    if crew is not None:
+        picks[str(item_id)] = crew
+    [job] = [a for a in pc["proposal"]["assign"] if a["item_id"] == item_id]
+    name = conn.execute("select name from plan_resource where code = %s", (crew,)).fetchone() if crew else None
+    _store_assign(conn, d, picks, said=(by, f"Picked {name['name'] if name else 'no crew'} for {job['title']}"
+                                       if crew is not None else f"Left the crew for {job['title']} to Fuzer"))
+    return change(conn, exception_id)
+
+
+def _approve_assign(conn, pc: dict, d: dict, by: str) -> dict:
+    """Book each job on its crew as proposed, refused while a line breaks a rule or a crew's capacity."""
+    from ..core.exceptions import clear_exception
+    from .plan import book
+
+    p = work_assign(conn, d["start"], d["until"], dict(pc["picks"]))
+    for a in p["assign"]:
+        if a["breaks"]:
+            raise PlanError(f"{a['title']} on {a['name']} breaks {a['breaks'][0]}: pick another crew or none")
+    booked = [a for a in p["assign"] if a["crew"]]
+    was = _state(conn)
+    for a in booked:
+        row = book(conn, a["item_id"], by, a["crew"], a["people"])
+        _note(conn, row, by, f"Booked on {a['name']}: {a['because']}")
+    conn.execute("update plan_change set state = 'approved', approved_by = %s, approved_at = now(), proposal = %s, "
+                 "changed = %s, updated_at = now() where key = %s", (by, Jsonb(plain(p)), Jsonb(_changes(conn, was)),
+                                                                    pc["key"]))
+    _did(conn, pc["key"], by, f"Approved: {plural(len(booked), 'job')} booked")
+    clear_exception(conn, TYPE, pc["key"], by, reason=f"approved by {by}: {plural(len(booked), 'job')} booked")
+    events.publish(conn, "plan.changed", f"plan_change:{pc['key']}",
+                   {"change": "crews booked", "by": by, "booked": [a["item_id"] for a in booked]})
+    return change(conn, pc["exception_id"])
+
+
+# ---- history and Revert (P5.23c) -----------------------------------------------------------------------------------
+
+# what Revert puts back on a job: its dates, the start no earlier than, its status and who it is booked on, and what
+# approving wrote on it (who moved it and why, its release cleared)
+JOB_FIELDS = ("start_at", "end_at", "not_before", "status", "crew", "moved_by", "moved_because", "released_at",
+              "released_by", "release_reason")
+_TIMES = ("start_at", "end_at", "not_before", "released_at")
+
+
+def _did(conn, key: str, by: str, did: str, again: bool = True) -> None:
+    """One thing done to a plan change, for its history: when, by whom, what. `again=False` leaves out a repeat of the
+    last thing that actor did (the detector working out the same proposal every hour)."""
+    if not again:
+        last = conn.execute("select h from plan_change, jsonb_array_elements(history) h where key = %s "
+                            "and h ->> 'by' = %s order by (h ->> 'at') desc limit 1", (key, by)).fetchone()
+        if last and last["h"]["did"] == did:
+            return
+    conn.execute("update plan_change set history = history || %s where key = %s",
+                 (Jsonb([{"at": clock.aware(clock.now()).isoformat(), "by": by, "did": did}]), key))
+
+
+def _state(conn) -> dict:
+    """Everything approving a plan change can write: every job's fields Revert puts back, every booking, every
+    capacity window."""
+    return {"jobs": {r["id"]: r for r in conn.execute(f"select id, title, code, item_id, {', '.join(JOB_FIELDS)} "
+                                                      "from plan_item")},
+            "demand": {(r["item_id"], r["resource"]): r["quantity"] for r in conn.execute("select * from plan_demand")},
+            "windows": {r["id"]: r for r in conn.execute("select id, resource, start_at, end_at, capacity, reason "
+                                                         "from plan_resource_capacity")}}
+
+
+def _changes(conn, was: dict) -> list[dict]:
+    """What changed since `was`, as the plan change keeps it: each job's fields before and after, each booking and
+    each capacity window added."""
+    now = _state(conn)
+    names = {r["code"]: r["name"] for r in conn.execute("select code, name from plan_resource")}
+    out = []
+    for i, r in now["jobs"].items():
+        b = was["jobs"].get(i)
+        fields = {f: [b[f], r[f]] for f in JOB_FIELDS if b is not None and b[f] != r[f]}
+        if fields:
+            out.append({"what": "job", "id": i, "title": r["title"], "code": r["code"], "case": r["item_id"],
+                        "fields": fields})
+    for item, res in sorted(set(was["demand"]) | set(now["demand"])):
+        if was["demand"].get((item, res)) != now["demand"].get((item, res)):
+            out.append({"what": "booking", "id": item, "resource": res, "name": names.get(res, res),
+                        "title": now["jobs"].get(item, {}).get("title"), "before": was["demand"].get((item, res)),
+                        "after": now["demand"].get((item, res))})
+    for wid in sorted(set(now["windows"]) - set(was["windows"])):
+        w = now["windows"][wid]
+        out.append({"what": "capacity", "id": wid, "resource": w["resource"], "name": names.get(w["resource"]),
+                    "title": w["reason"], "start": w["start_at"], "end": w["end_at"], "before": None,
+                    "after": w["capacity"]})
+    return plain(out)
+
+
+def revert(conn, exception_id: int, by: str) -> dict:
+    """A maintenance planner reverts an approved plan change: each job, booking and capacity window it changed is put
+    back as it was, each SAP change it queued and not yet sent is dropped, and the moved jobs' cases and the plan
+    change's own case say so. Refused, naming them, when any of it has changed again since: those are put back by
+    hand."""
+    from . import writeback
+
+    if gates.machine(by):
+        raise PlanError("a plan change is reverted by a named person")
+    pc, d = _open(conn, exception_id)
+    if pc["state"] != "approved":
+        raise PlanError(f"plan change {exception_id} is {pc['state']}: only an approved one is reverted")
+    if PLANNER not in work.roles_of(conn, by):
+        raise PlanError(f"{by} isn't a maintenance planner: a planner reverts a plan change")
+    now = _state(conn)
+    stale = []
+    for x in pc["changed"]:
+        if x["what"] == "job":
+            r = now["jobs"].get(x["id"])
+            if r is None or any(plain(r[f]) != after for f, (_, after) in x["fields"].items()):
+                stale.append(x["title"])
+        elif x["what"] == "booking" and now["demand"].get((x["id"], x["resource"])) != x["after"]:
+            stale.append(f"{x['title']} on {x['name']}")
+        elif x["what"] == "capacity" and x["id"] not in now["windows"]:
+            stale.append(x["title"])
+    if stale:
+        raise PlanError(f"changed again since it was approved: {', '.join(sorted(set(stale))[:5])}. Put those back by hand")
+    for x in pc["changed"]:
+        if x["what"] == "job":
+            sets = {f: _when(b) if b and f in _TIMES else b for f, (b, _) in x["fields"].items()}
+            row = conn.execute("update plan_item set " + ", ".join(f"{f} = %({f})s" for f in sets) +
+                               ", updated_by = %(by)s, updated_at = now() where id = %(id)s returning *",
+                               {**sets, "by": by, "id": x["id"]}).fetchone()
+            if "start_at" in sets and row["item_id"]:
+                _note(conn, row, by, f"Moved back to {_say(row['start_at'])}: the plan change was reverted")
+        elif x["what"] == "booking":
+            if x["before"] is None:
+                conn.execute("delete from plan_demand where item_id = %s and resource = %s", (x["id"], x["resource"]))
+            else:
+                conn.execute("insert into plan_demand (item_id, resource, quantity) values (%s, %s, %s) on conflict "
+                             "(item_id, resource) do update set quantity = excluded.quantity",
+                             (x["id"], x["resource"], x["before"]))
+        elif x["what"] == "capacity":
+            conn.execute("delete from plan_resource_capacity where id = %s", (x["id"],))
+    sent = []
+    for wid in pc["writebacks"]:
+        try:
+            writeback.reject(conn, wid, by, reason="the plan change was reverted")
+        except writeback.WritebackError:
+            sent.append(writeback.get(conn, wid)["record"])
+    did = f"Reverted: {plural(len(pc['changed']), 'change')} put back" + (
+        f"; SAP order {', '.join(str(r) for r in sent)} was already approved to go: change it there" if sent else "")
+    conn.execute("update plan_change set state = 'reverted', reverted_by = %s, reverted_at = now(), updated_at = now() "
+                 "where key = %s", (by, pc["key"]))
+    _did(conn, pc["key"], by, did)
+    if pc["case_id"]:
+        work.comment(conn, pc["case_id"], by, did)
+    events.publish(conn, "plan.changed", f"plan_change:{pc['key']}",
+                   {"change": "plan change reverted", "by": by, "put_back": len(pc["changed"]), "because": d["say"]})
     return change(conn, exception_id)

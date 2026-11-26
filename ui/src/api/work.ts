@@ -994,14 +994,32 @@ export interface PlanChange {
   exception_id: number; key: string; say: string; constraint: string; start: string; until: string;
   cause_case: number | null; open: boolean; forms: string[]; constraints: { text: string; form: string }[];
   /** Once a maintenance planner approves it (P5.21c): who and when, the SAP schedule changes queued, the notices. */
-  state: "open" | "approved"; approved_by: string | null; approved_at: string | null;
+  state: "open" | "approved" | "reverted"; approved_by: string | null; approved_at: string | null;
+  /** What was done to it (P5.23c): when, by whom (Fuzer or a person), what; once approved, what it changed, before
+   * and after; and who reverted it. */
+  history: { at: string; by: string; did: string }[]; changed: PlanChanged[];
+  reverted_by: string | null; reverted_at: string | null;
   writebacks: { id: number; record: string | null; state: string; item_id: number | null; approver_role: string }[];
   notices: PlanNotice[];
+  /** The plan change's own case; and on an auto-assign one (P5.23b), the planner's picks by job id. */
+  case: number | null; picks: Record<string, string>;
   proposal: {
     moves: PlanMove[]; schedules: string[]; basis: string;
     pull_forward: { item_id: number; title: string; start: string; end: string; order: string | null; because: string }[];
-    kpis: { before: PlanKpis; after: PlanKpis; start: string; days: number };
+    /** Absent on an auto-assign plan change, which moves nothing. */
+    kpis?: { before: PlanKpis; after: PlanKpis; start: string; days: number };
+    /** Auto-assign (P5.23b): the crew proposed for each field job with none, why, and anything a pick breaks. */
+    assign?: PlanAssign[];
   } | null;
+}
+export type PlanChanged =
+  | { what: "job"; id: number; title: string; code: string | null; case: number | null; fields: Record<string, [unknown, unknown]> }
+  | { what: "booking"; id: number; resource: string; name: string; title: string | null; before: number | null; after: number | null }
+  | { what: "capacity"; id: number; resource: string; name: string | null; title: string | null; start: string; end: string;
+      before: null; after: number };
+export interface PlanAssign {
+  item_id: number; title: string; kind: string; start: string; end: string; case: number | null; order: string | null;
+  crew: string | null; name: string | null; people: number; because: string; breaks: string[]; picked: boolean;
 }
 export interface ResourceLoad {
   code: string; name: string; kind: string; unit: string | null; capacity: number; work_center: string | null; sources: string[];
@@ -1054,6 +1072,15 @@ export interface PlanItem {
    * job a crew flies for; `limited_by` is the reason of any capacity window behind it (weather, leave). */
   over_capacity?: { key: string; resource: string; name: string; kind: string; unit: string | null; from: string; to: string;
     peak: number; capacity: number; over_by: number; limited_by: string[] }[];
+  /** The planner's rules it breaks (asked for with `rules`): the rule said back and how this job breaks it. */
+  breaks?: { rule: number; rule_say: string; say: string }[];
+}
+
+/** A rule a planner typed in words on Plan (P5.23a), as read and said back, on or off, with the jobs breaking it. */
+export interface PlanRule {
+  id: number; text: string; form: "deadline" | "duration" | "gap" | "overlap" | "sequence"; say: string; on: boolean;
+  created_by: string; created_at: string;
+  breaks: { item_id: number; title: string; code: string | null; start: string; end: string; say: string }[];
 }
 
 /** What a job needs before it is released: each prerequisite satisfied or not, with what holds it. */
@@ -1230,9 +1257,10 @@ export const workApi = {
   planAtRisk: (start?: string, days = 90) => request<AtRisk>("GET", "/plan/at-risk", { start, days }),
   /** `active` keeps the work still to do: proposed, scheduled or in progress. */
   plan: (f: { start?: string; end?: string; area?: string; status?: string; subject?: string; within?: string; active?: boolean;
-              overCapacity?: boolean } = {}) => {
-    const { overCapacity, ...rest } = f;
-    return request<PlanItem[]>("GET", "/plan", { ...rest, active: f.active ? "true" : undefined, over_capacity: overCapacity ? "true" : undefined });
+              overCapacity?: boolean; rules?: boolean } = {}) => {
+    const { overCapacity, rules, ...rest } = f;
+    return request<PlanItem[]>("GET", "/plan", { ...rest, active: f.active ? "true" : undefined, over_capacity: overCapacity ? "true" : undefined,
+                                                 rules: rules ? "true" : undefined });
   },
   planChange: (id: number, by: string, change: Partial<{ start: string; end: string; status: string; crew: string; place: "field" | "desk" }>,
     project?: string) =>
@@ -1277,12 +1305,21 @@ export const workApi = {
   scheduleLink: (by: string, pred: number, succ: number, type: ScheduleLinkRef["type"], lag_hours: number) =>
     request<unknown>("POST", "/plan/schedules/links", undefined, { by, pred, succ, type, lag_hours }),
   scheduleUnlink: (by: string, pred: number, succ: number) => request<unknown>("DELETE", "/plan/schedules/links", { by, pred, succ }),
+  planRules: () => request<PlanRule[]>("GET", "/plan/rules"),
+  planRuleAdd: (by: string, text: string) => request<PlanRule[]>("POST", "/plan/rules", undefined, { by, text }),
+  planRuleSwitch: (id: number, by: string, on: boolean) => request<PlanRule[]>("PATCH", `/plan/rules/${id}`, undefined, { by, on }),
+  planRuleRemove: (id: number, by: string) => request<PlanRule[]>("DELETE", `/plan/rules/${id}`, { by }),
   planChangeOf: (id: number) => request<PlanChange>("GET", `/plan/changes/${id}`),
   planConstraint: (id: number, by: string, text: string) =>
     request<PlanChange>("POST", `/plan/changes/${id}/constraints`, undefined, { by, text }),
   planConstraintRemove: (id: number, by: string, n: number) =>
     request<PlanChange>("DELETE", `/plan/changes/${id}/constraints/${n}`, { by }),
+  planAutoAssign: (by: string, start: string, end: string) =>
+    request<PlanChange>("POST", "/plan/auto-assign", undefined, { by, start, end }),
+  planAssignPick: (id: number, by: string, item: number, crew: string | null) =>
+    request<PlanChange>("PUT", `/plan/changes/${id}/assign/${item}`, undefined, { by, crew }),
   planChangeApprove: (id: number, by: string) => request<PlanChange>("POST", `/plan/changes/${id}/approve`, undefined, { by }),
+  planChangeRevert: (id: number, by: string) => request<PlanChange>("POST", `/plan/changes/${id}/revert`, undefined, { by }),
   planNoticeSend: (id: number, n: number, by: string, text: string) =>
     request<PlanChange>("POST", `/plan/changes/${id}/notices/${n}/send`, undefined, { by, text }),
   resourceLoad: (f: { resource?: string; start?: string; days?: number } = {}) =>

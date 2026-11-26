@@ -12370,7 +12370,8 @@ const planMove = (start, end, because) => ({ item_id: 301, title: "Compressor va
   before: { start: "2026-11-20T08:00:00Z", end: "2026-11-20T16:00:00Z" }, after: { start, end }, hours: 24, because });
 const planChangeOf = (constraints, move) => ({ exception_id: 12, key: "plan_change:machine_trip:7", say: "20-K-2200B tripped",
   constraint: "no work that needs it running until 21 Nov 08:00", start: "2026-11-20T08:00:00Z", until: "2026-11-21T08:00:00Z",
-  cause_case: 7, open: true, forms: ["keep A0200 on 12 Apr", "no crane work before 10 Apr", "crew MECH max 4"], constraints,
+  cause_case: 7, case: 40, picks: {}, history: [], changed: [], reverted_by: null, reverted_at: null, open: true,
+  forms: ["keep A0200 on 12 Apr", "no crane work before 10 Apr", "crew MECH max 4"], constraints,
   proposal: { moves: [move], schedules: [], basis: "Fuzer's levelling and constraint check on the plan as it stands",
     pull_forward: [{ item_id: 302, title: "Seal oil filter change", start: "2026-11-24T08:00:00Z", end: "2026-11-24T12:00:00Z",
       order: "50000310", because: "needs 20-K-2200B stopped, and it is stopped until 21 Nov 08:00" }],
@@ -12497,6 +12498,206 @@ for (const [size, viewport] of PHONE_DESK) {
     await coming.getByText("Moved because 20-K-2200B tripped", { exact: true }).waitFor();
     await page.locator(".field-job", { hasText: "Compressor valve inspection" })
       .getByText("Moved because 20-K-2200B tripped", { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}
+
+// ---- P5.23a (#1420): a rule typed in words on Plan marks the jobs breaking it -----------------------------------------
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.23a a rule typed in words is said back, marks the tiles breaking it, and switches off (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "pat"));
+    const hour = (h) => new Date(Date.now() + h * 3_600_000).toISOString();
+    const base = { source: "schedule", area_id: "fz-area-0123456789ab", area_label: "GGCP", crew: null, crew_hours: null, deferment_usd: null,
+      notes: null, status: "proposed", needs_shutdown: false, clashes: [], parts_short: [], exception_id: null, subjects: [], assets: [],
+      over_capacity: [] };
+    const late = { rule: 1, rule_say: "A0130 done by Wed 15 Apr 00:00", say: "finishes Thu 16 Apr 06:00, after Wed 15 Apr 00:00" };
+    const rule = { id: 1, text: "A0130 done by 14 Apr", form: "deadline", say: late.rule_say, on: true, created_by: "pat",
+      created_at: hour(0), breaks: [{ item_id: 47, title: "Box up, align and couple 20-K-2200B", code: "A0130", start: hour(2),
+        end: hour(20), say: late.say }] };
+    let on = false, rules = [];
+    const items = () => [
+      { ...base, id: 47, kind: "turnaround", code: "A0130", title: "Box up, align and couple 20-K-2200B", start_at: hour(2), end_at: hour(20),
+        breaks: on ? [late] : [] },
+      { ...base, id: 45, kind: "turnaround", code: "A0110", title: "Replace 20-K-2200B bearings", start_at: hour(1), end_at: hour(10), breaks: [] },
+    ];
+    const asked = [], sent = [];
+    await page.route("**/plan?*", (route) => { asked.push(Object.fromEntries(new URL(route.request().url()).searchParams)); return route.fulfill({ json: items() }); });
+    await page.route("**/plan/rules", (route) => {
+      if (route.request().method() === "GET") return route.fulfill({ json: rules });
+      const body = route.request().postDataJSON();
+      sent.push(body);
+      if (body.text === "keep the fitters happy") return route.fulfill({ status: 400,
+        json: { detail: "Fuzer reads five forms: A0130 done by 15 Apr; no job longer than 36 h; at least 12 h between jobs on MECH; no overlap on crane; A0220 before A0130" } });
+      on = true; rules = [rule];
+      return route.fulfill({ json: rules });
+    });
+    await page.route("**/plan/rules/1", (route) => {
+      const body = route.request().postDataJSON();
+      sent.push(body);
+      on = body.on; rules = [{ ...rule, on, breaks: on ? rule.breaks : [] }];
+      return route.fulfill({ json: rules });
+    });
+    await page.goto(`${url}/#/plan`);
+    await page.getByRole("heading", { name: "GGCP", exact: true }).waitFor();
+    assert.equal(asked.at(-1).rules, "true", "Plan asks for the rules each job breaks");
+    const card = page.locator(".plan-rules");
+    await card.getByLabel("Rule").fill("keep the fitters happy");
+    await card.getByRole("button", { name: "Add rule" }).click();
+    await card.getByText("Fuzer reads five forms", { exact: false }).waitFor();
+    await card.getByLabel("Rule").fill("A0130 done by 14 Apr");
+    await card.getByRole("button", { name: "Add rule" }).click();
+    // said back as read, with the job breaking it, and the job's tile marked on the plan
+    const list = card.getByRole("list", { name: "Rules" });
+    await list.getByRole("checkbox", { name: "A0130 done by Wed 15 Apr 00:00" }).waitFor();
+    await list.getByText("deadline", { exact: true }).waitFor();
+    await card.getByRole("link", { name: "Box up, align and couple 20-K-2200B" }).waitFor();
+    assert.deepEqual(sent.at(-1), { by: "pat", text: "A0130 done by 14 Apr" });
+    const job = page.getByRole("button", { name: /Box up, align and couple 20-K-2200B/ });
+    await job.getByText("breaks a rule", { exact: true }).waitFor();
+    assert.equal(await page.locator("#plan-item-47 .plan-bar.breaks").count(), 1);
+    assert.equal(await page.locator("#plan-item-45 .plan-bar.breaks").count(), 0);
+    await page.locator(".ui-badge", { hasText: "1 breaking a rule" }).first().waitFor();
+    await job.click();
+    await page.locator(".plan-detail").getByText(`${late.rule_say}: ${late.say}.`, { exact: false }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    // switched off, it stays said back and marks nothing
+    await list.getByRole("checkbox", { name: "A0130 done by Wed 15 Apr 00:00" }).click();
+    await page.locator("#plan-item-47 .plan-bar:not(.breaks)").waitFor();
+    assert.deepEqual(sent.at(-1), { by: "pat", on: false });
+    assert.equal(await job.getByText("breaks a rule", { exact: true }).count(), 0);
+    assert.equal(await list.getByRole("checkbox", { name: "A0130 done by Wed 15 Apr 00:00" }).isChecked(), false);
+    assert.deepEqual(errors, []);
+  });
+}
+
+// ---- P5.23b (#1421): auto-assign proposes a crew for each field job with none, as a plan change to review ----------
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.23b Auto-assign on Plan proposes crews as a plan change, the planner picks one, and approves (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "pat"));
+    const line = (item_id, title, kind, crew, name, because, extra = {}) => ({ item_id, title, kind, start: "2025-10-15T00:00:00Z",
+      end: "2025-10-16T00:00:00Z", case: null, order: null, crew, name, people: 1, because, breaks: [], picked: false, ...extra });
+    const ndt = line(89, "Statutory internal inspection, 2nd stage suction scrubber", "inspection", "NDT",
+      "Inspection and NDT technicians", "does inspection work");
+    const left = line(124, "Statutory internal inspection, 1st stage suction scrubber", "inspection", null, null,
+      "no crew has room: no two jobs on Inspection and NDT technicians at the same time: at the same time as “Statutory internal inspection, 2nd stage suction scrubber”");
+    const sap = line(22, "Preventive maintenance ST1 production separator", "maintenance", "MECH", "Mechanical fitters",
+      "does SAP work center MECH's orders", { order: "50000276" });
+    const change = (assign, extra = {}) => ({ exception_id: 14, key: "auto_assign:20251001", say: "Field jobs with no crew",
+      constraint: "a crew proposed for each, Wed 01 Oct to Mon 20 Oct", start: "2025-10-01T00:00:00Z", until: "2025-10-20T00:00:00Z",
+      cause_case: null, case: 42, picks: {}, history: [], changed: [], reverted_by: null, reverted_at: null, open: true, forms: [], constraints: [], state: "open", approved_by: null, approved_at: null,
+      writebacks: [], notices: [], proposal: { assign, moves: [], schedules: [], pull_forward: [], basis: "the crew of each job's SAP work center" },
+      ...extra });
+    let current = change([sap, ndt, left]);
+    const calls = [];
+    await page.route("**/plan?*", (route) => route.fulfill({ json: [] }));
+    await page.route("**/plan/auto-assign", (route) => { calls.push(["ask", route.request().postDataJSON()]); return route.fulfill({ json: current }); });
+    const item = { ...demoTask.item, id: 42, title: "Crews for 2 of 3 field jobs", type: "plan_change", state: "open", closed_at: null,
+      processes: [], events: [], sources: [{ ...planSource(14), key: "plan_change:auto_assign:20251001" }] };
+    await page.route("**/work/items/42", (route) => route.fulfill({ json: item }));
+    await page.route("**/plan/changes/14", (route) => route.fulfill({ json: current }));
+    await page.route("**/plan/resources", (route) => route.fulfill({ json: [
+      { code: "MECH", name: "Mechanical fitters", kind: "crew", capacity: 6, counts: [] },
+      { code: "NDT", name: "Inspection and NDT technicians", kind: "crew", capacity: 2, counts: [] },
+      { code: "CRANE", name: "Platform crane", kind: "crane", capacity: 1, counts: [] }] }));
+    await page.route("**/plan/changes/14/assign/124", (route) => {
+      const body = route.request().postDataJSON();
+      calls.push(["pick", body]);
+      current = change([sap, ndt, body.crew === "NDT"
+        ? { ...left, crew: "NDT", name: "Inspection and NDT technicians", because: "picked by the planner", picked: true,
+            breaks: ["no two jobs on Inspection and NDT technicians at the same time: Statutory internal inspection, 1st stage suction scrubber at the same time as “Statutory internal inspection, 2nd stage suction scrubber”"] }
+        : { ...left, crew: body.crew, name: "Mechanical fitters", because: "picked by the planner", picked: true }]);
+      return route.fulfill({ json: current });
+    });
+    await page.route("**/plan/changes/14/approve", (route) => {
+      calls.push(["approve", route.request().postDataJSON()]);
+      current = { ...current, open: false, state: "approved", approved_by: "pat", approved_at: "2025-10-01T09:00:00Z" };
+      return route.fulfill({ json: current });
+    });
+    await page.goto(`${url}/#/plan`);
+    await page.getByRole("button", { name: "Auto-assign" }).click();
+    await page.waitForURL(/#\/cases\/42$/);
+    assert.equal(calls[0][0], "ask");
+    assert.equal(calls[0][1].by, "pat");
+    assert.ok(calls[0][1].start && calls[0][1].end, "for the dates Plan shows");
+    const card = page.locator(".replan");
+    const table = card.getByRole("table", { name: "Crews proposed" });
+    await table.getByText("does SAP work center MECH's orders").waitFor();
+    await table.getByText(/^no crew has room: no two jobs on Inspection and NDT technicians/).waitFor();
+    assert.equal(await table.getByLabel("Crew for Statutory internal inspection, 2nd stage suction scrubber").inputValue(), "NDT");
+    // a pick that breaks a rule says what it breaks
+    const pick = table.getByLabel("Crew for Statutory internal inspection, 1st stage suction scrubber");
+    await pick.selectOption("NDT");
+    await table.getByText(/^breaks no two jobs on Inspection and NDT technicians at the same time: Statutory/).waitFor();
+    assert.deepEqual(calls.at(-1), ["pick", { by: "pat", crew: "NDT" }]);
+    await pick.selectOption("MECH");
+    await table.getByText("breaks", { exact: true }).waitFor({ state: "detached" });
+    assert.deepEqual(calls.at(-1), ["pick", { by: "pat", crew: "MECH" }]);
+    assert.equal(await pick.inputValue(), "MECH");
+    await card.getByRole("button", { name: "Approve" }).click();
+    await page.getByRole("dialog").getByText("Book these 3 jobs on the crews proposed?").waitFor();
+    await page.getByRole("dialog").getByRole("button", { name: "Approve", exact: true }).click();
+    await card.getByText("Approved by", { exact: false }).waitFor();
+    assert.deepEqual(calls.at(-1), ["approve", { by: "pat" }]);
+    assert.equal(await table.getByRole("combobox").count(), 0, "once approved the crews are no longer picked");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+  });
+}
+
+// ---- P5.23c (#1422): an agent's plan change lists what was done to it and what it changed, and Revert puts it back --
+for (const [size, viewport] of PHONE_DESK) {
+  test(`P5.23c a plan change lists its history and what it changed, and Revert puts the plan back (${size})`, async () => {
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() => localStorage.setItem("fuzer.reviewer", "pat"));
+    const item = { ...demoTask.item, id: 40, title: "Plan change to review", type: "plan_change", state: "done", closed_at: null,
+      processes: [], events: [], sources: [planSource(12)] };
+    await page.route("**/work/items/40", (route) => route.fulfill({ json: item }));
+    const history = [
+      { at: "2026-11-20T08:05:00Z", by: "agent:planner", did: "Worked out: 1 planned job to move" },
+      { at: "2026-11-20T09:00:00Z", by: "pat", did: "Approved: 1 job moved, 1 SAP change queued, 1 notice drafted" }];
+    const changed = [{ what: "job", id: 301, title: "Compressor valve inspection", code: null, case: 41,
+      fields: { start_at: ["2026-11-20T08:00:00Z", "2026-11-21T08:00:00Z"], end_at: ["2026-11-20T16:00:00Z", "2026-11-21T16:00:00Z"],
+        moved_because: [null, "20-K-2200B tripped"] } },
+      { what: "capacity", id: 9, resource: "MECH", name: "Mechanical fitters", title: "Plan change: crew MECH max 1",
+        start: "2026-11-20T08:00:00Z", end: "2027-02-18T08:00:00Z", before: null, after: 1 }];
+    const notice = { n: 0, audience: "field", to: "sam", name: "sam", jobs: [301], sent_by: null, sent_at: null,
+      text: "20-K-2200B tripped. Your job moved." };
+    const approved = { ...planChangeOf([], planMove("2026-11-21T08:00:00Z", "2026-11-21T16:00:00Z", "20-K-2200B tripped")),
+      open: false, state: "approved", approved_by: "pat", approved_at: "2026-11-20T09:00:00Z", history, changed, notices: [notice],
+      writebacks: [{ id: 21, record: "50000303", state: "awaiting_approval", item_id: 55, approver_role: "maintenance_planner" }] };
+    let current = approved;
+    const calls = [];
+    await page.route("**/plan/changes/12", (route) => route.fulfill({ json: current }));
+    await page.route("**/plan/changes/12/revert", (route) => {
+      calls.push(route.request().postDataJSON());
+      current = { ...approved, state: "reverted", reverted_by: "pat", reverted_at: "2026-11-20T10:00:00Z",
+        writebacks: [{ ...approved.writebacks[0], state: "rejected" }],
+        history: [...history, { at: "2026-11-20T10:00:00Z", by: "pat", did: "Reverted: 4 changes put back" }] };
+      return route.fulfill({ json: current });
+    });
+    await page.goto(`${url}/#/cases/40`);
+    const card = page.locator(".replan");
+    const steps = card.getByRole("list", { name: "History" });
+    await steps.getByText(/Worked out: 1 planned job to move/).waitFor();
+    await steps.getByText(/Approved: 1 job moved/).waitFor();
+    const table = card.getByRole("table", { name: "What it changed" });
+    assert.equal(await table.getByRole("link", { name: "Compressor valve inspection" }).first().getAttribute("href"), "#/cases/41");
+    await table.getByText("Moved because", { exact: true }).waitFor();
+    await table.getByText("20-K-2200B tripped", { exact: true }).waitFor();
+    await table.getByText(/^Mechanical fitters from /).waitFor();
+    assert.equal(await table.getByText("Start", { exact: true }).count(), 1);
+    await card.getByRole("button", { name: "Revert" }).click();
+    await page.getByRole("dialog").getByText("Put back the 2 changes it made? SAP changes not yet sent are dropped.").waitFor();
+    await page.getByRole("dialog").getByRole("button", { name: "Revert", exact: true }).click();
+    await card.getByText("Reverted by", { exact: false }).waitFor();
+    assert.deepEqual(calls, [{ by: "pat" }]);
+    await steps.getByText(/Reverted: 4 changes put back/).waitFor();
+    await card.getByRole("list", { name: "SAP changes" }).getByText("rejected", { exact: false }).waitFor();
+    assert.equal(await card.getByRole("button", { name: "Revert" }).count(), 0);
+    assert.equal(await card.getByLabel("Notice to sam").isDisabled(), true, "nothing moved, so nothing to tell");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.deepEqual(errors, []);
   });

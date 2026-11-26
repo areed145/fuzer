@@ -1940,6 +1940,21 @@ Re-planning when something breaks (P5.21, ops/replan.py): a trip, a late part or
 | `proposal` | jsonb, | the moves, their reasons and the KPIs before and after |
 | `updated_at` | timestamptz |  |
 
+### `plan_rule`
+
+Plan rules (P5.23a, ops/plan_rules.py): a rule a planner typed in words on Plan, as read (deadline, duration, gap, overlap or sequence) and said back. Checked against every job still to do while it is on; Plan marks each job breaking it.
+
+| Column | Type | Note |
+|---|---|---|
+| `id` | bigserial |  |
+| `text` | text | as the planner typed it |
+| `rule` | jsonb | as read: its form, what it names and `say`, the rule in words |
+| `enabled` | boolean | switched off, it stays and marks nothing |
+| `created_by` | text |  |
+| `created_at` | timestamptz |  |
+| `updated_by` | text |  |
+| `updated_at` | timestamptz |  |
+
 ### `source_closeout`
 
 Close-outs back to the source (#466, ops/closeout.py): what the field did, drafted as an update for the system that raised the work (complete the record, or a follow-up when the field could not do it), approved on the planner's Inbox (or sent directly) and published as source.update for the system's adapter.

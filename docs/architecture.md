@@ -414,6 +414,7 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `plan_project`
     - `plan_resource`
     - `plan_resource_capacity`
+    - `plan_rule`
     - `point_baseline`
     - `point_daily`
     - `promoted_rule`
@@ -472,6 +473,7 @@ The scheduled loop: SRE detection and grouping, hand-off, the board, daily repor
     - `plan_project`
     - `plan_resource`
     - `plan_resource_capacity`
+    - `plan_rule`
     - `point_baseline`
     - `point_daily`
     - `promoted_rule`
