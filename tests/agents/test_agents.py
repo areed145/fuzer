@@ -529,6 +529,7 @@ def test_eval_scores_answers(conn, okan_pack):
     assert len(keys) == 29 and all(k["must_mention"] for k in keys)
     # Every question names its specialists, except an emergency, which the orchestrator answers at once.
     assert [k["domain"] for k in keys if not k["specialists"]] == ["escalation"]
-    assert {s for k in keys for s in k["specialists"]} == set(agents.SPECIALISTS)  # a key per domain, none retired
+    # a key per domain, none retired; Okan has no pipeline, so the pipelines specialist is asked on Harrier (P4.7)
+    assert {s for k in keys for s in k["specialists"]} == set(agents.SPECIALISTS) - {"pipelines-commercial"}
     assert {k for c in keys for k in c.get("charts", [])} <= {"decline", "wall_ranking", "wall_thickness", "pump_curve",
                                                              "choke"}
